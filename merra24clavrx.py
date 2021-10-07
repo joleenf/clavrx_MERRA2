@@ -101,7 +101,7 @@ rs = {
         'in_file': 'ana',
         'in_varname': 'SLP',
         'out_units': 'hPa',
-        'units_fn': lambda a: a/100.0,
+        'units_fn': lambda a: a/100.0, # scale factor for Pa --> hPa
         'ndims_out': 2
         },
     'temperature': {
@@ -115,14 +115,14 @@ rs = {
         'in_file': 'ana',
         'in_varname': 'PS',
         'out_units': 'hPa',
-        'units_fn': lambda a: a/100.0,
+        'units_fn': lambda a: a/100.0, # scale factor for Pa --> hPa
         'ndims_out': 2
         },
     'height': { 
         'in_file': 'ana',
         'in_varname': 'H',
         'out_units': 'km',
-        'units_fn': lambda a: a/1000.0, # XXX scale factor for geopotential height -> height?
+        'units_fn': lambda a: a/1000.0, # scale factor for m --> km
         'ndims_out': 3
         },
     'u-wind': {
@@ -165,7 +165,7 @@ rs = {
         'in_file': 'slv',
         'in_varname': 'TROPPT',
         'out_units': 'hPa',
-        'units_fn': lambda a: a/100.0,
+        'units_fn': lambda a: a/100.0, # scale factor for Pa --> hPa
         'ndims_out': 2
         },
     'tropopause temperature': {
@@ -621,7 +621,13 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                 times[k].append((i, time))
                 time_set[k].add(time)
         # find set of time common to all input files
-        common_times = time_set['ana'] & time_set['flx'] & time_set['slv']
+        common_times = (time_set['ana'] & 
+                        time_set['flx'] & 
+                        time_set['slv'] &
+                        time_set['lnd'] &
+                        time_set['asm3d'] &
+                        time_set['asm2d'] &
+                        time_set['rad'])
 
         # if we don't have 4 common times something is probably terribly wrong
         assert len(common_times) == 4
