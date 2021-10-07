@@ -96,7 +96,7 @@ def kgkg_to_dobson(data):
 # the merra4clavrx rosetta stone
 # one key for each output var
 rs = {
-    # --- data vars from 'ana'
+    # --- data vars from 'inst6_3d_(ana)_Np'
     'MSL pressure': {
         'in_file': 'ana',
         'in_varname': 'SLP',
@@ -160,7 +160,7 @@ rs = {
         'units_fn': no_conversion,
         'ndims_out': 3
         },
-    # --- data vars from 'slv'
+    # --- data vars from 'tavg1_2d_(slv)_Nx'
     'tropopause pressure': {
         'in_file': 'slv',
         'in_varname': 'TROPPT',
@@ -210,7 +210,7 @@ rs = {
         'units_fn': fill_bad, # XXX how to get p at sigma=0.995 for RH conversion?
         'ndims_out': 2
         },
-    # --- data vars from 'flx'
+    # --- data vars from 'tavg1_2d_(flx)_Nx'
     'planetary boundary layer height': {
         'in_file': 'flx',
         'in_varname': 'PBLH',
@@ -218,32 +218,42 @@ rs = {
         'units_fn': no_conversion,
         'ndims_out': 2
         },
-    'ice fraction': {
+    'sea ice fraction': {
         'in_file': 'flx',
         'in_varname': 'FRSEAICE',
         'out_units': 'none',
         'units_fn': no_conversion,
         'ndims_out': 2
         },
-    # --- data vars from 'mld'
-    # BTH: Removing mld block, doesn't appear to exist in MERRA2?
-#    'water equivalent snow depth': {
-#        'in_file': 'mld',
-#        'in_varname': 'snomas',
-#        'out_units': 'kg/m^2',
-#        # Careful, CFSR units are mislabeled! They are actually [kg/m^2]
-#        # also, so no conversion necessary.
-#        # However, there is special case in do_conversion that will set fill
-#        # values to zero!
-#        'units_fn': no_conversion,
-#        'ndims_out': 2
-#        },
-    # --- data vars from 'lnd'
+    # --- data vars from 'tavg1_2d_(lnd)_Nx'
     'water equivalent snow depth': {
         'in_file': 'lnd',
         'in_varname': 'SNOMAS',
         'out_units': 'kg/m^2',
         'units_fn': no_conversion, # special case in do_conversion will set fill values to zero
+        'ndims_out': 2
+        },
+    # --- data vars from 'inst3_3d_(asm)_Np'
+    'cloud liquid water mixing ratio': {
+        'in_file': 'asm3d',
+        'in_varname': 'QL',
+        'out_units': 'kg/kg',
+        'units_fn': no_conversion,
+        'ndims_out': 3
+        },
+    'cloud ice water mixing ratio': {
+        'in_file': 'asm3d',
+        'in_varname': 'QI',
+        'out_units': 'kg/kg',
+        'units_fn': no_conversion,
+        'ndims_out': 3
+        },
+    # --- data vars from 'inst1_2d_(asm)_Nx
+    'total column water vapor': {
+        'in_file': 'asm2d',
+        'in_varname': 'TQV',
+        'out_units': 'kg/m^2',
+        'units_fn': no_conversion,
         'ndims_out': 2
         },
     # --- geoloc vars from 'ana'
@@ -619,14 +629,14 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                             rsk['ndims_out']
                         ).do_conversion(sd, time_inds[rsk['in_file']])
 
-            # --- handle height from static land mask specially
+            # --- handle surface height and static land mask from constants (mask_file) specially
             sd['mask'] = Dataset(mask_file)
             MerraConversion(
                         'mask', 
                         'PHIS',
                         'surface height',
                         'km',
-                        lambda a: a / 10000.,
+                        lambda a: a / 9806.65, # Convert geopotential (m^2 s^-2) to geopotential height via h/(1000.*g)
                         2
                     ).do_conversion(sd, 0)
             MerraConversion(
@@ -637,6 +647,24 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                         _merra_land_mask,
                         2
                     ).do_conversion(sd, 0)
+            # --- handle ice-fraction and land ice-fraction from constants (mask_file) specially
+            MerraConversion(
+                        'mask',
+                        'FRACI',
+                        'ice fraction',
+                        'none',
+                        no_conversion,
+                        2
+                    ).do_conversion(sd, 0)
+            MerraConversion(
+                        'mask',
+                        'FRLANDICE',
+                        'land ice fraction',
+                        'none',
+                        no_conversion,
+                        2
+                    ).do_conversion(sd, 0)
+
 
             # --- write global attributes
             var = sd['out'].select('temperature')
@@ -705,6 +733,10 @@ if __name__ == '__main__':
             'slv': glob(inpath_full + '2d_slv/MERRA2*slv_Nx.' + 
                 date_str_arg + '.nc4')[0],
             'lnd': glob(inpath_full + '2d_lnd/MERRA2*lnd_Nx.' + 
+                date_str_arg + '.nc4')[0],
+            'asm3d': glob(inpath_full + '3d_asm/MERRA2*asm_Np.' +
+                date_str_arg + '.nc4')[0],
+            'asm2d': glob(inpath_full + '2d_asm/MERRA2*asm_Nx.' +
                 date_str_arg + '.nc4')[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
