@@ -210,6 +210,20 @@ rs = {
         'units_fn': fill_bad, # XXX how to get p at sigma=0.995 for RH conversion?
         'ndims_out': 2
         },
+    'u-wind at 50M': { # not actually exactly sigma=0.995???
+        'in_file': 'slv',
+        'in_varname': 'U50M',
+        'out_units': 'm/s',
+        'units_fn': no_conversion,
+        'ndims_out': 2
+        },
+    'v-wind at 50M': { # not actually exactly sigma=0.995???
+        'in_file': 'slv',
+        'in_varname': 'V50M',
+        'out_units': 'm/s',
+        'units_fn': no_conversion,
+        'ndims_out': 2
+        },
     # --- data vars from 'tavg1_2d_(flx)_Nx'
     'planetary boundary layer height': {
         'in_file': 'flx',
@@ -248,11 +262,19 @@ rs = {
         'units_fn': no_conversion,
         'ndims_out': 3
         },
-    # --- data vars from 'inst1_2d_(asm)_Nx
+    # --- data vars from 'inst1_2d_(asm)_Nx'
     'total column water vapor': {
         'in_file': 'asm2d',
         'in_varname': 'TQV',
         'out_units': 'kg/m^2',
+        'units_fn': no_conversion,
+        'ndims_out': 2
+        },
+    # --- data vars from 'tavg1_2d_(rad)_Nx'
+    'total cloud fraction': {
+        'in_file': 'rad',
+        'in_varname': 'CLDTOT',
+        'out_units': 'none',
         'units_fn': no_conversion,
         'ndims_out': 2
         },
@@ -737,6 +759,8 @@ if __name__ == '__main__':
             'asm3d': glob(inpath_full + '3d_asm/MERRA2*asm_Np.' +
                 date_str_arg + '.nc4')[0],
             'asm2d': glob(inpath_full + '2d_asm/MERRA2*asm_Nx.' +
+                date_str_arg + '.nc4')[0],
+            'rad': glob(inpath_full + '2d_rad/MERRA2*rad_Nx.' +
                 date_str_arg + '.nc4')[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
