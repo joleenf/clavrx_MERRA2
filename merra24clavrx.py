@@ -228,11 +228,11 @@ rs = {
     'planetary boundary layer height': {
         'in_file': 'flx',
         'in_varname': 'PBLH',
-        'out_units': 'm',
-        'units_fn': no_conversion,
+        'out_units': 'km',
+        'units_fn': lambda a: a/1000.0, # scale factor for m --> km
         'ndims_out': 2
         },
-    'sea ice fraction': {
+    'ice fraction': {
         'in_file': 'flx',
         'in_varname': 'FRSEAICE',
         'out_units': 'none',
@@ -248,7 +248,7 @@ rs = {
         'ndims_out': 2
         },
     # --- data vars from 'inst3_3d_(asm)_Np'
-    'cloud liquid water mixing ratio': {
+    'clwmr': {
         'in_file': 'asm3d',
         'in_varname': 'QL',
         'out_units': 'kg/kg',
@@ -263,11 +263,11 @@ rs = {
         'ndims_out': 3
         },
     # --- data vars from 'inst1_2d_(asm)_Nx'
-    'total column water vapor': {
+    'total precipitable water': {
         'in_file': 'asm2d',
         'in_varname': 'TQV',
-        'out_units': 'kg/m^2',
-        'units_fn': no_conversion,
+        'out_units': 'cm',
+        'units_fn': lambda a: a/10.0, # scale factor for kg/m^2 (mm) --> cm
         'ndims_out': 2
         },
     # --- data vars from 'tavg1_2d_(rad)_Nx'
@@ -679,7 +679,7 @@ def make_merra_one_day(in_files, out_dir, mask_file):
             MerraConversion(
                         'mask',
                         'FRACI',
-                        'ice fraction',
+                        'FRACI',       # We are using FRSEAICE for ice-fraction, since GFS uses a sea-ice fraction as 'ice fraction'. This version of ice-fraction is broken, so it is being shielded from CLAVR-x use with the output name 'FRACI' until this gets figured out.
                         'none',
                         no_conversion,
                         2
