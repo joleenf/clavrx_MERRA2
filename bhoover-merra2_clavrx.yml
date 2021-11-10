@@ -1,0 +1,12 @@
+name: bhoover-merra2_clavrx
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3
+  - numpy
+  - pyhdf
+  - netCDF4
+  - matplotlib
+  - jupyter
+  - pip
