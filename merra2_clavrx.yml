@@ -1,4 +1,4 @@
-name: bhoover-merra2_clavrx
+name: merra2_clavrx
 channels:
   - conda-forge
   - defaults
