@@ -1,5 +1,6 @@
 """ TODO module doc """
 from glob import glob
+from pathlib import Path
 from pyhdf.SD import SD, SDC
 from netCDF4 import Dataset
 from datetime import datetime, timedelta
@@ -396,7 +397,7 @@ def _extrapolate_below_sfc(t, fill):
     #            that is not CLAVRX_FILL. Use this data value to fill in missing
     #            values all the down to bottom index.
     lowest_good = t[0] * 0.0 + fill
-    lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int)
+    lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int64)
     for l_ind in np.arange(t.shape[0]):
         t_at_l = t[l_ind]
         t_at_l_good = (t_at_l != fill)
@@ -729,12 +730,10 @@ def make_merra_one_day(in_files, out_dir, mask_file):
     return out_fnames
 
 if __name__ == '__main__':
-    #inpath = '/fjord/jgs/personal/mfoster/MERRA/'
-    #outpath = '/fjord/jgs/personal/mhiley/MERRA/'
     #inpath = '/Volumes/stuff/merra/input/'
     #outpath = '/Volumes/stuff/merra/output/'
-    inpath = '/home/bhoover/clavrx-merra2/merra2/tmp/'
-    outpath = '/home/bhoover/clavrx-merra2/merra2/tmp/out/'
+    inpath = '/data/joleenf/tmp/'
+    outpath = '/data/joleenf/clavrx-merra2/tmp/out/'
     try:
         date_str_arg = sys.argv[1]
         date_parsed = datetime.strptime(date_str_arg, '%Y%m%d')
@@ -744,30 +743,24 @@ if __name__ == '__main__':
 
     year_str = date_str_arg[0:4]
     outpath_full = outpath + year_str + '/'
-    inpath_full = inpath
+    inpath_full = Path(inpath)
 
     try:
         os.makedirs(outpath_full)
     except OSError:
         pass # dir already exists
     # BTH: Define mask_file here
-    mask_file = glob(inpath_full + '2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
+    mask_file=list(inpath_full.glob(f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4'))[0]
+    print(inpath_full.joinpath(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
     in_files = { 
-            'ana': glob(inpath_full + '3d_ana/MERRA2*ana_Np.' + 
-                date_str_arg + '.nc4')[0],
-            'flx': glob(inpath_full + '2d_flx/MERRA2*flx_Nx.' + 
-                date_str_arg + '.nc4')[0],
-            'slv': glob(inpath_full + '2d_slv/MERRA2*slv_Nx.' + 
-                date_str_arg + '.nc4')[0],
-            'lnd': glob(inpath_full + '2d_lnd/MERRA2*lnd_Nx.' + 
-                date_str_arg + '.nc4')[0],
-            'asm3d': glob(inpath_full + '3d_asm/MERRA2*asm_Np.' +
-                date_str_arg + '.nc4')[0],
-            'asm2d': glob(inpath_full + '2d_asm/MERRA2*asm_Nx.' +
-                date_str_arg + '.nc4')[0],
-            'rad': glob(inpath_full + '2d_rad/MERRA2*rad_Nx.' +
-                date_str_arg + '.nc4')[0],
+            'ana': list(inpath_full.glob(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))[0],
+            'flx': list(inpath_full.glob(f'2d_flx/MERRA2*flx_Nx.{date_str_arg}.nc4'))[0],
+            'slv': list(inpath_full.glob(f'2d_slv/MERRA2*slv_Nx.{date_str_arg}.nc4'))[0],
+            'lnd': list(inpath_full.glob(f'2d_lnd/MERRA2*lnd_Nx.{date_str_arg}.nc4'))[0],
+            'asm3d': list(inpath_full.glob(f'3d_asm/MERRA2*asm_Np.{date_str_arg}.nc4'))[0],
+            'asm2d': list(inpath_full.glob(f'2d_asm/MERRA2*asm_Nx.{date_str_arg}.nc4'))[0],
+            'rad': list(inpath_full.glob(f'2d_rad/MERRA2*rad_Nx.{date_str_arg}.nc4'))[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
     print('out_files: {}'.format(list(map(os.path.basename, out_files))))
