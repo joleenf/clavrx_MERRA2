@@ -8,6 +8,7 @@ import numpy as np
 np.seterr(all='ignore')
 import os
 import sys
+import subprocess
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
@@ -729,11 +730,29 @@ def make_merra_one_day(in_files, out_dir, mask_file):
 
     return out_fnames
 
+def download_data(inpath, file_glob, file_type, dt):
+
+    try:
+        filename=list(inpath.glob(file_glob))[0]
+    except:
+        # TODO: Build and OPeNDAP request in python to retrieve data.
+        # In short term: use wget
+        print(date_parsed.strftime("%Y %m %d"))
+        script_dir = Path.home().joinpath("code", "clavrx-merra2")
+        pattern = 'sh {}/scripts/wget_all.sh -w {} -k {} {}'
+        shell_cmd = pattern.format(script_dir, inpath_full,
+                                   file_type, dt.strftime("%Y %m %d"))
+        subprocess.run(shell_cmd, shell=True, check=True)
+
+    filename=list(inpath.glob(file_glob))[0]
+    print(filename)
+
+    if filename.is_file():
+        return filename
+
 if __name__ == '__main__':
-    #inpath = '/Volumes/stuff/merra/input/'
-    #outpath = '/Volumes/stuff/merra/output/'
-    inpath = '/data/joleenf/tmp/'
-    outpath = '/data/joleenf/clavrx-merra2/tmp/out/'
+    inpath_parent = '/data/joleenf/tmp/'
+    outpath_parent = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
     try:
         date_str_arg = sys.argv[1]
         date_parsed = datetime.strptime(date_str_arg, '%Y%m%d')
@@ -742,25 +761,34 @@ if __name__ == '__main__':
         exit()
 
     year_str = date_str_arg[0:4]
-    outpath_full = outpath + year_str + '/'
-    inpath_full = Path(inpath)
+    outpath_full = Path(outpath_parent).joinpath(year_str)
+    inpath_full = Path(inpath_parent)
 
-    try:
-        os.makedirs(outpath_full)
-    except OSError:
-        pass # dir already exists
+    outpath_full.mkdir(parents=True, exist_ok=True)
+
     # BTH: Define mask_file here
-    mask_file=list(inpath_full.glob(f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4'))[0]
+    mask_file = download_data(inpath_full,f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4',
+                              "const_2d_ctm_Nx", date_parsed)
+    #mask_file=list(inpath_full.glob(f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4'))[0]
     print(inpath_full.joinpath(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
-    in_files = { 
-            'ana': list(inpath_full.glob(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))[0],
-            'flx': list(inpath_full.glob(f'2d_flx/MERRA2*flx_Nx.{date_str_arg}.nc4'))[0],
-            'slv': list(inpath_full.glob(f'2d_slv/MERRA2*slv_Nx.{date_str_arg}.nc4'))[0],
-            'lnd': list(inpath_full.glob(f'2d_lnd/MERRA2*lnd_Nx.{date_str_arg}.nc4'))[0],
-            'asm3d': list(inpath_full.glob(f'3d_asm/MERRA2*asm_Np.{date_str_arg}.nc4'))[0],
-            'asm2d': list(inpath_full.glob(f'2d_asm/MERRA2*asm_Nx.{date_str_arg}.nc4'))[0],
-            'rad': list(inpath_full.glob(f'2d_rad/MERRA2*rad_Nx.{date_str_arg}.nc4'))[0],
-        }
+
+    in_files={
+            'ana': download_data(inpath_full,f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4',
+                                'inst6_3d_ana_Np', date_parsed),
+            'flx': download_data(inpath_full,f'2d_flx/MERRA2*flx_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_flx_Nx', date_parsed),
+            'slv': download_data(inpath_full,f'2d_slv/MERRA2*slv_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_slv_Nx', date_parsed),
+            'lnd': download_data(inpath_full,f'2d_lnd/MERRA2*lnd_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_lnd_Nx', date_parsed),
+            'asm3d': download_data(inpath_full,f'3d_asm/MERRA2*asm_Np.{date_str_arg}.nc4',
+                                'inst3_3d_asm_Np', date_parsed),
+            'asm2d': download_data(inpath_full,f'2d_asm/MERRA2*asm_Nx.{date_str_arg}.nc4',
+                                'inst1_2d_asm_Nx', date_parsed),
+            'rad': download_data(inpath_full,f'2d_rad/MERRA2*rad_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_rad_Nx', date_parsed),
+    }
+    print(in_files)
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
     print('out_files: {}'.format(list(map(os.path.basename, out_files))))
