@@ -21,6 +21,7 @@ DD=${3}
 #
 # Define STREAM by date:
 
+set -x
 let YMD=${YYYY}${MM}${DD}
 
 if [[ ${YMD} -lt 19920101 ]]; then

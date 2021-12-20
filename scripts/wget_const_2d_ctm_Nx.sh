@@ -23,6 +23,7 @@ DD=${3}
 #       "date" 00000000. The "stream" is defined as 101, so values are hard-coded here
 #       regardless of the YYYY, MM, DD values provided.
 
+set -x
 let YMD=${YYYY}${MM}${DD}
 
 TARGET_FILE=MERRA2_101.const_2d_ctm_Nx.00000000.nc4
