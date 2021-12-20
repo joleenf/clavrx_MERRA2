@@ -16,7 +16,7 @@ entirety of Antarctica, and most of Greenland. This variable is being collected 
   
 3. Input files are retrieved with /clavrx-merra2/MERRA2_FILES/wget_all.sh.
 Please see 
-*[ How to Download Data Files from HTTPS Service with wget ]* (https://disc.gsfc.nasa.gov/information/howto?title=How%20to%20Download%20Data%20Files%20from%20HTTPS%20Service%20with%20wget) for more information about setting up credentials and downloading data from NASA GES DISC
+*[ How to Download Data Files from HTTPS Service with wget ]*(https://disc.gsfc.nasa.gov/information/howto)
 
 The script calls nine wget scripts but some of the nine files are not 
 currently being used by /clavrx-merra2/merra2/merra24clavrx.py to produce an output file. The  
