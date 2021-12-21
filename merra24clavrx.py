@@ -1,4 +1,4 @@
-""" TODO module doc """
+"""" TODO module doc """
 from glob import glob
 from pathlib import Path
 from pyhdf.SD import SD, SDC
@@ -589,6 +589,7 @@ class MerraConversion(object):
 
 def make_merra_one_day(in_files, out_dir, mask_file):
     """ TODO doc """
+
     sd = dict()
     for k in in_files.keys():
         sd[k] = Dataset(in_files[k])
@@ -637,7 +638,8 @@ def make_merra_one_day(in_files, out_dir, mask_file):
         out_fnames = []
         for out_time in common_times:
             print('    working on time: {}'.format(out_time))
-            out_fname = out_dir + out_time.strftime('merra.%y%m%d%H_F000.hdf')
+            out_fname = str(out_dir.joinpath(out_time.strftime('merra.%y%m%d%H_F000.hdf')))
+            print(out_fname)
             out_fnames.append(out_fname)
             sd['out'] = SD(out_fname, SDC.WRITE|SDC.CREATE|SDC.TRUNC) # TRUNC will clobber existing
 
@@ -738,10 +740,10 @@ def download_data(inpath, file_glob, file_type, dt):
         # TODO: Build and OPeNDAP request in python to retrieve data.
         # In short term: use wget
         print(date_parsed.strftime("%Y %m %d"))
-        script_dir = Path.home().joinpath("code", "clavrx-merra2")
-        pattern = 'sh {}/scripts/wget_all.sh -w {} -k {} {}'
-        shell_cmd = pattern.format(script_dir, inpath_full,
-                                   file_type, dt.strftime("%Y %m %d"))
+        script_dir=os.path.dirname(os.path.abspath(__file__))
+        script_name=os.path.join(script_dir, "scripts", "wget_all.sh")
+        shell_cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath_full,
+                                                  file_type, dt.strftime("%Y %m %d"))
         subprocess.run(shell_cmd, shell=True, check=True)
 
     filename=list(inpath.glob(file_glob))[0]
@@ -751,7 +753,7 @@ def download_data(inpath, file_glob, file_type, dt):
         return filename
 
 if __name__ == '__main__':
-    inpath_parent = '/data/joleenf/tmp/'
+    inpath_parent = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/tmp/'
     outpath_parent = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
     try:
         date_str_arg = sys.argv[1]

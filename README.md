@@ -14,7 +14,7 @@ MERRA2 ice-fraction variable (FRACI) appears to be broken with fill-values over 
 entirety of Antarctica, and most of Greenland. This variable is being collected and passed along to  
 .hdf output as 'FRACI' for later fix/use.  
   
-3. Input files are retrieved with /clavrx-merra2/MERRA2_FILES/wget_all.sh.
+3. Input files are retrieved within the python code using [scripts/wget_all.sh](scripts/wget_all.sh)
 Please see 
 *[ How to Download Data Files from HTTPS Service with wget ]*(https://disc.gsfc.nasa.gov/information/howto)
 
@@ -27,7 +27,7 @@ and it's working fine.
   
 4. Currently running the program for one year/month/day at a time using  
 /clavrx-merra2/merra2/test_merra24clavrx.sh. The run-script generates the appropriate conda environment  
-using merra2_clavrx, which uses the merra2 environment from [merra2_clavrx.yml ](https://github.com/joleenf/clavrx_MERRA2/blob/merra2/merra2_clavrx.yml)
+using merra2_clavrx, which uses the merra2 environment from [merra2_clavrx.yml ](merra2_clavrx.yml)
 
 ``` conda create -f merra2_clavrx.yml ```
   
