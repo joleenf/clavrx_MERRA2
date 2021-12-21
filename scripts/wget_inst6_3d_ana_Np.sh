@@ -36,7 +36,7 @@ fi
 
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies --content-disposition https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4/${YYYY}/${MM}/${TARGET_FILE}
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.

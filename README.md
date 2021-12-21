@@ -25,9 +25,8 @@ hybrid sigma-pressure coordinate surfaces. This file was intended to provide the
 the 0.9950 sigma-level, or a level close to it, but it looks like the 10m data is being substituted  
 and it's working fine.  
   
-4. Currently running the program for one year/month/day at a time using  
-/clavrx-merra2/merra2/test_merra24clavrx.sh. The run-script generates the appropriate conda environment  
-using merra2_clavrx, which uses the merra2 environment from [merra2_clavrx.yml ](merra2_clavrx.yml)
+4. Currently running the program for one year/month/day at a time using  [merra24clavrx.py](merra24clavrx.py)
+The code needs the appropriate conda environment from [merra2_clavrx.yml ](merra2_clavrx.yml)
 
 ``` conda create -f merra2_clavrx.yml ```
   
