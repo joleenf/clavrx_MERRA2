@@ -1,14 +1,20 @@
 """" TODO module doc """
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, _ArgumentGroup
 from glob import glob
 from pathlib import Path
 from pyhdf.SD import SD, SDC
 from netCDF4 import Dataset
 from datetime import datetime, timedelta
+from typing import Union, TypeVar, Optional, Dict, Any
+import tempfile
+import logging
 import numpy as np
 np.seterr(all='ignore')
 import os
 import sys
 import subprocess
+
+LOG = logging.getLogger(__name__)
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
@@ -23,6 +29,7 @@ LEVELS = [ 1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
     650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
         30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1 ] # [hPa]
 
+OUTPATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
 
 def qv_to_rh(qv, t, ps=None):
     """ Specific Humidity [kg/kg] -> relative humidity [%] """
@@ -587,7 +594,7 @@ class MerraConversion(object):
         else:
             raise ValueError("unsupported dimensionality")
 
-def make_merra_one_day(in_files, out_dir, mask_file):
+def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: Path):
     """ TODO doc """
 
     sd = dict()
@@ -739,7 +746,6 @@ def download_data(inpath, file_glob, file_type, dt):
     except:
         # TODO: Build and OPeNDAP request in python to retrieve data.
         # In short term: use wget
-        print(date_parsed.strftime("%Y %m %d"))
         script_dir=os.path.dirname(os.path.abspath(__file__))
         script_name=os.path.join(script_dir, "scripts", "wget_all.sh")
         shell_cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath_full,
@@ -747,50 +753,107 @@ def download_data(inpath, file_glob, file_type, dt):
         subprocess.run(shell_cmd, shell=True, check=True)
 
     filename=list(inpath.glob(file_glob))[0]
-    print(filename)
 
-    if filename.is_file():
-        return filename
+    return filename
 
-if __name__ == '__main__':
-    inpath_parent = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/tmp/'
-    outpath_parent = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
-    try:
-        date_str_arg = sys.argv[1]
-        date_parsed = datetime.strptime(date_str_arg, '%Y%m%d')
-    except:
-        print('usage:\n    python merra4clavrx.py 20090101')
-        exit()
+def build_input_collection(dt: datetime, in_path: Path) -> None:
 
-    year_str = date_str_arg[0:4]
+    year_str = dt.strftime("%Y")
+    date_str_arg = dt.strftime("%Y%m%d")
+
+    # BTH: Define mask_file here
+    mask_file = download_data(in_path,f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4',
+                              "const_2d_ctm_Nx", dt)
+    print(in_path.joinpath(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))
+    print('Processing date: {}'.format(dt.strftime('%Y-%m-%d')))
+
+    in_files={
+            'ana': download_data(in_path,f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4',
+                                'inst6_3d_ana_Np', dt),
+            'flx': download_data(in_path,f'2d_flx/MERRA2*flx_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_flx_Nx', dt),
+            'slv': download_data(in_path,f'2d_slv/MERRA2*slv_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_slv_Nx', dt),
+            'lnd': download_data(in_path,f'2d_lnd/MERRA2*lnd_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_lnd_Nx', dt),
+            'asm3d': download_data(in_path,f'3d_asm/MERRA2*asm_Np.{date_str_arg}.nc4',
+                                'inst3_3d_asm_Np', dt),
+            'asm2d': download_data(in_path,f'2d_asm/MERRA2*asm_Nx.{date_str_arg}.nc4',
+                                'inst1_2d_asm_Nx', dt),
+            'rad': download_data(in_path,f'2d_rad/MERRA2*rad_Nx.{date_str_arg}.nc4',
+                                'tavg1_2d_rad_Nx', dt),
+    }
+    return in_files, mask_file
+
+def main(data_date: datetime, keep_input: bool, base_path: Union[str, Path]) -> None:
+    year_str = dt.strftime("%Y")
+    date_str_arg = dt.strftime("%Y%m%d")
     outpath_full = Path(outpath_parent).joinpath(year_str)
     inpath_full = Path(inpath_parent)
 
     outpath_full.mkdir(parents=True, exist_ok=True)
 
-    # BTH: Define mask_file here
-    mask_file = download_data(inpath_full,f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4',
-                              "const_2d_ctm_Nx", date_parsed)
-    #mask_file=list(inpath_full.glob(f'2d_ctm/MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4'))[0]
-    print(inpath_full.joinpath(f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4'))
-    print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
+    if keep_input:
+        inpath_full.mkdir(parents=True, exist_ok=True)
+        in_files, mask_file = build_input_collection(data_date, inpath_full)
+        LOG.debug("File is type: {} and {}".format(type(mask_file),str(mask_file)))
+    else:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            in_files, mask_file = build_input_collection(data_date, Path(tmpdirname))
 
-    in_files={
-            'ana': download_data(inpath_full,f'3d_ana/MERRA2*ana_Np.{date_str_arg}.nc4',
-                                'inst6_3d_ana_Np', date_parsed),
-            'flx': download_data(inpath_full,f'2d_flx/MERRA2*flx_Nx.{date_str_arg}.nc4',
-                                'tavg1_2d_flx_Nx', date_parsed),
-            'slv': download_data(inpath_full,f'2d_slv/MERRA2*slv_Nx.{date_str_arg}.nc4',
-                                'tavg1_2d_slv_Nx', date_parsed),
-            'lnd': download_data(inpath_full,f'2d_lnd/MERRA2*lnd_Nx.{date_str_arg}.nc4',
-                                'tavg1_2d_lnd_Nx', date_parsed),
-            'asm3d': download_data(inpath_full,f'3d_asm/MERRA2*asm_Np.{date_str_arg}.nc4',
-                                'inst3_3d_asm_Np', date_parsed),
-            'asm2d': download_data(inpath_full,f'2d_asm/MERRA2*asm_Nx.{date_str_arg}.nc4',
-                                'inst1_2d_asm_Nx', date_parsed),
-            'rad': download_data(inpath_full,f'2d_rad/MERRA2*rad_Nx.{date_str_arg}.nc4',
-                                'tavg1_2d_rad_Nx', date_parsed),
-    }
-    print(in_files)
+    return in_files, mask_file
+
+
+
+def argument_parser() -> Dict[str, Any]:
+    """Parse command line for merra24clavrx.py."""
+    parse_desc = (
+                 """Retrieve merra2 data from GES DISC
+                    and process for clavrx input."""
+                 )
+    formatter = ArgumentDefaultsHelpFormatter
+    parser = ArgumentParser(description=parse_desc,
+                                     formatter_class=formatter)
+
+    parser.add_argument('start_date', action='store',
+                        type=str, metavar='start_date',
+                        help="Desired processing date as YYYYMMDD")
+    parser.add_argument('-e', '--end_date', dest='end_date', action='store',
+                        type=str, required=False, default=None,
+                        metavar='end_date',
+                        help="End date as YYYYMMDD not needed when processing one date.")
+    # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
+    parser.add_argument('-k', '--keepInput', dest='keep_input', action='store_true',
+                        help="Use to store downloaded input files otherwise use a temporary location.")
+    parser.add_argument('-d', '--base_dir', dest='base_path', action='store',
+                        type=str, required=False, default=OUTPATH_PARENT,
+                        help="Parent path used for processing and final location. year subdirectory appends to this path.")
+    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
+                        help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
+
+    args = vars(parser.parse_args())
+    verbosity=args.pop('verbosity', None)
+
+    levels = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
+    logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s', level=levels[min(3, verbosity)])
+
+    return args
+
+
+if __name__ == '__main__':
+
+    input_args = argument_parser()
+
+    inpath_parent = os.path.join(input_args['base_path'], "tmp")
+    outpath_parent = input_args['base_path']
+    try:
+        dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
+    except:
+        print('usage:\n    python merra4clavrx.py 20090101')
+        exit()
+
+    outpath_full = Path(outpath_parent).joinpath(dt.strftime("%Y"))
+    # BTH: Define mask_file here
+    in_files, mask_file = main(dt, input_args['keep_input'], input_args['base_path'])
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
     print('out_files: {}'.format(list(map(os.path.basename, out_files))))
