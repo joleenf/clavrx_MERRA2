@@ -3,24 +3,30 @@
 # Runs all (9) wget_* scripts to collect data for a given YYYY, MM, DD
 
 function usage() {
-    echo -e "\\nDownload data from GES DISC based on date and key"
-    echo -e "Example:"
-    echo -e "\\t "$ "sh $0 [options] YYYY MM DD"
-    echo -e "\\nOptions:"
-    echo -e "\\t-w download directory (default is pwd)."
-    echo -e "\\n\\t-k key (valid keys: all ${!FILETYPES[@]})"
-    echo -e "\\n\\t-h Display this usage information"
-    echo -e "\\n"
-    exit 1
+cat << EndOfMessage
+
+    Usage: sh $0 [options] YYYY MM DD"
+
+    Download data from GES DISC based on date and key"
+
+    Options:
+    	-w download directory (default is pwd).
+    	-k key (valid keys: all ${!FILETYPES[@]})
+   	-h Display this usage information
+
+EndOfMessage
+    echo $VAR
+    exit
+
 }
 
 download_dir=$(pwd)
 key=all
-declare -A FILETYPES=([inst6_3d_ana_Np]=3d_ana [inst6_3d_ana_Nv]=3d_ana [tavg1_2d_slv_Nx]=2d_slv \
+declare -a FILETYPES=([inst6_3d_ana_Np]=3d_ana [inst6_3d_ana_Nv]=3d_ana [tavg1_2d_slv_Nx]=2d_slv \
 	               [tavg1_2d_flx_Nx]=2d_flx [inst3_3d_asm_Np]=3d_asm [const_2d_ctm_Nx]=2d_ctm \
 		       [inst1_2d_asm_Nx]=2d_asm [tavg1_2d_lnd_Nx]=2d_lnd [tavg1_2d_rad_Nx]=2d_rad) 
 
-set -x
+[ $# -eq 0 ] && usage
 while getopts "w:k:h" flag; do
 	case "$flag" in 
 		w) download_dir=$OPTARG;;
