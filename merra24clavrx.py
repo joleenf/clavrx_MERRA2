@@ -31,7 +31,7 @@ class CommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
     start_date: str
     end_date: Optional[str]
-    keep_input: bool
+    store_temp: bool
     base_dir: str
 
 
@@ -438,7 +438,7 @@ def _merra_land_mask(data):
     XXX TODO: need to add in FRLANDICE so antarctica and greenland get included.
     """
     # UGH my design has officially fallen apart.
-    print('hello')
+    print("JMF PRINT FOR STOP IN DEBUGGING")
     mask_sd = Dataset(mask_file)
     frlandice = mask_sd.variables['FRLANDICE'][0]  # 0th time index
     data = frlandice + data
@@ -701,7 +701,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
                 'land mask',
                 '1=land, 0=ocean, greenland and antarctica are land',
                 _merra_land_mask,
-                2
+                2,
             ).do_conversion(sd, 0)
             # --- handle ice-fraction and land ice-fraction from constants (mask_file) specially
             # use FRSEAICE (ice-fraction): GFS uses sea-ice fraction as 'ice fraction'.
@@ -821,7 +821,7 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
     return in_files
 
 
-def main(data_date: datetime, keep_input: bool, base_path: Union[str, Path]) -> List[str]:
+def main(data_date: datetime, store_temp: bool, base_path: Union[str, Path]) -> List[str]:
     """Create input/output paths, call build input collection, and process data."""
 
     year_str = dt.strftime("%Y")
@@ -830,18 +830,19 @@ def main(data_date: datetime, keep_input: bool, base_path: Union[str, Path]) -> 
 
     out_path_final.mkdir(parents=True, exist_ok=True)
 
-    if keep_input:
+    if store_temp:
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            in_data = build_input_collection(data_date, Path(tmpdirname))
+            #out_list = make_merra_one_day(in_data, out_path_final)
+    else:
         in_path_full.mkdir(parents=True, exist_ok=True)
         in_data = build_input_collection(data_date, base_path)
         LOG.debug("File is type: {} and {}".format(type(in_data['mask_file']),
                                                    str(in_data['mask_file'])))
-        out_list = make_merra_one_day(in_data, out_path_final)
-    else:
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            in_data = build_input_collection(data_date, Path(tmpdirname))
-            out_list = make_merra_one_day(in_data, out_path_final)
+        #out_list = make_merra_one_day(in_data, out_path_final)
 
-    return out_list
+
+    return in_data
 
 
 def argument_parser() -> CommandLineMapping:
@@ -853,6 +854,7 @@ def argument_parser() -> CommandLineMapping:
     formatter = ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=parse_desc,
                             formatter_class=formatter)
+    group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('start_date', action='store',
                         type=str, metavar='start_date',
@@ -862,9 +864,9 @@ def argument_parser() -> CommandLineMapping:
                         metavar='end_date',
                         help="End date as YYYYMMDD not needed when processing one date.")
     # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
-    parser.add_argument('-k', '--keepInput', dest='keep_input', action='store_true',
-                        help="Use to store downloaded input files otherwise use a temporary location.")
-    parser.add_argument('-d', '--base_dir', dest='base_path', action='store',
+    group.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
+                        help="Use to store downloaded input files in a temporary location.")
+    group.add_argument('-d', '--base_dir', dest='base_path', action='store',
                         type=str, required=False, default=OUT_PATH_PARENT,
                         help="Parent path used for processing and final location. \
                               year subdirectory appends to this path.")
@@ -885,6 +887,8 @@ if __name__ == '__main__':
     input_args = argument_parser()
 
     out_path_parent = input_args['base_path']
+    outpath_full = Path(out_path_parent).joinpath("test")
+    outpath_full.mkdir(parents=True, exist_ok=True)
     try:
         dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
     except ValueError as e:
@@ -894,6 +898,6 @@ if __name__ == '__main__':
 
     out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
     # BTH: Define mask_file here
-    out_files = main(dt, input_args['keep_input'], input_args['base_path'])
-    # out_files = make_merra_one_day(in_files, outpath_full)
+    in_files = main(dt, input_args['store_temp'], Path(input_args['base_path']))
+    out_files = make_merra_one_day(in_files, outpath_full)
     print('out_files: {}'.format(list(map(os.path.basename, out_files))))
