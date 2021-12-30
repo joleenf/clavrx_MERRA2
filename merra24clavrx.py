@@ -32,7 +32,7 @@ class CommandLineMapping(TypedDict):
     start_date: str
     end_date: Optional[str]
     store_temp: bool
-    base_dir: str
+    base_path: str
 
 
 def qv_to_rh(qv, t, ps=None):
@@ -478,6 +478,8 @@ class MerraConversion(object):
         # sd[self.in_dataset] = netCDF4 file handle
         # self.in_name = variable name
         in_sds = sd[self.in_dataset]
+        if mask_file:
+            print(mask_file)
         print('BTH: performing data pull on', self.in_dataset, self.in_name)
         data = np.asarray(in_sds.variables[self.in_name])
         # BTH: data has changed from a netCDF4 variable object to a numpy array
@@ -611,10 +613,10 @@ class MerraConversion(object):
             raise ValueError("unsupported dimensionality")
 
 
-def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
+def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: str):
     """ TODO doc """
 
-    mask_file = in_files.pop("mask_file")
+    # mask_file = in_files.pop("mask_file")
     sd = dict()
     for k in in_files.keys():
         sd[k] = Dataset(in_files[k])
@@ -770,7 +772,7 @@ def download_data(inpath: Union[str, Path], file_glob: str,
         # In short term: use wget
         script_dir = os.path.dirname(os.path.abspath(__file__))
         script_name = os.path.join(script_dir, "scripts", "wget_all.sh")
-        shell_cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath.parent,  # need parent bcz wget_all expects parent path
+        shell_cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath.parent,
                                                   file_type,
                                                   get_date.strftime("%Y %m %d"))
         try:
@@ -819,30 +821,6 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
         'mask_file': mask_file,
     }
     return in_files
-
-
-def main(data_date: datetime, store_temp: bool, base_path: Union[str, Path]) -> List[str]:
-    """Create input/output paths, call build input collection, and process data."""
-
-    year_str = dt.strftime("%Y")
-    out_path_final = Path(base_path).joinpath(year_str)
-    in_path_full = Path(base_path).joinpath('tmp')
-
-    out_path_final.mkdir(parents=True, exist_ok=True)
-
-    if store_temp:
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            in_data = build_input_collection(data_date, Path(tmpdirname))
-            #out_list = make_merra_one_day(in_data, out_path_final)
-    else:
-        in_path_full.mkdir(parents=True, exist_ok=True)
-        in_data = build_input_collection(data_date, base_path)
-        LOG.debug("File is type: {} and {}".format(type(in_data['mask_file']),
-                                                   str(in_data['mask_file'])))
-        #out_list = make_merra_one_day(in_data, out_path_final)
-
-
-    return in_data
 
 
 def argument_parser() -> CommandLineMapping:
@@ -897,7 +875,17 @@ if __name__ == '__main__':
         raise ValueError(msg)
 
     out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
-    # BTH: Define mask_file here
-    in_files = main(dt, input_args['store_temp'], Path(input_args['base_path']))
-    out_files = make_merra_one_day(in_files, outpath_full)
-    print('out_files: {}'.format(list(map(os.path.basename, out_files))))
+
+    if input_args['store_temp']:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                in_data = build_input_collection(dt, Path(tmpdirname))
+                mask_file = str(in_data.pop('mask_file'))
+                LOG.debug("Mask File {}".format(mask_file))
+                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+    else:
+        base_path=Path(input_args['base_path'])
+        base_path.mkdir(parents=True, exist_ok=True)
+        in_data = build_input_collection(dt, base_path)
+        mask_file = str(in_data.pop('mask_file'))
+        LOG.debug("Mask File {}".format(mask_file))
+        out_list = make_merra_one_day(in_data, out_path_full, mask_file)
