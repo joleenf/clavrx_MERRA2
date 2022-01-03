@@ -1,15 +1,17 @@
 """" TODO module doc """
+from glob import glob
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from pathlib import Path
+from pandas import date_range
+from pyhdf.SD import SD, SDC
+from netCDF4 import Dataset
+from datetime import datetime, timedelta
+from typing import Union, Optional, Dict, List, TypedDict
 import os
 import subprocess
 import tempfile
 import logging
 import numpy as np
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from pathlib import Path
-from pyhdf.SD import SD, SDC
-from netCDF4 import Dataset
-from datetime import datetime, timedelta
-from typing import Union, Optional, Dict, List, TypedDict
 
 np.seterr(all='ignore')
 
@@ -20,12 +22,12 @@ comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 fill_bad = lambda a: a * np.nan
 
+# this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
 LEVELS = [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
           650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
           30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1]  # [hPa]
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
-
 
 class CommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
@@ -477,8 +479,6 @@ class MerraConversion(object):
         # sd[self.in_dataset] = netCDF4 file handle
         # self.in_name = variable name
         in_sds = sd[self.in_dataset]
-        if mask_file:
-            print(mask_file)
         print('BTH: performing data pull on', self.in_dataset, self.in_name)
         data = np.asarray(in_sds.variables[self.in_name])
         # BTH: data has changed from a netCDF4 variable object to a numpy array
@@ -864,27 +864,30 @@ if __name__ == '__main__':
     input_args = argument_parser()
 
     out_path_parent = input_args['base_path']
-    outpath_full = Path(out_path_parent).joinpath("test")
-    outpath_full.mkdir(parents=True, exist_ok=True)
     try:
-        dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
-    except ValueError as e:
-        usage_msg = "usage:\n    python merra4clavrx.py 20090101"
-        msg = "{}\n{}".format(e, usage_msg)
-        raise ValueError(msg)
+        start_dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
+    except:
+        print('usage:\n    python merra4clavrx.py 20090101')
+        exit()
 
-    out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
-
-    if input_args['store_temp']:
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                in_data = build_input_collection(dt, Path(tmpdirname))
-                mask_file = str(in_data.pop('mask_file'))
-                LOG.debug("Mask File {}".format(mask_file))
-                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+    if input_args['end_date'] is not None:
+        end_dt = datetime.strptime(input_args['end_date'], '%Y%m%d')
     else:
-        base_path=Path(input_args['base_path'])
-        base_path.mkdir(parents=True, exist_ok=True)
-        in_data = build_input_collection(dt, base_path)
-        mask_file = str(in_data.pop('mask_file'))
-        LOG.debug("Mask File {}".format(mask_file))
-        out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+        end_dt = start_dt
+
+    for dt in date_range(start_dt, end_dt, freq='D'):
+        out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
+
+        if input_args['store_temp']:
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    in_data = build_input_collection(dt, Path(tmpdirname))
+                    mask_file = str(in_data.pop('mask_file'))
+                    LOG.debug("Mask File {}".format(mask_file))
+                    out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+        else:
+            base_path=Path(input_args['base_path'])
+            base_path.mkdir(parents=True, exist_ok=True)
+            in_data = build_input_collection(dt, base_path)
+            mask_file = str(in_data.pop('mask_file'))
+            LOG.debug("Mask File {}".format(mask_file))
+            out_list = make_merra_one_day(in_data, out_path_full, mask_file)

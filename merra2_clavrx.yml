@@ -5,6 +5,7 @@ channels:
 dependencies:
   - python=3
   - numpy
+  - pandas
   - pyhdf
   - netCDF4
   - matplotlib
