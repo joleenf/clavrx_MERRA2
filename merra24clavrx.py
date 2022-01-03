@@ -440,7 +440,6 @@ def _merra_land_mask(data):
     XXX TODO: need to add in FRLANDICE so antarctica and greenland get included.
     """
     # UGH my design has officially fallen apart.
-    print("JMF PRINT FOR STOP IN DEBUGGING")
     mask_sd = Dataset(mask_file)
     frlandice = mask_sd.variables['FRLANDICE'][0]  # 0th time index
     data = frlandice + data
