@@ -1,6 +1,7 @@
 """" TODO module doc """
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, _ArgumentGroup
 from glob import glob
+from pandas import date_range
 from pathlib import Path
 from pyhdf.SD import SD, SDC
 from netCDF4 import Dataset
@@ -22,9 +23,6 @@ no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 fill_bad = lambda a: a*np.nan
 
 # this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
-#LEVELS = [ 1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
-#    650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
-#        30, 20, 10 ] # [hPa]
 LEVELS = [ 1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
     650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
         30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1 ] # [hPa]
@@ -847,13 +845,19 @@ if __name__ == '__main__':
     inpath_parent = os.path.join(input_args['base_path'], "tmp")
     outpath_parent = input_args['base_path']
     try:
-        dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
+        start_dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
     except:
         print('usage:\n    python merra4clavrx.py 20090101')
         exit()
 
-    outpath_full = Path(outpath_parent).joinpath(dt.strftime("%Y"))
-    # BTH: Define mask_file here
-    in_files, mask_file = main(dt, input_args['keep_input'], input_args['base_path'])
-    out_files = make_merra_one_day(in_files, outpath_full, mask_file)
-    print('out_files: {}'.format(list(map(os.path.basename, out_files))))
+    if input_args['end_date'] is not None:
+        end_dt = datetime.strptime(input_args['end_date'], '%Y%m%d')
+    else:
+        end_dt = start_dt
+
+    for dt in date_range(start_dt, end_dt, freq='D'):
+        outpath_full = Path(outpath_parent).joinpath(dt.strftime("%Y"))
+        # BTH: Define mask_file here
+        in_files, mask_file = main(dt, input_args['keep_input'], input_args['base_path'])
+        out_files = make_merra_one_day(in_files, outpath_full, mask_file)
+        print('out_files: {}'.format(list(map(os.path.basename, out_files))))
