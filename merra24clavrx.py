@@ -844,7 +844,7 @@ def argument_parser() -> CommandLineMapping:
     group.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
                         help="Use to store downloaded input files in a temporary location.")
     group.add_argument('-d', '--base_dir', dest='base_path', action='store',
-                        type=str, required=False, default=OUT_PATH_PARENT,
+                        nargs='?', type=str, required=False, const=OUT_PATH_PARENT, default=OUT_PATH_PARENT,
                         help="Parent path used for processing and final location. \
                               year subdirectory appends to this path.")
     parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
@@ -876,7 +876,9 @@ if __name__ == '__main__':
         end_dt = start_dt
 
     for dt in date_range(start_dt, end_dt, freq='D'):
-        out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
+        year = dt.strftime("%Y")
+        year_month_day = dt.strftime("%Y_%m_%d")
+        out_path_full = Path(out_path_parent).joinpath(year)
 
         if input_args['store_temp']:
                 with tempfile.TemporaryDirectory() as tmpdirname:
@@ -884,10 +886,12 @@ if __name__ == '__main__':
                     mask_file = str(in_data.pop('mask_file'))
                     LOG.debug("Mask File {}".format(mask_file))
                     out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+                    LOG.info(', '.join(map(str, out_list)))
         else:
-            base_path=Path(input_args['base_path'])
-            base_path.mkdir(parents=True, exist_ok=True)
-            in_data = build_input_collection(dt, base_path)
+            in_path=Path(input_args['base_path']).joinpath('saved_input', year, year_month_day)
+            in_path.mkdir(parents=True, exist_ok=True)
+            in_data = build_input_collection(dt, in_path)
             mask_file = str(in_data.pop('mask_file'))
             LOG.debug("Mask File {}".format(mask_file))
             out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+            LOG.info(', '.join(map(str, out_list)))
