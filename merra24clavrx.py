@@ -841,8 +841,8 @@ def argument_parser() -> CommandLineMapping:
     # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
     parser.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
                         help="Use to store downloaded input files in a temporary location.")
-    parser.add_argument('-d', '--base_dir', dest='base_path', action='store',
-                        type=str, required=False, default=OUT_PATH_PARENT,
+    parser.add_argument('-d', '--base_dir', dest='base_path', action='store', nargs='?', 
+                        type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
                         help="Parent path used for input (in absence of -t/--tmp flag) and final location. \
                               year subdirectory appends to this path.")
     parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
