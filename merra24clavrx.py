@@ -874,7 +874,9 @@ if __name__ == '__main__':
         end_dt = start_dt
 
     for dt in date_range(start_dt, end_dt, freq='D'):
-        out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
+        year = dt.strftime("%Y")
+        year_month_day = dt.strftime("%Y_%m_%d")
+        out_path_full = Path(out_path_parent).joinpath(year)
 
         try:
             out_path_full.mkdir(parents=True, exist_ok=True)
@@ -883,15 +885,17 @@ if __name__ == '__main__':
             raise OSError(msg)
 
         if input_args['store_temp']:
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                in_data = build_input_collection(dt, Path(tmpdirname))
-                mask_file = str(in_data.pop('mask_file'))
-                LOG.debug("Mask File {}".format(mask_file))
-                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    in_data = build_input_collection(dt, Path(tmpdirname))
+                    mask_file = str(in_data.pop('mask_file'))
+                    LOG.debug("Mask File {}".format(mask_file))
+                    out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+                    LOG.info(', '.join(map(str, out_list)))
         else:
-            base_path = Path(input_args['base_path'])
-            base_path.mkdir(parents=True, exist_ok=True)
-            in_data = build_input_collection(dt, base_path)
+            in_path=Path(input_args['base_path']).joinpath('saved_input', year, year_month_day)
+            in_path.mkdir(parents=True, exist_ok=True)
+            in_data = build_input_collection(dt, in_path)
             mask_file = str(in_data.pop('mask_file'))
             LOG.debug("Mask File {}".format(mask_file))
             out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+            LOG.info(', '.join(map(str, out_list)))
