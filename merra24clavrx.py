@@ -776,7 +776,6 @@ def download_data(inpath: Union[str, Path], file_glob: str,
                                                   get_date.strftime("%Y %m %d"))
         try:
             subprocess.run(shell_cmd, shell=True, check=True)
-            print(shell_cmd)
         except subprocess.CalledProcessError as e:
             raise subprocess.CalledProcessError(e)
 
@@ -831,7 +830,6 @@ def argument_parser() -> CommandLineMapping:
     formatter = ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=parse_desc,
                             formatter_class=formatter)
-    group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('start_date', action='store',
                         type=str, metavar='start_date',
@@ -841,11 +839,11 @@ def argument_parser() -> CommandLineMapping:
                         metavar='end_date',
                         help="End date as YYYYMMDD not needed when processing one date.")
     # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
-    group.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
+    parser.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
                         help="Use to store downloaded input files in a temporary location.")
-    group.add_argument('-d', '--base_dir', dest='base_path', action='store',
+    parser.add_argument('-d', '--base_dir', dest='base_path', action='store',
                         type=str, required=False, default=OUT_PATH_PARENT,
-                        help="Parent path used for processing and final location. \
+                        help="Parent path used for input (in absence of -t/--tmp flag) and final location. \
                               year subdirectory appends to this path.")
     parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
                         help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
@@ -878,14 +876,20 @@ if __name__ == '__main__':
     for dt in date_range(start_dt, end_dt, freq='D'):
         out_path_full = Path(out_path_parent).joinpath(dt.strftime("%Y"))
 
+        try:
+            out_path_full.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            msg = "Oops!  {} \n Enter a valid directory with -d flag".format(e)
+            raise OSError(msg)
+
         if input_args['store_temp']:
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    in_data = build_input_collection(dt, Path(tmpdirname))
-                    mask_file = str(in_data.pop('mask_file'))
-                    LOG.debug("Mask File {}".format(mask_file))
-                    out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                in_data = build_input_collection(dt, Path(tmpdirname))
+                mask_file = str(in_data.pop('mask_file'))
+                LOG.debug("Mask File {}".format(mask_file))
+                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
         else:
-            base_path=Path(input_args['base_path'])
+            base_path = Path(input_args['base_path'])
             base_path.mkdir(parents=True, exist_ok=True)
             in_data = build_input_collection(dt, base_path)
             mask_file = str(in_data.pop('mask_file'))
