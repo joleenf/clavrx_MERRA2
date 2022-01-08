@@ -495,8 +495,6 @@ class MerraConversion(object):
         self.units_fn = units_fn
         self.ndims_out = ndims_out
 
-    def extract_data(self, sd):
-
     def do_conversion(self, sd, time_ind):
         # sd[self.in_dataset] = netCDF4 file handle
         # self.in_name = variable name
