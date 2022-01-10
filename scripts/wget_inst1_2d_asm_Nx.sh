@@ -23,16 +23,10 @@ DD=${3}
 
 set -x
 let YMD=${YYYY}${MM}${DD}
+scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-if [[ ${YMD} -lt 19920101 ]]; then
-	STREAM=100
-elif [[ ${YMD} -lt 20010101 ]]; then
-        STREAM=200
-elif [[ ${YMD} -lt 20110101 ]]; then
-	STREAM=300
-else
-	STREAM=400
-fi
+source ${scripts_home}/get_stream.sh
+get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
 
@@ -44,4 +38,4 @@ else
     echo "${TARGET_FILE} does not exist."
 fi
 
-
+exit
