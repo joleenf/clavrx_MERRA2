@@ -44,3 +44,5 @@ if [ -f "$TARGET_FILE" ]; then
 else 
     echo "${TARGET_FILE} does not exist."
 fi
+
+exit

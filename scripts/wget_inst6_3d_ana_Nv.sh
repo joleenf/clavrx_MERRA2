@@ -24,15 +24,10 @@ DD=${3}
 set -x
 let YMD=${YYYY}${MM}${DD}
 
-if [[ ${YMD} -lt 19920101 ]]; then
-	STREAM=100
-elif [[ ${YMD} -lt 20010101 ]]; then
-        STREAM=200
-elif [[ ${YMD} -lt 20110101 ]]; then
-	STREAM=300
-else
-	STREAM=400
-fi
+scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+source ${scripts_home}/get_stream.sh
+get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
 
@@ -46,6 +41,7 @@ if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
     echo "${TARGET_FILE} does not exist."
+    exit 1
 fi
 
-
+exit

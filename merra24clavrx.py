@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import logging
 import numpy as np
+import glob
 
 np.seterr(all='ignore')
 
@@ -774,9 +775,12 @@ def download_data(inpath: Union[str, Path], file_glob: str,
         shell_cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath.parent,
                                                   file_type,
                                                   get_date.strftime("%Y %m %d"))
+        LOG.info(shell_cmd)
         try:
-            subprocess.run(shell_cmd, shell=True, check=True)
+            subprocess.run(shell_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         except subprocess.CalledProcessError as e:
+            ret_code = e.returncode
+            print('An error occurred.  Error code:', ret_code)
             raise subprocess.CalledProcessError(e)
 
         file_list = list(inpath.glob(file_glob))

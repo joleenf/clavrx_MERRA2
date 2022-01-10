@@ -84,3 +84,5 @@ do
 	${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
 	cd ${download_dir}
 done
+
+exit
