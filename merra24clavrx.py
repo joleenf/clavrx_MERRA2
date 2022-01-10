@@ -1,12 +1,33 @@
-"""" TODO module doc """
-from glob import glob
+# -*- coding: utf-8 -*-
+"""Module to convert MERRA2 re-analysis data to hdf files for use in CLAVR-x.
+
+MERRA-2 Data is downloaded from the GES DISC server and converted to
+output files which can be used as input into the CLAVR-x cloud product.
+
+Example:
+    Run the merra24clavrx.py code with a single <year><month><day>::
+
+        $ python merra24clavrx.py 20010801
+
+Optional arguments::
+  -h, --help            show this help message and exit
+  -e end_date, --end_date end_date
+                        End date as YYYYMMDD not needed when processing one date. (default: None)
+  -t, --tmp             Use to store downloaded input files in a temporary location. (default: False)
+  -d [BASE_PATH], --base_dir [BASE_PATH]
+                        Parent path used for input (in absence of -t/--tmp flag) and final location. year subdirectory appends to this
+                        path. (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
+  -v, --verbose         each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG (default: 0)
+
+"""
+
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 from pandas import date_range
 from pyhdf.SD import SD, SDC
 from netCDF4 import Dataset
 from datetime import datetime, timedelta
-from typing import Union, Optional, Dict, List, TypedDict
+from typing import Union, Optional, Dict, TypedDict
 import os
 import subprocess
 import tempfile
@@ -27,6 +48,9 @@ fill_bad = lambda a: a * np.nan
 LEVELS = [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
           650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
           30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1]  # [hPa]
+
+TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
+CLAVRX_FILL = 9.999e20
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
 
@@ -354,10 +378,10 @@ def nc4_to_sd_dtype(nc4_dtype):
 
 
 def _reshape(data, ndims_out, fill):
-    """ Do a bunch of manipulation needed to make MERRA look like CFSR:
+    """ Make MERRA look like CFSR:
     
-      * For arrays with dims (level, lat, lon) we need to make level the last dim.
-      * All CFSR fields are continuous but MERRA sets below-ground values to fill.
+      * Convert array dimensions of (level, lat, lon) to (lat, lon, level)
+      * CFSR fields are continuous but MERRA below-ground values are set to fill.
       * CFSR starts at 0 deg lon but merra starts at -180.
     """
     if (ndims_out == 3) or (ndims_out == 2):
@@ -373,13 +397,8 @@ def _reshape(data, ndims_out, fill):
     return data
 
 
-# The highest (closest to TOA) level in CFSR. We trim anything above this:
-TOP_LEVEL = 10  # [hPa]
-CLAVRX_FILL = 9.999e20
-
-
 def _refill(data, old_fill):
-    """Clavr-x assumes a particular fill value instead of reading from attributes"""
+    """Clavr-x assumes a fill value instead of reading from attributes"""
     if (data.dtype == np.float32) or (data.dtype == np.float64):
         data[np.isnan(data)] = CLAVRX_FILL
         data[data == old_fill] = CLAVRX_FILL
@@ -411,8 +430,8 @@ def _shift_lon(data):
 
 def _extrapolate_below_sfc(t, fill):
     """Major difference between CFSR and MERRA is that CFSR extrapolates
-       below ground and MERRA sets to fill. For now, we just try setting below
-       ground fill values to lowest good value instead of fancy exptrapolation.
+       below ground and MERRA sets to fill. For now, set below
+       ground fill values to lowest good value instead of exptrapolation.
     """
     # Algorithm: For each pair of horizontal indices, find the lowest vertical index
     #            that is not CLAVRX_FILL. Use this data value to fill in missing
@@ -438,7 +457,7 @@ def _extrapolate_below_sfc(t, fill):
 def _merra_land_mask(data):
     """ Convert fractional merra land mask to 1=land 0=ocean.
 
-    XXX TODO: need to add in FRLANDICE so antarctica and greenland get included.
+    XXX TODO: need to add in FRLANDICE so antarctica and greenland get included. (Is this done?)
     """
     # UGH my design has officially fallen apart.
     mask_sd = Dataset(mask_file)
@@ -456,6 +475,7 @@ def _hack_snow(data):
 
 
 def _trim_toa(data):
+    """Trim the top of the atmosphere."""
     if len(data.shape) != 3:
         print('Warning: why did you run _trim_toa on a non-3d var?')
     # at this point (before _reshape), data should be (level, lat, lon) and
@@ -614,9 +634,8 @@ class MerraConversion(object):
 
 
 def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: str):
-    """ TODO doc """
+    """ Read input, parse times, and run conversion on one day at a time."""
 
-    # mask_file = in_files.pop("mask_file")
     sd = dict()
     for k in in_files.keys():
         sd[k] = Dataset(in_files[k])
