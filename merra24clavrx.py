@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Module to convert MERRA2 re-analysis data to hdf files for use in CLAVR-x.
 
+The merra2_clavrx environment should be activates.  Use merra2_clavrx.yml in this repository
+to create the environment if necessary.
+
 MERRA-2 Data is downloaded from the GES DISC server and converted to
 output files which can be used as input into the CLAVR-x cloud product.
 
