@@ -85,4 +85,7 @@ do
 	cd ${download_dir}
 done
 
+rm robots*.txt.tmp
+rm robots*.txt.tmp*
+
 exit

@@ -37,6 +37,10 @@ BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NVANA.5.12.4/
 
 wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
+if [ $? != 0 ]; then
+        any_stream ${TARGET_FILE} ${BASEURL}
+fi
+
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
