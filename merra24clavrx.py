@@ -573,8 +573,14 @@ class MerraConversion(object):
         else:
             if '_FillValue' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name]._FillValue
-                converted = self.units_fn(data)
-                converted[data == fill] = fill
+                if self.out_name == 'water equivalent snow depth':
+                    # Special case: set snow depth missing values to 0
+                    # to match CFSR behavior.
+                    data[data == fill] = 0.0
+                    converted = _hack_snow(data)
+                else:
+                    converted = self.units_fn(data)
+                    converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value
