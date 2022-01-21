@@ -29,8 +29,13 @@ source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
+BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I1NXASM.5.12.4
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I1NXASM.5.12.4/${YYYY}/${MM}/${TARGET_FILE}
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+
+if [ $? != 0 ]; then
+	any_stream ${TARGET_FILE} ${BASEURL}
+fi
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 2d_asm/.

@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Module to convert MERRA2 re-analysis data to hdf files for use in CLAVR-x.
 
+The merra2_clavrx environment should be activates.  Use merra2_clavrx.yml in this repository
+to create the environment if necessary.
+
 MERRA-2 Data is downloaded from the GES DISC server and converted to
 output files which can be used as input into the CLAVR-x cloud product.
 
@@ -570,8 +573,14 @@ class MerraConversion(object):
         else:
             if '_FillValue' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name]._FillValue
-                converted = self.units_fn(data)
-                converted[data == fill] = fill
+                if self.out_name == 'water equivalent snow depth':
+                    # Special case: set snow depth missing values to 0
+                    # to match CFSR behavior.
+                    data[data == fill] = 0.0
+                    converted = _hack_snow(data)
+                else:
+                    converted = self.units_fn(data)
+                    converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value

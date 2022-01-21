@@ -6,9 +6,19 @@ function get_stream {
        	STREAM=200
     elif [[ ${YMD} -lt 20110101 ]]; then
         STREAM=300
-    elif [[ ${YMD} -lt 20210601 ]]; then
-	STREAM=400
     else
-    	STREAM=401
+    	STREAM=400
+    fi
+}
+
+function any_stream {
+    TARGET_FILE=$1
+    BASEURL=$2
+    TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/\*}"`
+    # try to get any stream.
+    wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/
+
+    if [ $? == 0 ]; then
+	    TARGET_FILE=`ls ${TARGET_REGEX}`
     fi
 }

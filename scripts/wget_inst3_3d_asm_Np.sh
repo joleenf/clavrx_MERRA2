@@ -30,8 +30,13 @@ source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
+HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4/${YYYY}/${MM}/${TARGET_FILE}
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
+
+if [ $? != 0 ]; then
+        any_stream ${TARGET_FILE} ${HTTP_PATH}
+fi
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_asm/.
