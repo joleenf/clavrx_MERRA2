@@ -14,7 +14,7 @@ function get_stream {
 function any_stream {
     TARGET_FILE=$1
     BASEURL=$2
-    TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/\*}"`
+    TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/[0-4]0[0-1]}"`
     # try to get any stream.
     wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/
 
