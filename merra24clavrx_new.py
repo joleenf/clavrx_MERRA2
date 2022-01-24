@@ -26,6 +26,7 @@ from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
 import netCDF4
+from collections import OrderedDict
 from pandas import date_range
 from pyhdf.SD import SD, SDC
 from netCDF4 import Dataset
@@ -44,6 +45,9 @@ LOG = logging.getLogger(__name__)
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
+focus_var = "temperature"
+Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
+
 # no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 # fill_bad = lambda a: a * np.nan
 
@@ -56,6 +60,10 @@ TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
 CLAVRX_FILL = 9.999e20
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
+
+
+def quant(array):
+    return np.nanquantile(array, Q_ARR)
 
 
 def no_conversion(a):
@@ -317,6 +325,10 @@ class MerraConversion(object):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
 
         data = np.asarray(self[self.in_name])
+        if self.out_name == focus_var:
+            q = quant(data)
+            print('Hello World')
+
         if self.in_name == 'lev' and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
             # also is expected based on data documentation: https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
@@ -339,9 +351,12 @@ class MerraConversion(object):
             n = data.shape[0]
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
-            print('Hi')
         else:
             pass
+
+        if self.out_name == focus_var:
+            q = quant(data)
+            print('Hello World')
 
         if self.fill is not None:
             if self.out_name == 'water equivalent snow depth':
@@ -350,6 +365,9 @@ class MerraConversion(object):
             else:
                 data[data == self.fill] = np.nan
 
+        if self.out_name == focus_var:
+            q = quant(data)
+            print('Hello World')
         return data
 
     @property
@@ -395,6 +413,9 @@ class MerraConversion(object):
         set_dim_names(self.in_name, self.ndims_out, out_sds)
 
         out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
+        if self.out_name == focus_var:
+            q = quant(data_array)
+            print('Hi')
 
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
@@ -536,11 +557,18 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
     return rh_sigma
 
 
-def apply_conversion(units_fn, data, fill):
+def apply_conversion(units_fn, data, fill, key):
     """Special handling of converted data apply fill to converted data after function."""
+    # key is for debugging purposes, not needed otherwise
+
     converted = units_fn(data)
     if np.isnan(data).any():
         converted[np.isnan(data)] = fill
+
+    if key == focus_var:
+        q = quant(converted)
+        print(q)
+        print('Hi')
 
     return converted
 
@@ -734,7 +762,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             raise ValueError('Input files have not produced common times')
 
         out_fnames = []
-        for out_time in common_times:
+        for out_time in sorted(common_times): # only sorted for debugging purposes.
             print('    working on time: {}'.format(out_time))
             out_fname = str(out_dir.joinpath(out_time.strftime('merra.%y%m%d%H_F000.hdf')))
             LOG.info(out_fname)
@@ -751,6 +779,8 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             output_vars = dict()
             for out_key in OUTPUT_VARS_ROSETTA:
                 rsk = OUTPUT_VARS_ROSETTA[out_key]
+                if out_key == focus_var:
+                    print(rsk['in_file'], time_inds[rsk['in_file']])
                 output_vars[out_key] = MerraConversion(merra_sd, rsk['in_file'], rsk['in_varname'], out_key,
                                                        rsk['out_units'], rsk['units_fn'], rsk['ndims_out'],
                                                        time_inds[rsk['in_file']])
@@ -773,7 +803,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                 elif out_key == 'water equivalent snow depth':
                     out_data = _hack_snow(out_data, merra_sd['mask'])
                 else:
-                    out_data = apply_conversion(output_vars[out_key].units_fn, out_data, var_fill)
+                    out_data = apply_conversion(output_vars[out_key].units_fn, out_data, var_fill, out_key)
 
                 output_vars[out_key].update_output(merra_sd, out_data, output_vars[out_key].ndims_out, var_fill)
 

@@ -28,7 +28,8 @@ and it's working fine.
 4. Currently running the program for one year/month/day at a time using  [merra24clavrx.py](merra24clavrx.py)
 The code needs the appropriate conda environment from [merra2_clavrx.yml ](merra2_clavrx.yml)
 
-``` conda create -f merra2_clavrx.yml ```
+``` conda create -f merra2_clavrx.yml 
+    conda activate merra2_clavrx```
   
   
 After running the run-script for a selected INPUT_DATE, files will appear in /tmp/out/YYYY/. This  

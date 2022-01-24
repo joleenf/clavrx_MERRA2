@@ -25,6 +25,7 @@ Optional arguments::
 """
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from collections import OrderedDict
 from pathlib import Path
 from pandas import date_range
 from pyhdf.SD import SD, SDC
@@ -39,6 +40,8 @@ import numpy as np
 import glob
 
 np.seterr(all='ignore')
+
+focus_var = "temperature"
 
 LOG = logging.getLogger(__name__)
 
@@ -582,6 +585,10 @@ class MerraConversion(object):
                     converted = self.units_fn(data)
                     converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
+                if self.out_name == focus_var:
+                    quantiles = np.nanquantile(data, [0, 0.25, 0.5, 0.75, 1.00])
+                    quantiles2 = np.nanquantile(converted, [0, 0.25, 0.5, 0.75, 1.00])
+                    print('Hi')
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value
                 if self.out_name == 'water equivalent snow depth':
@@ -594,6 +601,10 @@ class MerraConversion(object):
                     converted = self.units_fn(data)
                     converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
+                if self.out_name == focus_var:
+                    quantiles = np.quantile(data, [0, 0.25, 0.50, 0.75, 1.00])
+                    quantiles2 = np.nanquantile(converted, [0, 0.25, 0.5, 0.75, 1.00])
+                    print('Hi')
             else:
                 # no need to _refill
                 if self.out_name == 'pressure levels':
@@ -605,6 +616,9 @@ class MerraConversion(object):
                     data[0:halfway] = tmp[halfway:]
                     data[halfway:] = tmp[0:halfway]
                 out_sds.set(_reshape(self.units_fn(data), self.ndims_out, None))
+                if self.out_name == focus_var:
+                    quantiles = np.quantile(data, [0, 0.25, 0.75, 1.00])
+                    print('Hi')
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
             if self.out_units is not None:
@@ -690,7 +704,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: str)
         assert len(common_times) == 4
 
         out_fnames = []
-        for out_time in common_times:
+        for out_time in sorted(common_times):
             print('    working on time: {}'.format(out_time))
             out_fname = str(out_dir.joinpath(out_time.strftime('merra.%y%m%d%H_F000.hdf')))
             print(out_fname)
@@ -706,6 +720,8 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: str)
             # --- write out data variables
             for k in rs:
                 rsk = rs[k]
+                if k == focus_var:
+                    print(rsk['in_file'], time_inds[rsk['in_file']])
                 MerraConversion(
                     rsk['in_file'],
                     rsk['in_varname'],

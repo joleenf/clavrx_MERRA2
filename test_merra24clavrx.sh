@@ -19,7 +19,7 @@ TMPDIR=${BIN_DIR}/tmp
 mkdir -p $TMPDIR
 cd $TMPDIR || (hostname;echo \"could not access $TMPDIR\"; exit 1)
 
-INPUT_DATE=20210801
+INPUT_DATE=20220120
 
 if [ -d "${TMPDIR}/out" ]
 then
