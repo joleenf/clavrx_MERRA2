@@ -41,11 +41,11 @@ import glob
 
 np.seterr(all='ignore')
 
-focus_var = "temperature"
-
 LOG = logging.getLogger(__name__)
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
+
+focus_var = "total precipitable water"
 
 no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 fill_bad = lambda a: a * np.nan
@@ -59,6 +59,12 @@ TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
 CLAVRX_FILL = 9.999e20
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/'
+Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
+
+
+def quant(array):
+    return np.nanquantile(array, Q_ARR)
+
 
 class CommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
@@ -508,6 +514,11 @@ class MerraConversion(object):
         in_sds = sd[self.in_dataset]
         print('BTH: performing data pull on', self.in_dataset, self.in_name)
         data = np.asarray(in_sds.variables[self.in_name])
+        if self.out_name == focus_var:
+            q = quant(data)
+            txt = "{} data read".format(focus_var)
+            LOG.info(txt)
+            LOG.debug(','.join(map(str, q)))
         # BTH: data has changed from a netCDF4 variable object to a numpy array
         #      after this point, so checks on variable attributes (e.g. _FillValue) 
         #      need to be applied to in_sds.variables[self.in_name] 
@@ -523,6 +534,11 @@ class MerraConversion(object):
             data = data[time_ind]
         if len(data.shape) == 3:  # 3-dimensional; need to trim highest levels
             data = _trim_toa(data)
+
+        if self.out_name == focus_var:
+            q = quant(data)
+            txt = "{} after time_ind selection".format(focus_var)
+            print(txt)
         # BTH: netCDF4 uses strings to track datatypes - need to do a conversion
         #      between the string and the equivalent SD.<DTYPE>
         nc4_dtype = data.dtype
@@ -561,6 +577,8 @@ class MerraConversion(object):
             rh = qv_to_rh(data, temp_k)
             rh[np.isnan(rh)] = fill
             out_sds.set(_refill(_reshape(rh, self.ndims_out, fill), fill))
+            mdata = np.ma.filled(rh, np.nan)
+            q = quant(mdata)
         elif self.out_name == 'rh at sigma=0.995':
             temp_sds = in_sds.variables['T10M']  # temperature in [K] (Time, Y, X)
             temp_k = temp_sds[time_ind]
@@ -573,6 +591,8 @@ class MerraConversion(object):
             rh = qv_to_rh(data, temp_k, ps=ps_pa)
             rh[np.isnan(rh)] = fill
             out_sds.set(_refill(_reshape(rh, self.ndims_out, fill), fill))
+            q = quant(rh)
+            print(q)
         else:
             if '_FillValue' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name]._FillValue
@@ -584,11 +604,16 @@ class MerraConversion(object):
                 else:
                     converted = self.units_fn(data)
                     converted[data == fill] = fill
+                    if self.out_name == focus_var:
+                        q = quant(converted)
+                        txt = "{} after fill/conversion".format(focus_var)
+                        LOG.info(txt)
+                        LOG.debug(', '.join(map(str, q)))
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
                 if self.out_name == focus_var:
-                    quantiles = np.nanquantile(data, [0, 0.25, 0.5, 0.75, 1.00])
-                    quantiles2 = np.nanquantile(converted, [0, 0.25, 0.5, 0.75, 1.00])
-                    print('Hi')
+                    q = quant(converted)
+                    txt = "{} final write fill value".format(focus_var)
+                    print(txt)
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value
                 if self.out_name == 'water equivalent snow depth':
@@ -602,9 +627,10 @@ class MerraConversion(object):
                     converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
                 if self.out_name == focus_var:
-                    quantiles = np.quantile(data, [0, 0.25, 0.50, 0.75, 1.00])
-                    quantiles2 = np.nanquantile(converted, [0, 0.25, 0.5, 0.75, 1.00])
-                    print('Hi')
+                    q = quant(data)
+                    q2 = quant(converted)
+                    txt = "{} final write missing value".format(focus_var)
+                    print(txt)
             else:
                 # no need to _refill
                 if self.out_name == 'pressure levels':
@@ -617,8 +643,9 @@ class MerraConversion(object):
                     data[halfway:] = tmp[0:halfway]
                 out_sds.set(_reshape(self.units_fn(data), self.ndims_out, None))
                 if self.out_name == focus_var:
-                    quantiles = np.quantile(data, [0, 0.25, 0.75, 1.00])
-                    print('Hi')
+                    q = quant(data)
+                    txt = "{} final write no fill/missing".format(focus_var)
+                    print(txt)
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
             if self.out_units is not None:
