@@ -44,7 +44,7 @@ LOG = logging.getLogger(__name__)
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
-FOCUS_VAR = ["total precipitable water"]
+FOCUS_VAR = ["rh"]
 Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
 
 # no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
@@ -67,6 +67,9 @@ def quantile_stats(in_array):
 
 def write_debug(data_array, where_msg, var_name):
     """For debugging purposes, print quartiles at various points in program."""
+
+    if isinstance(data_array, np.ma.core.MaskedArray):
+        data_array = np.ma.filled(data_array, np.nan)
     quantiles = quantile_stats(data_array)
     quantiles_string = "[{}]".format(', '.join(map(str, quantiles)))
     txt = "{} {} \n {}".format(var_name, where_msg, quantiles_string)
@@ -281,7 +284,7 @@ OUTPUT_VARS_ROSETTA = {
         'units_fn': no_conversion,
         'ndims_out': 1
     },
-    'pressure levels': {
+    'level': {
         'in_file': 'ana',
         'in_varname': 'lev',
         'out_units': 'hPa',
@@ -333,8 +336,6 @@ class MerraConversion(object):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
 
         data = np.asarray(self[self.in_name])
-        if self.out_name in FOCUS_VAR:
-            q = write_debug(data, "data read", self.out_name)
 
         if self.in_name == 'lev' and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
@@ -349,8 +350,11 @@ class MerraConversion(object):
             data = data[self.time_ind]
             data = _trim_toa(data)
 
+        if self.out_name in FOCUS_VAR:
+            q = write_debug(data, "data read", self.out_name)
+
         # apply special cases
-        if self.out_name == 'pressure levels':
+        if self.out_name == 'level':
             data = data[0:len(LEVELS)].astype(np.float32)  # trim to top CFSR level
             data = np.flipud(data)  # clavr-x needs toa->surface
         elif self.out_name == 'lon':
@@ -376,7 +380,7 @@ class MerraConversion(object):
         # BTH: netCDF4 uses strings to track datatypes - need to do a conversion
         #      between the string and the equivalent SD.<DTYPE>
         data_sd_type = nc4_to_sd_dtype(self.data.dtype)
-        if self.out_name == 'pressure levels':
+        if self.out_name == 'level':
             data_sd_type = SDC.FLOAT32  # don't want double
 
         return data_sd_type
@@ -412,7 +416,10 @@ class MerraConversion(object):
         out_sds = sd['out'].create(self.out_name, self.data_sd_type, self.shape)
         out_sds.setcompress(SDC.COMP_DEFLATE, value=comp_level)
         set_dim_names(self.in_name, self.ndims_out, out_sds)
-        out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
+        if self.out_name == 'lon':
+            out_sds.set(_reshape(data_array, self.ndims_out, None))
+        else:
+            out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
         if self.out_name in FOCUS_VAR:
             q = write_debug(data_array, "after final write", self.out_name)
             print(q)
@@ -786,13 +793,18 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                 if out_key == 'total ozone':
                     out_data = total_ozone(out_data, var_fill)
                 elif out_key == 'rh':
-                    out_data = relative_humidity(output_vars['temperature'].data, out_data, var_fill)
+                    temp_sds = merra_sd['ana'].variables['T']
+                    temp_k = temp_sds[time_inds[OUTPUT_VARS_ROSETTA['rh']['in_file']]]
+                    temp_k = _trim_toa(temp_k)
+                    out_data = relative_humidity(temp_k, out_data, var_fill)
                 elif out_key == 'rh at sigma=0.995':
-                    ps_sds_fill = output_vars['surface pressure'].fill
-                    out_data = rh_at_sigma(output_vars['temperature at sigma=0.995'].data,
-                                           output_vars['surface pressure'].data,
-                                           ps_sds_fill, out_data)
-                    var_fill = ps_sds_fill
+                    current_time_ind = time_inds[OUTPUT_VARS_ROSETTA['rh at sigma=0.995']['in_file']]
+                    temp_sds = merra_sd['slv'].variables['T10M']
+                    temp_T10M = temp_sds[current_time_ind]
+                    ps_sds = merra_sd['slv'].variables['PS']
+                    var_fill = ps_sds._FillValue
+                    ps_pa = ps_sds[current_time_ind]
+                    out_data = rh_at_sigma(temp_T10M, ps_pa, var_fill, out_data)
                 elif out_key == 'water equivalent snow depth':
                     out_data = _hack_snow(out_data, merra_sd['mask'])
                 else:
@@ -804,7 +816,9 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             geopotential_height = MerraConversion(merra_sd, 'mask', 'PHIS', 'surface height', 'km',
                                                   lambda a: a / 9806.6,  # geopotential (m^2 s^-2) => height h/(1000.*g)
                                                   2, 0)
-            geopotential_height.update_output(merra_sd, geopotential_height.data,
+            out_data = apply_conversion(geopotential_height.units_fn, geopotential_height.data,
+                                        geopotential_height.fill, 'surface height')
+            geopotential_height.update_output(merra_sd, out_data,
                                               geopotential_height.ndims_out, geopotential_height.fill)
             land_mask = MerraConversion(merra_sd, 'mask', 'FRLAND', 'land mask',
                                         '1=land, 0=ocean, greenland and antarctica are land',
