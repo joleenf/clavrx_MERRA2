@@ -291,6 +291,14 @@ OUTPUT_VARS_ROSETTA = {
         'units_fn': no_conversion,  # yes this is indeed correct.
         'ndims_out': 1
     },
+    #  level is needed for 3D variable in python and McV, but clavrx needs pressure levels (reversed)
+    'level': {
+        'in_file': 'ana',
+        'in_varname': 'lev',
+        'out_units': 'hPa',
+        'units_fn': no_conversion,  # yes this is indeed correct.
+        'ndims_out': 1
+    },
 }
 
 
@@ -354,7 +362,7 @@ class MerraConversion(object):
             q = write_debug(data, "data read", self.out_name)
 
         # apply special cases
-        if self.out_name == 'level':
+        if self.out_name in ['pressure levels', 'level']:
             data = data[0:len(LEVELS)].astype(np.float32)  # trim to top CFSR level
             data = np.flipud(data)  # clavr-x needs toa->surface
         elif self.out_name == 'lon':
@@ -367,9 +375,9 @@ class MerraConversion(object):
         if self.fill is not None:
             if self.out_name == 'water equivalent snow depth':
                 #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
-                data[data == self.fill] = 0.0
+                data= np.where(data == self.fill, 0.0, data)
             else:
-                data[data == self.fill] = np.nan
+                data = np.where(data == self.fill, np.nan, data)
 
         if self.out_name in FOCUS_VAR:
             q = write_debug(data, "after fill", self.out_name)
@@ -380,7 +388,7 @@ class MerraConversion(object):
         # BTH: netCDF4 uses strings to track datatypes - need to do a conversion
         #      between the string and the equivalent SD.<DTYPE>
         data_sd_type = nc4_to_sd_dtype(self.data.dtype)
-        if self.out_name == 'level':
+        if self.out_name in ['pressure levels', 'level']:
             data_sd_type = SDC.FLOAT32  # don't want double
 
         return data_sd_type
@@ -411,8 +419,11 @@ class MerraConversion(object):
 
         return fill
 
-    def update_output(self, sd, data_array, ndims, out_fill):
+    def update_output(self, sd, data_array):
         """Finalize output variables."""
+        ndims = self.ndims_out
+        out_fill = self.fill
+
         out_sds = sd['out'].create(self.out_name, self.data_sd_type, self.shape)
         out_sds.setcompress(SDC.COMP_DEFLATE, value=comp_level)
         set_dim_names(self.in_name, self.ndims_out, out_sds)
@@ -422,7 +433,6 @@ class MerraConversion(object):
             out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
         if self.out_name in FOCUS_VAR:
             q = write_debug(data_array, "after final write", self.out_name)
-            print(q)
 
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
@@ -810,7 +820,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                 else:
                     out_data = apply_conversion(output_vars[out_key].units_fn, out_data, var_fill, out_key)
 
-                output_vars[out_key].update_output(merra_sd, out_data, output_vars[out_key].ndims_out, var_fill)
+                output_vars[out_key].update_output(merra_sd, out_data)
 
             # --- handle surface height and static land mask from constants (mask_fn) (no time dependence)
             geopotential_height = MerraConversion(merra_sd, 'mask', 'PHIS', 'surface height', 'km',
@@ -818,13 +828,13 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                                                   2, 0)
             out_data = apply_conversion(geopotential_height.units_fn, geopotential_height.data,
                                         geopotential_height.fill, 'surface height')
-            geopotential_height.update_output(merra_sd, out_data,
-                                              geopotential_height.ndims_out, geopotential_height.fill)
+            geopotential_height.update_output(merra_sd, out_data)
+
             land_mask = MerraConversion(merra_sd, 'mask', 'FRLAND', 'land mask',
                                         '1=land, 0=ocean, greenland and antarctica are land',
                                         _merra_land_mask, 2, 0,)
             land_mask_calculated = _merra_land_mask(land_mask.data, merra_sd['mask'])
-            land_mask.update_output(merra_sd, land_mask_calculated, land_mask.ndims_out, land_mask.fill)
+            land_mask.update_output(merra_sd, land_mask_calculated)
             # --- handle ice-fraction and land ice-fraction from constants (mask_fn) specially
             # use FRSEAICE (ice-fraction): GFS uses sea-ice fraction as 'ice fraction'.
             # This version of ice-fraction is broken, so it is being shielded from CLAVR-x
@@ -832,12 +842,10 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             sea_ice_fraction = MerraConversion(merra_sd, 'mask', 'FRACI',
                                                'FRACI',  # see comment "use FRSEAICE (ice-fraction)..."
                                                'none', no_conversion, 2, 0)
-            sea_ice_fraction.update_output(merra_sd, sea_ice_fraction.data,
-                                           sea_ice_fraction.ndims_out, sea_ice_fraction.fill)
+            sea_ice_fraction.update_output(merra_sd, sea_ice_fraction.data)
             land_ice_fraction = MerraConversion(merra_sd, 'mask', 'FRLANDICE',
                                                 'land ice fraction', 'none', no_conversion, 2, 0)
-            land_ice_fraction.update_output(merra_sd, land_ice_fraction.data,
-                                            land_ice_fraction.ndims_out, land_ice_fraction.fill)
+            land_ice_fraction.update_output(merra_sd, land_ice_fraction.data)
 
             # --- write global attributes
             var = merra_sd['out'].select('temperature')
