@@ -284,7 +284,7 @@ OUTPUT_VARS_ROSETTA = {
         'units_fn': no_conversion,
         'ndims_out': 1
     },
-    'level': {
+    'pressure levels': {
         'in_file': 'ana',
         'in_varname': 'lev',
         'out_units': 'hPa',
