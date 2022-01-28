@@ -929,17 +929,17 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
     return in_files
 
 
-def main(**kwargs) -> None:
+def process_merra(base_path=None, start_date=None, end_date=None, store_temp=False) -> None:
 
-    out_path_parent = kwargs['base_path']
+    out_path_parent = base_path
     try:
-        start_dt = datetime.strptime(kwargs['start_date'], '%Y%m%d')
+        start_dt = datetime.strptime(start_date, '%Y%m%d')
     except ValueError:
         print('usage:\n    python merra4clavrx.py 20090101')
         sys.exit()
 
-    if kwargs['end_date'] is not None:
-        end_dt = datetime.strptime(kwargs['end_date'], '%Y%m%d')
+    if end_date is not None:
+        end_dt = datetime.strptime(end_date, '%Y%m%d')
     else:
         end_dt = start_dt
 
@@ -954,7 +954,7 @@ def main(**kwargs) -> None:
             msg = "Oops!  {} \n Enter a valid directory with -d flag".format(e)
             raise OSError(msg)
 
-        if kwargs['store_temp']:
+        if store_temp:
             with tempfile.TemporaryDirectory() as tmp_dir_name:
                 in_data = build_input_collection(dt, Path(tmp_dir_name))
                 mask_file = str(in_data.pop('mask_file'))
@@ -962,7 +962,7 @@ def main(**kwargs) -> None:
                 out_list = make_merra_one_day(in_data, out_path_full, mask_file)
                 LOG.info(', '.join(map(str, out_list)))
         else:
-            input_path = Path(kwargs['base_path']).joinpath('saved_input', year, year_month_day)
+            input_path = Path(base_path).joinpath('saved_input', year, year_month_day)
             input_path.mkdir(parents=True, exist_ok=True)
             in_data = build_input_collection(dt, input_path)
             mask_file = str(in_data.pop('mask_file'))
@@ -1010,4 +1010,4 @@ def argument_parser() -> CommandLineMapping:
 if __name__ == '__main__':
 
     parser_args = argument_parser()
-    main(**parser_args)
+    process_merra(**parser_args)
