@@ -327,7 +327,6 @@ class MerraConversion(object):
         self.nc_dataset = datasets[in_dataset]
         LOG.info('Get data for {} {}'.format(self.in_dataset, self.in_name))
 
-        self.fill = self._get_fill
         self.data = self._get_data
         self.data_sd_type = self._create_output_dtype
         self.shape = self._modify_shape
@@ -343,7 +342,10 @@ class MerraConversion(object):
     def _get_data(self):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
 
-        data = np.asarray(self[self.in_name])
+        data = np.ma.getdata(self[self.in_name])
+        self.fill = data.get_fill_value()
+
+        data = np.asarray(data)
 
         if self.in_name == 'lev' and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
@@ -357,9 +359,6 @@ class MerraConversion(object):
         if ndims_in == 4:
             data = data[self.time_ind]
             data = _trim_toa(data)
-
-        if self.out_name in FOCUS_VAR:
-            q = write_debug(data, "data read", self.out_name)
 
         # apply special cases
         if self.out_name in ['pressure levels', 'level']:
@@ -375,12 +374,10 @@ class MerraConversion(object):
         if self.fill is not None:
             if self.out_name == 'water equivalent snow depth':
                 #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
-                data= np.where(data == self.fill, 0.0, data)
+                data = np.where(data == self.fill, 0.0, data)
             else:
                 data = np.where(data == self.fill, np.nan, data)
 
-        if self.out_name in FOCUS_VAR:
-            q = write_debug(data, "after fill", self.out_name)
         return data
 
     @property
@@ -407,18 +404,6 @@ class MerraConversion(object):
 
         return shape
 
-    @property
-    def _get_fill(self):
-        """Get fill but do not apply until special cases can be handled."""
-
-        fill = None
-        if '_FillValue' in self[self.in_name].ncattrs():
-            fill = self[self.in_name]._FillValue
-        elif 'missing_value' in self[self.in_name].ncattrs():
-            fill = self[self.in_name].missing_value
-
-        return fill
-
     def update_output(self, sd, data_array):
         """Finalize output variables."""
         ndims = self.ndims_out
@@ -431,8 +416,6 @@ class MerraConversion(object):
             out_sds.set(_reshape(data_array, self.ndims_out, None))
         else:
             out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
-        if self.out_name in FOCUS_VAR:
-            q = write_debug(data_array, "after final write", self.out_name)
 
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
@@ -574,9 +557,8 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
     return rh_sigma
 
 
-def apply_conversion(units_fn, data, fill, key):
+def apply_conversion(units_fn, data, fill):
     """Special handling of converted data apply fill to converted data after function."""
-    # key is for debugging purposes, not needed otherwise
     converted = data.copy()
     converted = units_fn(converted)
 
@@ -818,7 +800,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                 elif out_key == 'water equivalent snow depth':
                     out_data = _hack_snow(out_data, merra_sd['mask'])
                 else:
-                    out_data = apply_conversion(output_vars[out_key].units_fn, out_data, var_fill, out_key)
+                    out_data = apply_conversion(output_vars[out_key].units_fn, out_data, var_fill)
 
                 output_vars[out_key].update_output(merra_sd, out_data)
 
@@ -827,7 +809,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                                                   lambda a: a / 9806.6,  # geopotential (m^2 s^-2) => height h/(1000.*g)
                                                   2, 0)
             out_data = apply_conversion(geopotential_height.units_fn, geopotential_height.data,
-                                        geopotential_height.fill, 'surface height')
+                                        geopotential_height.fill)
             geopotential_height.update_output(merra_sd, out_data)
 
             land_mask = MerraConversion(merra_sd, 'mask', 'FRLAND', 'land mask',
@@ -918,7 +900,7 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
     mask_fn = download_data(in_path.joinpath("2d_ctm"),
                             f'MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4',
                             "const_2d_ctm_Nx", desired_date)
-    LOG.info('Processing date: {}'.format(dt.strftime('%Y-%m-%d')))
+    LOG.info('Processing date: {}'.format(desired_date.strftime('%Y-%m-%d')))
 
     in_files = {
         'ana': download_data(in_path.joinpath("3d_ana"),
@@ -945,6 +927,48 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
         'mask_file': mask_fn,
     }
     return in_files
+
+
+def main(**kwargs) -> None:
+
+    out_path_parent = kwargs['base_path']
+    try:
+        start_dt = datetime.strptime(kwargs['start_date'], '%Y%m%d')
+    except ValueError:
+        print('usage:\n    python merra4clavrx.py 20090101')
+        sys.exit()
+
+    if kwargs['end_date'] is not None:
+        end_dt = datetime.strptime(kwargs['end_date'], '%Y%m%d')
+    else:
+        end_dt = start_dt
+
+    for dt in date_range(start_dt, end_dt, freq='D'):
+        year = dt.strftime("%Y")
+        year_month_day = dt.strftime("%Y_%m_%d")
+        out_path_full = Path(out_path_parent).joinpath(year)
+
+        try:
+            out_path_full.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            msg = "Oops!  {} \n Enter a valid directory with -d flag".format(e)
+            raise OSError(msg)
+
+        if kwargs['store_temp']:
+            with tempfile.TemporaryDirectory() as tmp_dir_name:
+                in_data = build_input_collection(dt, Path(tmp_dir_name))
+                mask_file = str(in_data.pop('mask_file'))
+                LOG.debug("Mask File {}".format(mask_file))
+                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+                LOG.info(', '.join(map(str, out_list)))
+        else:
+            input_path = Path(kwargs['base_path']).joinpath('saved_input', year, year_month_day)
+            input_path.mkdir(parents=True, exist_ok=True)
+            in_data = build_input_collection(dt, input_path)
+            mask_file = str(in_data.pop('mask_file'))
+            LOG.debug("Mask File {}".format(mask_file))
+            out_list = make_merra_one_day(in_data, out_path_full, mask_file)
+            LOG.info(', '.join(map(str, out_list)))
 
 
 def argument_parser() -> CommandLineMapping:
@@ -985,43 +1009,5 @@ def argument_parser() -> CommandLineMapping:
 
 if __name__ == '__main__':
 
-    input_args = argument_parser()
-
-    out_path_parent = input_args['base_path']
-    try:
-        start_dt = datetime.strptime(input_args['start_date'], '%Y%m%d')
-    except ValueError:
-        print('usage:\n    python merra4clavrx.py 20090101')
-        sys.exit()
-
-    if input_args['end_date'] is not None:
-        end_dt = datetime.strptime(input_args['end_date'], '%Y%m%d')
-    else:
-        end_dt = start_dt
-
-    for dt in date_range(start_dt, end_dt, freq='D'):
-        year = dt.strftime("%Y")
-        year_month_day = dt.strftime("%Y_%m_%d")
-        out_path_full = Path(out_path_parent).joinpath(year)
-
-        try:
-            out_path_full.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            msg = "Oops!  {} \n Enter a valid directory with -d flag".format(e)
-            raise OSError(msg)
-
-        if input_args['store_temp']:
-            with tempfile.TemporaryDirectory() as tmp_dir_name:
-                in_data = build_input_collection(dt, Path(tmp_dir_name))
-                mask_file = str(in_data.pop('mask_file'))
-                LOG.debug("Mask File {}".format(mask_file))
-                out_list = make_merra_one_day(in_data, out_path_full, mask_file)
-                LOG.info(', '.join(map(str, out_list)))
-        else:
-            input_path = Path(input_args['base_path']).joinpath('saved_input', year, year_month_day)
-            input_path.mkdir(parents=True, exist_ok=True)
-            in_data = build_input_collection(dt, input_path)
-            mask_file = str(in_data.pop('mask_file'))
-            LOG.debug("Mask File {}".format(mask_file))
-            out_list = make_merra_one_day(in_data, out_path_full, mask_file)
-            LOG.info(', '.join(map(str, out_list)))
+    parser_args = argument_parser()
+    main(**parser_args)
