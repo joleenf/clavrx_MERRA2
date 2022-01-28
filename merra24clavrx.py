@@ -45,7 +45,7 @@ LOG = logging.getLogger(__name__)
 
 comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
-focus_var = "total precipitable water"
+focus_var = "rh"
 
 no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 fill_bad = lambda a: a * np.nan
@@ -354,6 +354,13 @@ rs = {
         'units_fn': no_conversion,  # yes this is indeed correct.
         'ndims_out': 1
     },
+    'level': {
+        'in_file': 'ana',
+        'in_varname': 'lev',
+        'out_units': 'hPa',
+        'units_fn': no_conversion,  # yes this is indeed correct.
+        'ndims_out': 1
+    },
 }
 
 
@@ -514,11 +521,7 @@ class MerraConversion(object):
         in_sds = sd[self.in_dataset]
         print('BTH: performing data pull on', self.in_dataset, self.in_name)
         data = np.asarray(in_sds.variables[self.in_name])
-        if self.out_name == focus_var:
-            q = quant(data)
-            txt = "{} data read".format(focus_var)
-            LOG.info(txt)
-            LOG.debug(','.join(map(str, q)))
+
         # BTH: data has changed from a netCDF4 variable object to a numpy array
         #      after this point, so checks on variable attributes (e.g. _FillValue) 
         #      need to be applied to in_sds.variables[self.in_name] 
@@ -537,14 +540,16 @@ class MerraConversion(object):
 
         if self.out_name == focus_var:
             q = quant(data)
-            txt = "{} after time_ind selection".format(focus_var)
-            print(txt)
+            txt = "{} data read".format(focus_var)
+            LOG.info(txt)
+            LOG.debug(','.join(map(str, q)))
+
         # BTH: netCDF4 uses strings to track datatypes - need to do a conversion
         #      between the string and the equivalent SD.<DTYPE>
         nc4_dtype = data.dtype
         sd_dtype = nc4_to_sd_dtype(nc4_dtype)
         data_type = sd_dtype  # int, float etc; mirror input type for now
-        if self.out_name == 'pressure levels':
+        if self.out_name in ['pressure levels', 'level']:
             data = data[0:len(LEVELS)].astype(np.float32)  # trim to top CFSR level
             data_type = SDC.FLOAT32  # don't want double
         if self.out_name == 'total ozone':
@@ -579,6 +584,8 @@ class MerraConversion(object):
             out_sds.set(_refill(_reshape(rh, self.ndims_out, fill), fill))
             mdata = np.ma.filled(rh, np.nan)
             q = quant(mdata)
+            print(q)
+            pass
         elif self.out_name == 'rh at sigma=0.995':
             temp_sds = in_sds.variables['T10M']  # temperature in [K] (Time, Y, X)
             temp_k = temp_sds[time_ind]
@@ -627,13 +634,12 @@ class MerraConversion(object):
                     converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
                 if self.out_name == focus_var:
-                    q = quant(data)
-                    q2 = quant(converted)
+                    q = quant(converted)
                     txt = "{} final write missing value".format(focus_var)
                     print(txt)
             else:
                 # no need to _refill
-                if self.out_name == 'pressure levels':
+                if self.out_name in ['pressure levels', 'level']:
                     data = data[::-1]  # clavr-x needs toa->surface
                 if self.out_name == 'lon':
                     tmp = np.copy(data)
@@ -660,6 +666,7 @@ class MerraConversion(object):
             # setattr(out_sds, 'missing_value', in_sds.attributes()['missing_value'])
             # not sure about diff. btwn missing_value and fmissing_value
             # setattr(out_sds, 'fmissing_value', in_sds.attributes()['fmissing_value'])
+            setattr(out_sds, '_FillValue', CLAVRX_FILL)
         except KeyError:
             # dims will fail...  XXX don't want failed attribute to stop other attributes!
             pass
@@ -747,8 +754,6 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_file: str)
             # --- write out data variables
             for k in rs:
                 rsk = rs[k]
-                if k == focus_var:
-                    print(rsk['in_file'], time_inds[rsk['in_file']])
                 MerraConversion(
                     rsk['in_file'],
                     rsk['in_varname'],
