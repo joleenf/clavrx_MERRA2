@@ -428,6 +428,7 @@ class MerraConversion(object):
             setattr(out_sds, 'source_data',
                     'MERRA->' + self.in_dataset + '->' + self.in_name + u)
             setattr(out_sds, 'long_name', sd[self.in_dataset].variables[self.in_name].long_name)
+            # setattr(out_sds, '_FillValue', CLAVRX_FILL)
             # setattr(out_sds, 'missing_value', in_sds.attributes()['missing_value'])
             # not sure about diff. btwn missing_value and fmissing_value
             # setattr(out_sds, 'fmissing_value', in_sds.attributes()['fmissing_value'])
@@ -536,14 +537,6 @@ def total_ozone(data, fill_value):
     dobson[np.isnan(dobson)] = fill_value
 
     return dobson
-
-
-def relative_humidity(temp, data, fill_value):
-    """Calculate Relative Humidity."""
-    rh = qv_to_rh(data, temp)
-    rh[np.isnan(rh)] = fill_value
-
-    return rh
 
 
 def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
@@ -773,29 +766,28 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             # --- prepare input data variables
             output_vars = dict()
             for out_key in OUTPUT_VARS_ROSETTA:
+            #for out_key in ['rh', 'temperature', 'pressure levels', 'level', 'lat', 'lon']:
                 rsk = OUTPUT_VARS_ROSETTA[out_key]
                 output_vars[out_key] = MerraConversion(merra_sd, rsk['in_file'], rsk['in_varname'], out_key,
                                                        rsk['out_units'], rsk['units_fn'], rsk['ndims_out'],
                                                        time_inds[rsk['in_file']])
             # to insure that all the variables are filled before attempting the data conversions,
             # read all the output_vars and then convert before setting the hdf variables out.
+            #for out_key in ['rh', 'temperature', 'pressure levels', 'level', 'lat', 'lon']:
             for out_key in OUTPUT_VARS_ROSETTA:
                 var_fill = output_vars[out_key].fill
                 out_data = output_vars[out_key].data
                 if out_key == 'total ozone':
                     out_data = total_ozone(out_data, var_fill)
                 elif out_key == 'rh':
-                    temp_sds = merra_sd['ana'].variables['T']
-                    temp_k = temp_sds[time_inds[OUTPUT_VARS_ROSETTA['rh']['in_file']]]
-                    temp_k = _trim_toa(temp_k)
-                    out_data = relative_humidity(temp_k, out_data, var_fill)
+                    out_data = qv_to_rh(out_data, output_vars['temperature'].data)
                 elif out_key == 'rh at sigma=0.995':
-                    current_time_ind = time_inds[OUTPUT_VARS_ROSETTA['rh at sigma=0.995']['in_file']]
-                    temp_sds = merra_sd['slv'].variables['T10M']
-                    temp_T10M = temp_sds[current_time_ind]
-                    ps_sds = merra_sd['slv'].variables['PS']
-                    var_fill = ps_sds._FillValue
-                    ps_pa = ps_sds[current_time_ind]
+                    temp_T10M = output_vars['temperature at sigma=0.995'].data
+                    # this is not an output variable, so just use MerraConversion to consistently
+                    # extract the data from the source file.
+                    ps_pa = MerraConversion(merra_sd, "slv", "PS",
+                                            "surface pressure at sigma=0.995",
+                                            "hPa", None, 2, output_vars[out_key].time_ind).data
                     out_data = rh_at_sigma(temp_T10M, ps_pa, var_fill, out_data)
                 elif out_key == 'water equivalent snow depth':
                     out_data = _hack_snow(out_data, merra_sd['mask'])
