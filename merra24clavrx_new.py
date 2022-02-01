@@ -985,9 +985,9 @@ def argument_parser() -> CommandLineMapping:
                         help="Use to store downloaded input files in a temporary location.")
     parser.add_argument('-d', '--base_dir', dest='base_path', action='store', nargs='?', 
                         type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
-                        help="Parent path used for input (in absence of -t/--tmp flag) and final location. \
+                        help="Parent path used for input (in absence of -t/--tmp flag) and final location if -f not set. \
                               year subdirectory appends to this path.")
-    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
+    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=2,
                         help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
 
     args = vars(parser.parse_args())
