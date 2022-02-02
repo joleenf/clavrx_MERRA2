@@ -701,7 +701,7 @@ def _hack_snow(data, mask_sd):
 def _trim_toa(data):
     """Trim the top of the atmosphere."""
     if len(data.shape) != 3:
-        print('Warning: why did you run _trim_toa on a non-3d var?')
+        LOG.warning('Warning: why did you run _trim_toa on a non-3d var?')
     # at this point (before _reshape), data should be (level, lat, lon) and
     # the level dim should be ordered surface -> toa
     return data[0:len(LEVELS), :, :]
@@ -758,7 +758,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
 
         out_fnames = []
         for out_time in sorted(common_times):  # only sorted for debugging purposes.
-            print('    working on time: {}'.format(out_time))
+            LOG.info('    working on time: {}'.format(out_time))
             out_fname = str(out_dir.joinpath(out_time.strftime('merra.%y%m%d%H_F000.hdf')))
             LOG.info(out_fname)
             out_fnames.append(out_fname)
@@ -860,7 +860,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
     finally:
         for file_name_key in in_files.keys():
             # merra_source_data[k].end()
-            print('Finished', file_name_key)
+            LOG.info('Finished', file_name_key)
 
     return out_fnames
 
@@ -878,11 +878,16 @@ def download_data(inpath: Union[str, Path], file_glob: str,
         script_name = os.path.join(script_dir, "scripts", "wget_all.sh")
         cmd = 'sh {} -w {} -k {} {}'.format(script_name, inpath.parent,
                                             file_type, get_date.strftime("%Y %m %d"))
+        cmd = ['sh', script_name,  '-w', inpath.parent,  '-k',  file_type, get_date.strftime("%Y %m %d")] 
         try:
-            subprocess.run(cmd, shell=True, check=True)
+            proc = subprocess.run(cmd, text=True)
         except subprocess.CalledProcessError as e:
-            print(e.returncode)
-            print(e.output)
+            LOG.error(e.returncode)
+            LOG.error(e.output)
+
+        if proc.returncode != 0:
+            LOG.info(proc.stdout)
+            LOG.error(proc.stderr)
 
         file_list = list(inpath.glob(file_glob))
         if len(file_list) == 0:
@@ -992,9 +997,9 @@ def argument_parser() -> CommandLineMapping:
                         help="Use to store downloaded input files in a temporary location.")
     parser.add_argument('-d', '--base_dir', dest='base_path', action='store', nargs='?', 
                         type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
-                        help="Parent path used for input (in absence of -t/--tmp flag) and final location. \
+                        help="Parent path used for input (in absence of -t/--tmp flag) and final location if -f not set. \
                               year subdirectory appends to this path.")
-    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
+    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=2,
                         help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
 
     args = vars(parser.parse_args())

@@ -37,7 +37,10 @@ MM=${@:$OPTIND+1:1}
 DD=${@:$OPTIND+2:1}
 
 
+export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}(): } '
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+mkdir -p $download_dir
 
 if [ -d ${download_dir} ];
 then
