@@ -23,20 +23,27 @@ Optional arguments::
 """
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from collections import OrderedDict
 from pathlib import Path
 
-import netCDF4
-from pandas import date_range
-from pyhdf.SD import SD, SDC
-from netCDF4 import Dataset
-from datetime import datetime, timedelta
-from typing import Union, Optional, Dict, TypedDict
-import os
-import subprocess
 import sys
-import tempfile
+import os
+import glob
 import logging
-import numpy as np
+import subprocess
+import tempfile
+
+try:
+    from pandas import date_range
+    from pyhdf.SD import SD, SDC
+    from netCDF4 import Dataset
+    from datetime import datetime, timedelta
+    from typing import Union, Optional, Dict, TypedDict
+    import numpy as np
+except ImportError as e:
+    print("Import Error {}".format(e))
+    print("Type:  conda activate merra2_clavrx")
+    sys.exit(1)
 
 np.seterr(all='ignore')
 
