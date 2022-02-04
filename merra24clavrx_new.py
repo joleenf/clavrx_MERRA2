@@ -315,6 +315,7 @@ class CommandLineMapping(TypedDict):
     end_date: Optional[str]
     store_temp: bool
     base_path: str
+    input_path: str
 
 
 class MerraConversion(object):
@@ -678,7 +679,7 @@ def _extrapolate_below_sfc(t, fill):
     return t
 
 
-def _merra_land_mask(data: np.ndarray, mask_sd: netCDF4.Dataset) -> np.ndarray:
+def _merra_land_mask(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     """ Convert fractional merra land mask to 1=land 0=ocean.
 
     XXX TODO: need to add in FRLANDICE so antarctica and greenland get included. (Is this done?)
@@ -689,7 +690,7 @@ def _merra_land_mask(data: np.ndarray, mask_sd: netCDF4.Dataset) -> np.ndarray:
     return data > 0.25
 
 
-def _hack_snow(data, mask_sd):
+def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     """ Force greenland/antarctica to be snowy like CFSR """
 
     # Special case: set snow depth missing values to match CFSR behavior.
@@ -698,7 +699,7 @@ def _hack_snow(data, mask_sd):
     return data
 
 
-def _trim_toa(data):
+def _trim_toa(data: np.ndarray) -> np.ndarray:
     """Trim the top of the atmosphere."""
     if len(data.shape) != 3:
         LOG.warning('Warning: why did you run _trim_toa on a non-3d var?')
@@ -708,7 +709,7 @@ def _trim_toa(data):
 
 
 def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
-    """ Read input, parse times, and run conversion on one day at a time."""
+    "parser"" Read input, parse times, and run conversion on one day at a time."""
 
     merra_sd = dict()
     for file_name_key in in_files.keys():
@@ -860,7 +861,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
     finally:
         for file_name_key in in_files.keys():
             # merra_source_data[k].end()
-            LOG.info('Finished', file_name_key)
+            LOG.info("Finished {}".format(file_name_key))
 
     return out_fnames
 
@@ -870,8 +871,10 @@ def download_data(inpath: Union[str, Path], file_glob: str,
     """Download data with wget scripts if needed."""
 
     inpath.mkdir(parents=True, exist_ok=True)
-    file_list = list(inpath.glob(file_glob))
-    if len(file_list) == 0:
+    LOG.info("Current In path is {} looking for {}".format(inpath,file_glob))
+    try:
+        file_list = list(inpath.glob(file_glob))[0]
+    except IndexError as e:
         # TODO: Build and OPeNDAP request in python to retrieve data.
         # In short term: use wget
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -889,11 +892,12 @@ def download_data(inpath: Union[str, Path], file_glob: str,
             LOG.info(proc.stdout)
             LOG.error(proc.stderr)
 
-        file_list = list(inpath.glob(file_glob))
-        if len(file_list) == 0:
+        try:
+            file_list = list(inpath.glob(file_glob))[0]
+        except IndexError as e:
             raise FileNotFoundError("{}/{}".format(inpath, file_glob))
 
-    return file_list[0]
+    return file_list
 
 
 def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, Path]:
@@ -933,7 +937,7 @@ def build_input_collection(desired_date: datetime, in_path: Path) -> Dict[str, P
     return in_files
 
 
-def process_merra(base_path=None, start_date=None, end_date=None, store_temp=False) -> None:
+def process_merra(base_path=None, input_path=None, start_date=None, end_date=None, store_temp=False) -> None:
 
     out_path_parent = base_path
     try:
@@ -966,7 +970,7 @@ def process_merra(base_path=None, start_date=None, end_date=None, store_temp=Fal
                 out_list = make_merra_one_day(in_data, out_path_full, mask_file)
                 LOG.info(', '.join(map(str, out_list)))
         else:
-            input_path = Path(base_path).joinpath('saved_input', year, year_month_day)
+            input_path = Path(input_path).joinpath(year, year_month_day)
             input_path.mkdir(parents=True, exist_ok=True)
             in_data = build_input_collection(dt, input_path)
             mask_file = str(in_data.pop('mask_file'))
@@ -978,12 +982,13 @@ def process_merra(base_path=None, start_date=None, end_date=None, store_temp=Fal
 def argument_parser() -> CommandLineMapping:
     """Parse command line for merra24clavrx.py."""
     parse_desc = (
-        """Retrieve merra2 data from GES DISC
+        """\nRetrieve merra2 data from GES DISC
                     and process for clavrx input."""
     )
     formatter = ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(description=parse_desc,
                             formatter_class=formatter)
+    group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('start_date', action='store',
                         type=str, metavar='start_date',
@@ -993,12 +998,14 @@ def argument_parser() -> CommandLineMapping:
                         metavar='end_date',
                         help="End date as YYYYMMDD not needed when processing one date.")
     # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
-    parser.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
+    group.add_argument('-t', '--tmp', dest='store_temp', action='store_true',
                         help="Use to store downloaded input files in a temporary location.")
+    group.add_argument('-i', '--input', dest='input_path', action='store', nargs='?',
+                        type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
+                        help="Data Input path (in absence of -t/--tmp flag) year/year_month_day subdirs append to path.")
     parser.add_argument('-d', '--base_dir', dest='base_path', action='store', nargs='?', 
                         type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
-                        help="Parent path used for input (in absence of -t/--tmp flag) and final location if -f not set. \
-                              year subdirectory appends to this path.")
+                        help="Parent path used final location year subdirectory appends to this path.")
     parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=2,
                         help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
 
