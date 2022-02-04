@@ -32,7 +32,7 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXSLV.5.12.4
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}

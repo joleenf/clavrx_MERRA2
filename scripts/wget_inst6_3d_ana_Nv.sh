@@ -35,7 +35,7 @@ TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
 
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NVANA.5.12.4/
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}
