@@ -43,6 +43,9 @@ if [ -f "$TARGET_FILE" ]; then
     cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME}
 else 
     echo "${TARGET_FILE} does not exist."
+    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
+    echo $cmd
+    exit 1
 fi
 
 exit

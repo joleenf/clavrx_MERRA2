@@ -37,6 +37,19 @@ do
 	# rm -rfv ${TMPDIR}/${start}/${year}_${month}_${day}
 done
 
+start=$(date -d $START_DATE +%Y%m%d)
+while [[ $start -le $end ]]
+do
+	yy=${start:2:2}
+	year=${start:0:4}
+        month="${start:4:2}"
+        day="${start:6:2}"
+	out_count=`find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year}/ -name merra.${yy}${month}${day}_F*.hdf -print | wc`
+	if [ ${out_count} != 4 ]; then
+            bin/mail -s "${start}" "joleen.feltz@ssec.wisc.edu" < "${start} did not process correctly." 
+	fi
+
+done
 # clean up
 #cd /scratch
 #echo finished at: `date`

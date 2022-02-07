@@ -31,16 +31,20 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I1NXASM.5.12.4
 
-wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+#wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+any_stream ${TARGET_FILE} ${BASEURL}
 
-if [ $? != 0 ]; then
-	any_stream ${TARGET_FILE} ${BASEURL}
-fi
+#if [ $? != 0 ]; then
+#	any_stream ${TARGET_FILE} ${BASEURL}
+#fi
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 2d_asm/.
 else 
     echo "${TARGET_FILE} does not exist."
+    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
+    echo $cmd
+    exit 1
 fi
 
 exit

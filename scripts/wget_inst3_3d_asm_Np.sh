@@ -32,16 +32,18 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 
-wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
+#wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
 
-if [ $? != 0 ]; then
-        any_stream ${TARGET_FILE} ${HTTP_PATH}
-fi
+#if [ $? != 0 ]; then
+any_stream ${TARGET_FILE} ${HTTP_PATH}
+#fi
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_asm/.
 else 
     echo "${TARGET_FILE} does not exist."
+    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
+    echo $cmd
     exit 1
 fi
 

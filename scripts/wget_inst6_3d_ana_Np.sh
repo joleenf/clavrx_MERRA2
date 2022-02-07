@@ -32,16 +32,18 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4
 
-wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+#wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
-if [ $? != 0 ]; then
-        any_stream ${TARGET_FILE} ${BASEURL}
-fi
+#if [ $? != 0 ]; then
+any_stream ${TARGET_FILE} ${BASEURL}
+#fi
 
 if [ -f "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
     echo "${TARGET_FILE} does not exist."
+    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
+    echo $cmd
     exit 1
 fi
 
