@@ -678,7 +678,7 @@ def _extrapolate_below_sfc(t, fill):
     return t
 
 
-def _merra_land_mask(data: np.ndarray, mask_sd: netCDF4.Dataset) -> np.ndarray:
+def _merra_land_mask(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     """ Convert fractional merra land mask to 1=land 0=ocean.
 
     XXX TODO: need to add in FRLANDICE so antarctica and greenland get included. (Is this done?)
