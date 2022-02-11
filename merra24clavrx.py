@@ -840,8 +840,6 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             setattr(merra_sd['out'], 'NUMBER OF O3MR LEVELS', nlevel)
             setattr(merra_sd['out'], 'NUMBER OF RH LEVELS', nlevel)
             setattr(merra_sd['out'], 'NUMBER OF CLWMR LEVELS', nlevel)
-            setattr(merra_sd['out'], 'MERRA STREAM', merra_sd['ana'].GranuleID.split('.')[0])
-            setattr(merra_sd['out'], 'MERRA History', merra_sd['ana'].History)
             lat = merra_sd['out'].select('lat')
             lon = merra_sd['out'].select('lon')
             attr = merra_sd['out'].attr('LATITUDE RESOLUTION')
@@ -854,6 +852,8 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             attr.set(SDC.FLOAT32, lon.get()[0])
             setattr(merra_sd['out'], 'GRIB TYPE', 'not applicable')  # XXX better to just not write this attr?
             setattr(merra_sd['out'], '3D ARRAY ORDER', 'ZXY')  # XXX is this true here?
+            setattr(merra_sd['out'], 'MERRA STREAM', "{}".format(merra_sd['ana'].GranuleID.split('.')[0]))
+            setattr(merra_sd['out'], 'MERRA History', "{}".format(merra_sd['ana'].History))
             [a.endaccess() for a in [var, lat, lon]]
 
             merra_sd['out'].end()
