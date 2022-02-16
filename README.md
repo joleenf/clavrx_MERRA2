@@ -36,3 +36,22 @@ After running the run-script for a selected INPUT_DATE, files will appear in /tm
 directory is currently being removed every time the run-script is used, so if you iterate over  
 multiple dates, you'll scrub the output on every intermediate date and only have the output for the  
 last date. You can get rid of this by commenting-out Lines 24-27 of test_merra24clavrx.sh.
+
+# ERA-5
+ERA5 request following [copernicus API instructions] (https://cds.climate.copernicus.eu/api-how-to#install-the-cds-api-key)
+```python
+#!/usr/bin/env python
+import cdsapi
+c = cdsapi.Client()
+c.retrieve("reanalysis-era5-pressure-levels",
+{
+"variable": "temperature",
+"pressure_level": "1000",
+"product_type": "reanalysis",
+"year": "2008",
+"month": "01",
+"day": "01",
+"time": "12:00",
+"format": "grib"
+}, "download.grib")
+```
