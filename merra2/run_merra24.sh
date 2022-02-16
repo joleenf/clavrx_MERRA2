@@ -1,7 +1,7 @@
 #!/bin/bash
 set -x
 # USER OPTIONS
-BIN_DIR=$HOME/clavrx_MERRA2
+BIN_DIR=$HOME/clavrx_MERRA2/merra2
 DATA_PATH=/data/clavrx_ops/MERRA_INPUT/
 START_DATE=20210801
 END_DATE=20210801
