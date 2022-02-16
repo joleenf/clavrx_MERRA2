@@ -10,5 +10,6 @@ dependencies:
   - netCDF4
   - matplotlib
   - jupyter
-  - pip
   - wget
+  - pip:
+    - cdsapi
