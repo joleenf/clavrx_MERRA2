@@ -28,7 +28,6 @@ from pathlib import Path
 
 import sys
 import os
-import glob
 import logging
 import subprocess
 import tempfile
@@ -36,7 +35,7 @@ import tempfile
 try:
     from pandas import date_range
     from pyhdf.SD import SD, SDC
-    from netCDF4 import Dataset
+    from netCDF4 import Dataset, num2date
     from datetime import datetime, timedelta
     from typing import Union, Optional, Dict, TypedDict
     import numpy as np
@@ -53,9 +52,6 @@ comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
 
 FOCUS_VAR = ["rh"]
 Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
-
-# no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
-# fill_bad = lambda a: a * np.nan
 
 # this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
 LEVELS = [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
@@ -732,18 +728,13 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             else:
                 raise ValueError("Couldn't find time coordinate in this file")
             for (i, t) in enumerate(t_sds):
-                if t_units.startswith('minutes'):
-                    time = base_time + timedelta(minutes=int(t))
-                elif t_units.startswith('hours'):
-                    time = base_time + timedelta(hours=int(t))
-                else:
-                    raise ValueError("Can't handle time unit")
-                if time.minute == time_hack_offset:
+                analysis_time = num2date(t, t_units)
+                if analysis_time.minute == time_hack_offset:
                     # total hack to deal with non-analysis products being on the half-hour 
-                    time = time - timedelta(minutes=time_hack_offset)
+                    analysis_time = analysis_time - timedelta(minutes=time_hack_offset)
                 # This is just to get the index for a given timestamp later:
-                times[file_name_key].append((i, time))
-                time_set[file_name_key].add(time)
+                times[file_name_key].append((i, analysis_time))
+                time_set[file_name_key].add(analysis_time)
         # find set of time common to all input files
         common_times = (time_set['ana'] &
                         time_set['flx'] &
