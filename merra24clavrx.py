@@ -397,7 +397,7 @@ class MerraConversion(object):
     @property
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
-        if self.out_name == 'total ozone':
+        if self.out_name == 'total ozone' and len(self.data.shape) == 3:
             # b/c we vertically integrate ozone to get dobson units here
             shape = (self.data.shape[1], self.data.shape[2])
         elif self.ndims_out == 3:
@@ -415,7 +415,7 @@ class MerraConversion(object):
 
         out_sds = sd['out'].create(self.out_name, self.data_sd_type, self.shape)
         out_sds.setcompress(SDC.COMP_DEFLATE, value=comp_level)
-        set_dim_names(self.in_name, self.ndims_out, out_sds)
+        self.set_dim_names(out_sds)
         if self.out_name == 'lon':
             out_sds.set(_reshape(data_array, self.ndims_out, None))
         else:
@@ -441,25 +441,25 @@ class MerraConversion(object):
             pass
         out_sds.endaccess()
 
+    def set_dim_names(self, out_sds):
+        """Set dimension names in hdf file."""
+        if self.in_name == 'lat' or self.in_name == 'latitude':
+            out_sds.dim(0).setname('lat')
+        elif self.in_name == 'lon' or self.in_name == 'longitude':
+            out_sds.dim(0).setname('lon')
+        elif self.in_name == 'lev' or self.in_name == 'level':
+            out_sds.dim(0).setname('level')
+        elif self.ndims_out == 2:
+            out_sds.dim(0).setname('lat')
+            out_sds.dim(1).setname('lon')
+        elif self.ndims_out == 3:
+            out_sds.dim(0).setname('lat')
+            out_sds.dim(1).setname('lon')
+            out_sds.dim(2).setname('level')
+        else:
+            raise ValueError("unsupported dimensionality")
 
-def set_dim_names(in_name, ndims_out, out_sds):
-    if in_name == 'lat':
-        out_sds.dim(0).setname('lat')
-    elif in_name == 'lon':
-        out_sds.dim(0).setname('lon')
-    elif in_name == 'lev':
-        out_sds.dim(0).setname('level')
-    elif ndims_out == 2:
-        out_sds.dim(0).setname('lat')
-        out_sds.dim(1).setname('lon')
-    elif ndims_out == 3:
-        out_sds.dim(0).setname('lat')
-        out_sds.dim(1).setname('lon')
-        out_sds.dim(2).setname('level')
-    else:
-        raise ValueError("unsupported dimensionality")
-
-    return out_sds
+        return out_sds
 
 
 def qv_to_rh(qv, t, ps=None):
