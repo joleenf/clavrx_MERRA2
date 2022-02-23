@@ -419,7 +419,11 @@ class MerraConversion(object):
         if self.out_name == 'lon':
             out_sds.set(_reshape(data_array, self.ndims_out, None))
         else:
-            out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
+            if self.out_name == 'rh':
+                new = _refill(_reshape(data_array, ndims, out_fill), out_fill)
+                out_sds.set(new)
+            else:
+                out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
 
         try:
             out_sds.setfillvalue(CLAVRX_FILL)
@@ -780,6 +784,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
                     out_data = total_ozone(out_data, var_fill)
                 elif out_key == 'rh':
                     out_data = qv_to_rh(out_data, output_vars['temperature'].data)
+                    out_data[np.isnan(out_data)] = output_vars['temperature'].fill   # keep to match original code
                 elif out_key == 'rh at sigma=0.995':
                     temp_T10M = output_vars['temperature at sigma=0.995'].data
                     # this is not an output variable, so just use MerraConversion to consistently
