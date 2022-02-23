@@ -36,6 +36,11 @@ if [ -s ${TARGET_FILE} ]; then
 	exit
 fi
 
+if [ -s 2d_ctm/${FALSE_DATE_TARGET_NAME} ]; then
+	echo "already on disc, 2d_ctm/${FALSE_DATE_TARGET_NAME}"
+        exit
+fi
+
 wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
 
 if [ -f "$TARGET_FILE" ]; then

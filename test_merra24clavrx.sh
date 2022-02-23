@@ -2,8 +2,8 @@
 echo starting at `date`
 
 # USER OPTIONS
-BIN_DIR=/home/clavrx_ops/clavrx-MERRA2/merra2
-M2_DIR=/home/clavrx_ops/clavrx-MERRA2/MERRA2_FILES
+BIN_DIR=$HOME/clavrx_MERRA2
+M2_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input
 # END USER OPTIONS
 
 source /etc/profile
@@ -19,7 +19,14 @@ TMPDIR=${BIN_DIR}/tmp
 mkdir -p $TMPDIR
 cd $TMPDIR || (hostname;echo \"could not access $TMPDIR\"; exit 1)
 
-INPUT_DATE=20220120
+INPUT_DATE=20210101
+
+YYYY=${INPUT_DATE:0:4}
+MM=${INPUT_DATE:4:2}
+DD=${INPUT_DATE:6:2}
+
+M2_DIR=${M2_DIR}/${YYYY}/${YYYY}_${MM}_${DD}
+mkdir -p $M2_DIR
 
 if [ -d "${TMPDIR}/out" ]
 then
@@ -28,6 +35,7 @@ fi
 
 echo Date from FILELIST: ${INPUT_DATE}
 # Create tmp subdirectories for files
+cd ${M2_DIR}
 mkdir -p 3d_ana
 mkdir -p 3d_asm
 mkdir -p 2d_flx
@@ -36,6 +44,7 @@ mkdir -p 2d_rad
 mkdir -p 2d_lnd
 mkdir -p 2d_asm
 mkdir -p 2d_ctm
+sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 # Copy files for INPUT_DATE into tmp subdirectories
 cp ${M2_DIR}/3d_ana/MERRA2*.inst6_3d_ana_Nv.${INPUT_DATE}.nc4 3d_ana/.
 cp ${M2_DIR}/3d_ana/MERRA2*.inst6_3d_ana_Np.${INPUT_DATE}.nc4 3d_ana/.
@@ -47,7 +56,7 @@ cp ${M2_DIR}/2d_lnd/MERRA2*.tavg1_2d_lnd_Nx.${INPUT_DATE}.nc4 2d_lnd/.
 cp ${M2_DIR}/2d_asm/MERRA2*.inst1_2d_asm_Nx.${INPUT_DATE}.nc4 2d_asm/.
 cp ${M2_DIR}/2d_ctm/MERRA2_101.const_2d_ctm_Nx.${INPUT_DATE}.nc4 2d_ctm/MERRA2_101.const_2d_ctm_Nx.${INPUT_DATE}.nc4
 # Run merra24clavrx.py
-python -u ${BIN_DIR}/merra24clavrx_brett.py ${INPUT_DATE}
+python ${BIN_DIR}/merra24clavrx.py ${INPUT_DATE}
 #
 # clean up
 #cd /scratch

@@ -32,6 +32,11 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXRAD.5.12.4
 
+if [ -f "2d_rad/${TARGET_FILE}" ]; then
+        echo "${TARGET_FILE} exists"
+        exit
+fi
+
 wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then

@@ -32,6 +32,11 @@ get_stream ${YMD}
 TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 
+if [ -f "3d_asm/${TARGET_FILE}" ]; then
+        echo "${TARGET_FILE} exists"
+        exit
+fi
+
 wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then

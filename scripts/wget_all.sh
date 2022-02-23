@@ -20,6 +20,11 @@ EndOfMessage
 
 }
 
+function oops() {
+    printf "\nScript must always have a YYYY MM DD entered regardless of flags used!!!!!\n"
+    usage
+}
+
 download_dir=$(pwd)
 in_key=all
 
@@ -35,6 +40,10 @@ done
 YYYY=${@:$OPTIND:1}
 MM=${@:$OPTIND+1:1}
 DD=${@:$OPTIND+2:1}
+
+[[ -z "${YYYY}" ]] && oops
+[[ -z "${MM}" ]] && oops
+[[ -z "${DD}" ]] && oops
 
 
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

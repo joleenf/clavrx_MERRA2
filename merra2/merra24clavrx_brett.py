@@ -635,7 +635,7 @@ def make_merra_one_day(in_files, out_dir, mask_file):
         out_fnames = []
         for out_time in common_times:
             print('    working on time: {}'.format(out_time))
-            out_fname = out_dir + out_time.strftime('merra.%y%m%d%H_F000.hdf')
+            out_fname = os.path.join(out_dir, out_time.strftime('merra.%y%m%d%H_F000.hdf'))
             out_fnames.append(out_fname)
             sd['out'] = SD(out_fname, SDC.WRITE|SDC.CREATE|SDC.TRUNC) # TRUNC will clobber existing
 
@@ -733,8 +733,11 @@ if __name__ == '__main__':
     #outpath = '/fjord/jgs/personal/mhiley/MERRA/'
     #inpath = '/Volumes/stuff/merra/input/'
     #outpath = '/Volumes/stuff/merra/output/'
-    inpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/'
-    outpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/out/'
+    #inpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/'
+    #outpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/out/'
+    inpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input'
+    outpath = os.path.dirname(inpath)
+
     try:
         date_str_arg = sys.argv[1]
         date_parsed = datetime.strptime(date_str_arg, '%Y%m%d')
@@ -743,31 +746,32 @@ if __name__ == '__main__':
         exit()
 
     year_str = date_str_arg[0:4]
-    outpath_full = outpath + year_str + '/'
-    inpath_full = inpath
+    outpath_full = os.path.join(outpath, year_str) + '/'
+    #inpath_full = inpath
+    inpath_full = os.path.join(inpath, year_str, date_parsed.strftime('%Y_%m_%d'))
 
     try:
         os.makedirs(outpath_full)
     except OSError:
         pass # dir already exists
     # BTH: Define mask_file here
-    print("looking at {}".format(inpath_full + '2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
-    mask_file = glob(inpath_full + '2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
+    print("looking at {}".format(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
+    mask_file = glob(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
     in_files = { 
-            'ana': glob(inpath_full + '3d_ana/MERRA2*ana_Np.' + 
+            'ana': glob(inpath_full + '/3d_ana/MERRA2*ana_Np.' + 
                 date_str_arg + '.nc4')[0],
-            'flx': glob(inpath_full + '2d_flx/MERRA2*flx_Nx.' + 
+            'flx': glob(inpath_full + '/2d_flx/MERRA2*flx_Nx.' + 
                 date_str_arg + '.nc4')[0],
-            'slv': glob(inpath_full + '2d_slv/MERRA2*slv_Nx.' + 
+            'slv': glob(inpath_full + '/2d_slv/MERRA2*slv_Nx.' + 
                 date_str_arg + '.nc4')[0],
-            'lnd': glob(inpath_full + '2d_lnd/MERRA2*lnd_Nx.' + 
+            'lnd': glob(inpath_full + '/2d_lnd/MERRA2*lnd_Nx.' + 
                 date_str_arg + '.nc4')[0],
-            'asm3d': glob(inpath_full + '3d_asm/MERRA2*asm_Np.' +
+            'asm3d': glob(inpath_full + '/3d_asm/MERRA2*asm_Np.' +
                 date_str_arg + '.nc4')[0],
-            'asm2d': glob(inpath_full + '2d_asm/MERRA2*asm_Nx.' +
+            'asm2d': glob(inpath_full + '/2d_asm/MERRA2*asm_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'rad': glob(inpath_full + '2d_rad/MERRA2*rad_Nx.' +
+            'rad': glob(inpath_full + '/2d_rad/MERRA2*rad_Nx.' +
                 date_str_arg + '.nc4')[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)

@@ -16,7 +16,7 @@ entirety of Antarctica, and most of Greenland. This variable is being collected 
   
 3. Input files are retrieved within the python code using [scripts/wget_all.sh](scripts/wget_all.sh)
 Please see 
-*[ How to Download Data Files from HTTPS Service with wget ]*(https://disc.gsfc.nasa.gov/information/howto)
+*[ How to Download Data Files from HTTPS Service with wget ]*(https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&title=How%20to%20Download%20Data%20Files%20from%20HTTPS%20Service%20with%20wget)
 
 The script calls nine wget scripts but some of the nine files are not 
 currently being used by /clavrx-merra2/merra2/merra24clavrx.py to produce an output file. The  
@@ -36,3 +36,7 @@ After running the run-script for a selected INPUT_DATE, files will appear in /tm
 directory is currently being removed every time the run-script is used, so if you iterate over  
 multiple dates, you'll scrub the output on every intermediate date and only have the output for the  
 last date. You can get rid of this by commenting-out Lines 24-27 of test_merra24clavrx.sh.
+
+
+JMF NOTES:
+Use test_merra24_brett.sh to test original code.
