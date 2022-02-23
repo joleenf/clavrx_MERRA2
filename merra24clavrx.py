@@ -728,7 +728,7 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path, mask_fn: str):
             else:
                 raise ValueError("Couldn't find time coordinate in this file")
             for (i, t) in enumerate(t_sds):
-                analysis_time = num2date(t, t_units)
+                analysis_time = (num2date(t, t_units))._to_real_datetime()  # format %y doesn't work with gregorian time.
                 if analysis_time.minute == time_hack_offset:
                     # total hack to deal with non-analysis products being on the half-hour 
                     analysis_time = analysis_time - timedelta(minutes=time_hack_offset)
