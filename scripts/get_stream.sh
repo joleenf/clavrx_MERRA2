@@ -1,3 +1,4 @@
+set -x
 function get_stream {
     YMD=$1
     if [[ ${YMD} -lt 19920101 ]]; then
@@ -20,5 +21,9 @@ function any_stream {
 
     if [ $? == 0 ]; then
 	    TARGET_FILE=`ls ${TARGET_REGEX}`
+	    ncdump -h ${TARGET_FILE}
+	    if [ $? != 1 ]; then
+		    wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/
+	    fi
     fi
 }

@@ -21,7 +21,7 @@ DD=${3}
 #
 # Define STREAM by date:
 
-set -x
+#set -x
 let YMD=${YYYY}${MM}${DD}
 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -38,7 +38,7 @@ HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 any_stream ${TARGET_FILE} ${HTTP_PATH}
 #fi
 
-if [ -f "$TARGET_FILE" ]; then
+if [ -s "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_asm/.
 else 
     echo "${TARGET_FILE} does not exist."
