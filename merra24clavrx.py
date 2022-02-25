@@ -893,6 +893,11 @@ def download_data(inpath: Union[str, Path], file_glob: str,
         except IndexError as e:
             raise FileNotFoundError("{}/{}".format(inpath, file_glob))
 
+        try:
+            test = Dataset(file_list)
+        except:
+            LOG.error("{} is not a readable file.  Try downloading again.".format(file_list))
+
     return file_list
 
 
@@ -1002,14 +1007,14 @@ def argument_parser() -> CommandLineMapping:
     parser.add_argument('-d', '--base_dir', dest='base_path', action='store', nargs='?', 
                         type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
                         help="Parent path used final location year subdirectory appends to this path.")
-    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=2,
-                        help='each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG')
+    parser.add_argument('-v', '--verbose', dest='verbosity', action="count", default=0,
+                        help='each occurrence increases verbosity 1 level through CRITICAL-ERROR-WARNING-INFO-DEBUG')
 
     args = vars(parser.parse_args())
     verbosity = args.pop('verbosity', None)
 
-    levels = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
-    logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s', level=levels[min(3, verbosity)])
+    levels = [logging.CRITICAL, logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
+    logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s', level=levels[min(4, verbosity)])
 
     return args
 
