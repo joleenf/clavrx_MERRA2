@@ -11,13 +11,16 @@
 function usage() {
 cat << EndOfMessage
 
-    Usage: sh $0 [options] YYYY MM DD"
+    Usage: sh $0 [options] YYYY MM"
 
-    Download data from GES DISC based on date and key"
+    Count files for month in merra2 data directory to make
+    sure 4 output files per day have been created for each 
+    day of month under inspection.
 
     Options:
     	-w merra2 data directory 
-           (default is pwd).
+          default:
+        $DATA_PATH
    	-h Display this usage information
 
 EndOfMessage
