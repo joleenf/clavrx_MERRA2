@@ -3,8 +3,8 @@
 # USER OPTIONS
 BIN_DIR=$HOME/clavrx_MERRA2
 DATA_PATH=/data/clavrx_ops/MERRA_INPUT/
-START_DATE=20210317
-END_DATE=20210317
+START_DATE=20210319
+END_DATE=20210320
 
 trap finish EXIT
 finish() {
@@ -16,6 +16,7 @@ finish() {
 
 
 LOG_FILE=$HOME/logs/merra_archive/s${START_DATE}_e${END_DATE}run.log
+INVENTORY_FILE=$HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 
 source /etc/profile
 source ~/.bashrc
@@ -48,6 +49,7 @@ do
                 echo $cmd
 	else
 		find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
+		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
 	fi
 
 	python -u ${BIN_DIR}/merra24clavrx.py ${start} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
@@ -68,18 +70,21 @@ do
 	echo $cmd
 
 	out_count=`$cmd | wc -l`
-	if [ $? -eq 0 ]; then
+    if [ $? -eq 0 ]; then
 	    if [ ${out_count} != 4 ]; then
-                cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Output from  $yy ${month} ${day}"`
+	        cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
                 echo $cmd
+		echo $cmd >> $INVENTORY_FILE
 		exit 1
 	    fi
     else
-	    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Output from  $yy ${month} ${day}"`
+	    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
             echo $cmd
+            echo $cmd >> $INVENTORY_FILE
 	    exit 1
     fi
     echo "Success $yy ${month} ${day}"
+    echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
     $cmd
     start=$(date -d"$start + 1 day" +"%Y%m%d")
 done
