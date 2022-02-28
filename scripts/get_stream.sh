@@ -17,13 +17,20 @@ function any_stream {
     BASEURL=$2
     TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/[0-4]0[0-1]}"`
     # try to get any stream.
-    wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/
+    wget_cmd="wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/"
+    eval $wget_cmd
 
     if [ $? == 0 ]; then
 	    TARGET_FILE=`ls ${TARGET_REGEX}`
 	    ncdump -h ${TARGET_FILE}
-	    if [ $? != 1 ]; then
-		    wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/
+	    if [ $? != 0 ]; then
+		    eval $wget_cmd
 	    fi
+	    ncdump -h ${TARGET_FILE}
+	    if [ $? != 0 ]; then
+		    echo "REMOVE ${TARGET_FILE} second wget attempt also failed to produce a readable file."
+		    rm ${TARGET_FILE}
+		    echo "Run $wget_cmd to try again."
+            fi
     fi
 }
