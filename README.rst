@@ -17,8 +17,7 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
 2. Make the environment active.  Type:
 
-    
-    .. code-block:: bash
+   .. code-block:: bash
 
     conda activate merra2_clavrx
 
@@ -26,7 +25,7 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
 4. Run the bash script on the command line:
 
-    .. code-block:: bash
+   .. code-block:: bash
 
     bash run_merra24.sh
 
