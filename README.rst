@@ -17,13 +17,18 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
 2. Make the environment active.  Type:
 
-    ``conda activate merra2_clavrx``
+    
+    .. code-block:: bash
+
+    conda activate merra2_clavrx
 
 3. Edit bash script `run_merra24.sh <run_merra24.sh>`_ to change variables as needed for file paths and run dates.
 
 4. Run the bash script on the command line:
 
-    ``bash run_merra24.sh``
+    .. code-block:: bash
+
+    bash run_merra24.sh
 
     Using:  run_merra24.sh to call the python code is recommended.
     Advantages of bash script:
