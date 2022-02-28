@@ -9,13 +9,13 @@
 #
 
 DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
-MONTH=3
-YEAR=2021
+MONTH=${1:-3}
+YEAR=${2:-2021}
 
 month=`printf "%02d" $MONTH`
 
 str_month=`date -d ${YEAR}-${month}-01 +"%B %Y"`
-echo
+echo " "
 
 DATA_PATH=${DATA_PATH}/${YEAR}
 
