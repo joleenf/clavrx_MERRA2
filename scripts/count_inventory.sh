@@ -8,14 +8,40 @@
 #   YEAR                  Year to check
 #
 
+function usage() {
+cat << EndOfMessage
+
+    Usage: sh $0 [options] YYYY MM DD"
+
+    Download data from GES DISC based on date and key"
+
+    Options:
+    	-w merra2 data directory 
+           (default is pwd).
+   	-h Display this usage information
+
+EndOfMessage
+    echo $VAR
+    exit
+
+}
+
 DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
-MONTH=${1:-3}
-YEAR=${2:-2021}
+
+[ $# -eq 0 ] && usage
+while getopts "w:h" flag; do
+	case "$flag" in
+		w) DATA_PATH=$OPTARG;;
+		h) usage;;
+	esac
+done
+
+YEAR=${@:$OPTIND:1}
+MONTH=${@:$OPTIND+1:1}
 
 month=`printf "%02d" $MONTH`
 
 str_month=`date -d ${YEAR}-${month}-01 +"%B %Y"`
-echo " "
 
 DATA_PATH=${DATA_PATH}/${YEAR}
 
@@ -24,17 +50,18 @@ ntotal=$(( $ndays*4 ))
 
 nfiles=`find ${DATA_PATH} -name "merra.${YEAR:2:2}${month}*.hdf" | wc -l`
 
-if [ ${nfiles} < ${ntotal} ]; then
+echo "===="
+if [ ${nfiles} -lt ${ntotal} ]; then
 	echo "ERROR: Only ${nfiles} files in ${DATA_PATH}. ${ntotal} are expected for $str_month"
-	echo
+	echo "===="
 	exit 1
-elif [ ${nfiles} > ${ntotal} ]; then
+elif [ ${nfiles} -gt ${ntotal} ]; then
 	echo "ERROR: $DATA_PATH has (${nfiles}) files. ${ntotal} expected for $str_month"
-	echo
+	echo "===="
         exit 1 
 else
-	echo COMPLETE: There are a complete set of files for $str_month: ${nfiles}
-	echo
+	echo "COMPLETE: There are a complete set of files for $str_month: ${nfiles}"
+	echo "===="
 fi
 
 exit
