@@ -11,7 +11,9 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
 1. Run conda create once to create the environment from the yml file.
 
-    ``conda create -f merra2_clavrx.yml``
+   .. code-block:: bash
+
+    conda create -f merra2_clavrx.yml
 
 2. Make the environment active.  Type:
 
