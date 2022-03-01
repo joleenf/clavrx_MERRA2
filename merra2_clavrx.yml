@@ -11,5 +11,6 @@ dependencies:
   - matplotlib
   - jupyter
   - wget
+  - pip
   - pip:
     - cdsapi
