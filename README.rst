@@ -13,7 +13,7 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
    .. code-block:: bash
 
-    conda create -f merra2_clavrx.yml
+    conda env create -f merra2_clavrx.yml
 
 2. Make the environment active.  Type:
 
@@ -21,9 +21,11 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
     conda activate merra2_clavrx
 
-3. Edit bash script `run_merra24.sh <run_merra24.sh>`_ to change variables as needed for file paths and run dates.
+3. Follow `https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&page=1 <How to Download Data Files from HTTPS Service with wget>`_ to register, set up user credential for using wget to access data from the GES-DISC.
 
-4. Run the bash script on the command line:
+4. Edit bash script `run_merra24.sh <run_merra24.sh>`_ to change variables as needed for file paths and run dates.
+
+5. Run the bash script on the command line:
 
    .. code-block:: bash
 
