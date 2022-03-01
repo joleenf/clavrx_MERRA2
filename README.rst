@@ -21,7 +21,7 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
     conda activate merra2_clavrx
 
-3. Follow `How to Download Files from HTTPS Service with wget <https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&page=1>`_ to register, set up user credential for using wget to access data from the GES-DISC.
+3. Follow `How to Download Files from HTTPS Service with wget <https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&page=1>`_ to register, and set up user credential for wget data access from the GES-DISC.
 
 4. Edit bash script `run_merra24.sh <run_merra24.sh>`_ to change variables as needed for file paths and run dates.
 
