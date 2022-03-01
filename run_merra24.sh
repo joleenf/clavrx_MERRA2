@@ -1,10 +1,24 @@
 #!/bin/bash
 #set -x
-# USER OPTIONS
+#
+# Requires the merra2_clavrx environment.
+#
+# Environment Variables:
+#   BIN_DIR               Location of this script, merra24clarx.py code and the scripts sub-directory.
+#   DATA_PATH             MERRA2 input data tmp directory (script creates DATA_PATH tree)
+#   START_DATE            First date of MERRA2 data to process
+#   END_DATE              Last date of MERRA2 data to process
+#
+# Log files are placed in 
+#   $HOME/logs/merra_archive/s${START_DATE}_e${END_DATE}run.log
+#       Contains the run information for both the bash script and python code
+#   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
+#       Contains one line completion messages for input data and final product files.
+
 BIN_DIR=$HOME/clavrx_MERRA2
 DATA_PATH=/data/clavrx_ops/MERRA_INPUT/
-START_DATE=20210319
-END_DATE=20210320
+START_DATE=${1:-20210331}
+END_DATE=${2:-20210331}
 
 trap finish EXIT
 finish() {
@@ -18,7 +32,6 @@ finish() {
 LOG_FILE=$HOME/logs/merra_archive/s${START_DATE}_e${END_DATE}run.log
 INVENTORY_FILE=$HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 
-source /etc/profile
 source ~/.bashrc
 conda activate merra2_clavrx
 
@@ -62,14 +75,13 @@ done
 start=$(date -d $START_DATE +%Y%m%d)
 while [[ $start -le $end ]]
 do
-	yy=${start:2:2}
-	year=${start:0:4}
-        month="${start:4:2}"
-        day="${start:6:2}"
-	cmd="find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.${yy}${month}${day}*_F*.hdf -print"
-	echo $cmd
+    yy=${start:2:2}
+    year=${start:0:4}
+    month="${start:4:2}"
+    day="${start:6:2}"
+    cmd="find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.${yy}${month}${day}*_F*.hdf -print"
+    out_count=`$cmd | wc -l`
 
-	out_count=`$cmd | wc -l`
     if [ $? -eq 0 ]; then
 	    if [ ${out_count} != 4 ]; then
 	        cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
@@ -83,7 +95,15 @@ do
             echo $cmd >> $INVENTORY_FILE
 	    exit 1
     fi
-    echo "Success $yy ${month} ${day}"
+
+    for hdf in $cmd; do
+	    listing=`hdp -list $hdf`
+	    if [ $? -ne 0 ]; then
+		    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"
+		    echo $cmd
+	    fi
+    done
+    echo "Success ${year} ${month} ${day}"
     echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
     $cmd
     start=$(date -d"$start + 1 day" +"%Y%m%d")
