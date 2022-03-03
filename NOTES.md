@@ -12,9 +12,9 @@ For more information on retrieving MERRA2 files from GES-DESC, please read
 *[ How to Download Data Files from HTTPS Service with wget ]*(https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&page=1)
 
 - [scripts/wget_all.sh](scripts/wget_all.sh) script calls nine wget scripts.
-  -   Some of the data is not used.  The  current python code does not use the inst6_3d_ana_Nv file.
-    The inst6_3d_ana_Nv analysis data is on hybrid sigma-pressure coordinate surfaces.
-    This file could provide the data requested at or near the 0.9950 sigma-level.
+  -   Some of the data is not used.  The  current python code does not use the inst6_3d_ana_Nv collection.
+    The inst6_3d_ana_Nv analysis is on hybrid sigma-pressure coordinate surfaces.
+    This collection could provide the data requested at or near the 0.9950 sigma-level.
     The 10m data is currently substituted for the 0.995 sigma-level and is working fine.
   
 

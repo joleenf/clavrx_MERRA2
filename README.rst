@@ -31,7 +31,7 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
     bash run_merra24.sh
 
-    Using:  run_merra24.sh to call the python code is recommended.
+   Using:  run_merra24.sh to call the python code is recommended.
     Advantages of bash script:
     - Run dates can be updated by the user in vim
     - downloads merra files
