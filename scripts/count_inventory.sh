@@ -46,6 +46,11 @@ done
 YEAR=${@:$OPTIND:1}
 MONTH=${@:$OPTIND+1:1}
 
+if [ -z $YEAR ] || [ -z $MONTH ];then
+        `/bin/pod2usage $0`
+         exit
+fi
+
 month=`printf "%02d" $MONTH`
 
 str_month=`date -d ${YEAR}-${month}-01 +"%B %Y"`
