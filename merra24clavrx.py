@@ -516,7 +516,7 @@ def qv_to_rh(qv, t, ps=None):
 
 def kgkg_to_dobson(data):
     """Convert Ozone mixing ratio in [kg/kg] to dobson units."""
-    du = 2.69e16  # TODO add units+doc from Mike's spreadsheet. (dobson units:  molecules per kilometer squared maybe?).
+    du = 2.69e16
     g = 9.8
     av = 6.02e23
     mq = 0.048
