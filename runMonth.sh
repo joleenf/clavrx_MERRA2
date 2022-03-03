@@ -38,10 +38,10 @@ screen_name=`date -d ${YEAR}-${month}-01 +"%B_%Y"`
 ndays=`cal ${MONTH} ${YEAR} | awk 'NF {DAYS = $NF}; END {print DAYS}'`
 
 # call run merra for this full month
-start_day=${YEAR}${month}01
+start_day=${YEAR}${month}02
 end_day=${YEAR}${month}${ndays}
 
 #screen -dm -S $screen_name /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
 /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
-echo $screen_name done
 sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}
+exit

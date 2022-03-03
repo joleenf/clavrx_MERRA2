@@ -48,7 +48,7 @@ fi
 function check_output {
 # this section checks if output has been created.
     num_err=0
-    cmd="find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.${yy}${month}${day}*_F*.hdf -print"
+    cmd='find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name "merra.${yy}${month}${day}*_F*.hdf" -print'
     out_count=`$cmd | wc -l`
 
     if [ "$?" -ne "0" ]; then

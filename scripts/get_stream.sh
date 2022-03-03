@@ -1,5 +1,5 @@
 #set -x
-BASE="$( cd -P "$( dirname "$SOURCE" )/.." && pwd )"
+BASE="$( cd -P "$( dirname "$0" )/.." && pwd )"
 function get_stream {
     YMD=$1
     if [[ ${YMD} -lt 19920101 ]]; then

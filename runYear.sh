@@ -1,6 +1,12 @@
 #!/bin/bash
 
-for i in {4..12};
+BASE="$( cd -P "$( dirname "$0" )" && pwd )"
+YEAR=${1:-2021}
+
+for i in {1..12};
 do
-   sh ./runMonth.sh 2021 $i
+   screen_name=run$YEAR_$i
+   cmd="/bin/bash $BASE/runMonth.sh $YEAR $i"
+   echo $cmd 
+   screen -dm -S $screen_name $cmd
 done
