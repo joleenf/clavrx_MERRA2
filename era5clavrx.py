@@ -1,25 +1,26 @@
 # -*- coding: utf-8 -*-
 """Module to convert ERA5 re-analysis data to hdf files for use in CLAVR-x.
 
-MERRA-2 Data is downloaded from the GES DISC server and converted to
-output files which can be used as input into the CLAVR-x cloud product.
+usage: era5clavrx.py [-h] [-e end_date] [-t | -i [INPUT_PATH]] [-d [BASE_PATH]] [-v] start_date
 
-Example:
-    Run the era5clavrx.py code with a single <year><month><day>::
+Retrieve ERA5 data from GES DISC and process for clavrx input.
 
-        $ python era5clavrx.py 20010801
+positional arguments:
+  start_date            Desired processing date as YYYYMMDD
 
-Optional arguments::
+optional arguments:
   -h, --help            show this help message and exit
   -e end_date, --end_date end_date
                         End date as YYYYMMDD not needed when processing one date. (default: None)
   -t, --tmp             Use to store downloaded input files in a temporary location. (default: False)
+  -i [INPUT_PATH], --input [INPUT_PATH]
+                        Data Input path (in absence of -t/--tmp flag) year/year_month_day subdirs append to path.
+                        (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
   -d [BASE_PATH], --base_dir [BASE_PATH]
-                        Parent path used for input (in absence of -t/--tmp flag) and final location.
-                        year subdirectory appends to this path.
-                        (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/era5/)
-  -v, --verbose         each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG (default: 0)
-
+                        Parent path used final location year subdirectory appends to this path.
+                        (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
+  -v, --verbose         each occurrence increases verbosity 1 level through CRITICAL-ERROR-WARNING-INFO-DEBUG
+                        (default: 0)
 """
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
@@ -67,10 +68,6 @@ with open(os.path.join(ROOT_DIR, 'yamls', 'ERA5_vars.yaml'), "r") as yml:
 # this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
 levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
 LEVELS = levels_listings["pressure levels"]
-
-TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
-CLAVRX_FILL = 9.999e20
-
 
 def pressure_to_altitude(pressure):
     """Use surface pressure to converted to km rather than surface geopotential for altitude."""
@@ -132,116 +129,6 @@ def apply_conversion(units_fn, data, fill):
     return converted
 
 
-def nc4_to_sd_dtype(nc4_dtype: np.dtype) -> int:
-    # netCDF4 stores dtype as a string, pyhdf.SD stores dtype as a symbolic
-    # constant. To properly convert, we need to go through an if-trap series
-    # to identify the appropriate SD_dtype
-    #
-    # SD_dtype = nc4_to_sd_dtype(nc4_dtype)
-    #
-    # see, e.g. https://numpy.org/doc/stable/reference/arrays.scalars.html#numpy.int32
-    # to troubleshoot when an unassigned nc4_dtype appears
-    #
-
-    if (nc4_dtype == 'single') | (nc4_dtype == 'float32'):
-        sd_dtype = SDC.FLOAT32
-    elif (nc4_dtype == 'double') | (nc4_dtype == 'float64'):
-        sd_dtype = SDC.FLOAT64
-    elif nc4_dtype == 'uint32':
-        sd_dtype = SDC.UINT32
-    elif nc4_dtype == 'int32':
-        sd_dtype = SDC.INT32
-    elif nc4_dtype == 'uint16':
-        sd_dtype = SDC.UINT16
-    elif nc4_dtype == 'int16':
-        sd_dtype = SDC.INT16
-    elif nc4_dtype == 'int8':
-        sd_dtype = SDC.INT8
-    elif nc4_dtype == 'char':
-        sd_dtype = SDC.CHAR
-    else:
-        raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
-    return sd_dtype
-
-
-def _reshape(data, ndims_out, fill):
-    """ Make MERRA look like CFSR:
-    
-      * Convert array dimensions of (level, lat, lon) to (lat, lon, level)
-      * CFSR fields are continuous but MERRA below-ground values are set to fill.
-      * CFSR starts at 0 deg lon but merra starts at -180.
-    """
-    if (ndims_out == 3) or (ndims_out == 2):
-        data = _shift_lon(data)
-    if ndims_out != 3:
-        return data
-    # do extrapolation before reshape
-    # (extrapolate fn depends on a certain dimensionality/ordering)
-    data = _extrapolate_below_sfc(data, fill)
-    data = np.swapaxes(data, 0, 2)
-    data = np.swapaxes(data, 0, 1)
-    data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
-    return data
-
-
-def _refill(data, old_fill):
-    """Clavr-x assumes a fill value instead of reading from attributes"""
-    if (data.dtype == np.float32) or (data.dtype == np.float64):
-        if np.isnan(data).any():
-            data[np.isnan(data)] = CLAVRX_FILL
-        data[data == old_fill] = CLAVRX_FILL
-    return data
-
-
-def _shift_lon_2d(data):
-    """ Helper function that assumes dims are 2d and (lat, lon) """
-    nlon = data.shape[1]
-    halfway = nlon // 2
-    tmp = data.copy()
-    data[:, 0:halfway] = tmp[:, halfway:]
-    data[:, halfway:] = tmp[:, 0:halfway]
-    return data
-
-
-def _shift_lon(data):
-    """ Make lon start at 0deg instead of -180. 
-    
-    Assume dims are (level, lat, lon) or (lat, lon)
-    """
-    if len(data.shape) == 3:
-        for l_ind in np.arange(data.shape[0]):
-            data[l_ind] = _shift_lon_2d(data[l_ind])
-    elif len(data.shape) == 2:
-        data = _shift_lon_2d(data)
-    return data
-
-
-def _extrapolate_below_sfc(t, fill):
-    """Major difference between CFSR and MERRA is that CFSR extrapolates
-       below ground and MERRA sets to fill. For now, set below
-       ground fill values to lowest good value instead of exptrapolation.
-    """
-    # Algorithm: For each pair of horizontal indices, find the lowest vertical index
-    #            that is not CLAVRX_FILL. Use this data value to fill in missing
-    #            values all the down to bottom index.
-    lowest_good = t[0] * 0.0 + fill
-    lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int64)
-    for l_ind in np.arange(t.shape[0]):
-        t_at_l = t[l_ind]
-        t_at_l_good = (t_at_l != fill)
-        replace = t_at_l_good & (lowest_good == fill)
-        lowest_good[replace] = t_at_l[replace]
-        lowest_good_ind[replace] = l_ind
-
-    for l_ind in np.arange(t.shape[0]):
-        t_at_l = t[l_ind]
-        # Limit extrapolation to bins below lowest good bin:
-        t_at_l_bad = (t_at_l == fill) & (l_ind < lowest_good_ind)
-        t_at_l[t_at_l_bad] = lowest_good[t_at_l_bad]
-
-    return t
-
-
 def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     """ Force greenland/antarctica to be snowy like CFSR """
 
@@ -249,15 +136,6 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     frlandice = mask_sd.variables['lsm'][0]  # 0th time index (Land Sea Mask)
     data[frlandice > 0.25] = 100.0
     return data
-
-
-def _trim_toa(data: np.ndarray) -> np.ndarray:
-    """Trim the top of the atmosphere."""
-    if len(data.shape) != 3:
-        LOG.warning('Warning: why did you run _trim_toa on a non-3d var?')
-    # at this point (before _reshape), data should be (level, lat, lon) and
-    # the level dim should be ordered surface -> toa
-    return data[0:len(LEVELS), :, :]
 
 
 def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
