@@ -1,24 +1,23 @@
 # -*- coding: utf-8 -*-
 """Module to convert MERRA2 re-analysis data to hdf files for use in CLAVR-x.
 
-MERRA-2 Data is downloaded from the GES DISC server and converted to
-output files which can be used as input into the CLAVR-x cloud product.
+usage: merra24clavrx.py [-h] [-e end_date] [-t | -i [INPUT_PATH]] [-d [BASE_PATH]] [-v] start_date
 
-Example:
-    Run the merra24clavrx.py code with a single <year><month><day>::
+Retrieve merra2 data from GES DISC and process for clavrx input.
 
-        $ python merra24clavrx.py 20010801
+positional arguments:
+  start_date            Desired processing date as YYYYMMDD
 
-Optional arguments::
+optional arguments:
   -h, --help            show this help message and exit
   -e end_date, --end_date end_date
                         End date as YYYYMMDD not needed when processing one date. (default: None)
   -t, --tmp             Use to store downloaded input files in a temporary location. (default: False)
+  -i [INPUT_PATH], --input [INPUT_PATH]
+                        Data Input path (in absence of -t/--tmp flag) year/year_month_day subdirs append to path. (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
   -d [BASE_PATH], --base_dir [BASE_PATH]
-                        Parent path used for input (in absence of -t/--tmp flag) and final location.
-                        year subdirectory appends to this path.
-                        (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
-  -v, --verbose         each occurrence increases verbosity 1 level through ERROR-WARNING-INFO-DEBUG (default: 0)
+                        Parent path used final location year subdirectory appends to this path. (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/)
+  -v, --verbose         each occurrence increases verbosity 1 level through CRITICAL-ERROR-WARNING-INFO-DEBUG (default: 0)
 
 """
 
