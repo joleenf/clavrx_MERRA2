@@ -43,9 +43,13 @@ YYYY=${@:$OPTIND:1}
 MM=${@:$OPTIND+1:1}
 DD=${@:$OPTIND+2:1}
 
-MM=`printf "%02d" $MM`
-DD=`printf "%02d" $DD`
+echo $YYYY $MM $DD
 
+length_MM=${#MM}
+if [ "$length_MM" -eq 1 ]; then MM=`printf "%02d" $MM`;fi
+
+length_DD=${#DD}
+if [ "$length_DD" -eq 1 ]; then DD=`printf "%02d" $DD`;fi
 
 export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}(): } '
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

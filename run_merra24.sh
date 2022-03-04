@@ -47,35 +47,23 @@ fi
 
 function check_output {
 # this section checks if output has been created.
-    num_err=0
-    cmd='find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name "merra.${yy}${month}${day}*_F*.hdf" -print'
-    out_count=`$cmd | wc -l`
+    out_count=0
+    find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.200109*_F*.hdf -print | while read -r hdf;do
+        out_count=$(( out_count + 1))
+        hdp list $hdf
+	echo "Out count is ${out_count}"
+        if [ "$?" -ne "0" ]; then
+            cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
+  	    echo $cmd
+        fi
+    done
 
-    if [ "$?" -ne "0" ]; then
-	    if [ "${out_count}" -ne "4" ]; then
-	        cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
-                echo $cmd
-		echo $cmd >> $INVENTORY_FILE
-		num_err=$((num_err + 1))
-	    fi
-    else
-        for hdf in $cmd; do
-    	    listing=`hdp list $hdf`
-    	    if [ "$?" -ne "0" ]; then
-    		    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
-    		    echo $cmd
-                        num_err=$((num_err + 1))
-    	    fi
-        done
+    if [ "${out_count}" -ne "4" ]; then
+        date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Incomplete Merra Output ($out_count) ${year} ${month} ${day}" >> $INVENTORY_FILE
     fi
-    if [ "$num_err" -eq "0" ];
-    then
-        echo "Success ${year} ${month} ${day}"
-        echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
-        eval $cmd >> $INVENTORY_FILE
-    else
-	echo "Output file check problems: ${num_err}"
-    fi
+
+    echo "Success ${year} ${month} ${day}"
+    echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
 }
 
 trap finish EXIT
@@ -129,7 +117,7 @@ do
 	fi
 
 	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
-	check_output
+	check_output 
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	rm -rfv ${YEAR_DIR}
 	# unset does not get "$"
