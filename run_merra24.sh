@@ -1,6 +1,6 @@
 #!/bin/bash
 export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() } cmd: ${BASH_COMMAND} result: '
-#set -x
+set -x
 #
 # Requires the merra2_clavrx environment.
 #
@@ -30,8 +30,10 @@ else
 	DATA_PATH=/data/clavrx_ops/MERRA_INPUT
 fi
 
-while getopts "h" flag; do
+delete_input=true
+while getopts "h:s" flag; do
         case "$flag" in
+		s) delete_input=false;;
                 h) `/bin/pod2usage $0`
                    exit;;
         esac
@@ -68,7 +70,7 @@ function check_output {
 
 trap finish EXIT
 finish() {
-	if [ -z $YEAR_DIR ]
+	if [[ -z $YEAR_DIR  &&  "${delete_input}" = true ]];
 	then
 		rm -rfv ${YEAR_DIR}
 	fi
@@ -119,7 +121,9 @@ do
 	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
 	check_output 
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
-	rm -rfv ${YEAR_DIR}
+	if [ "${delete_input}" = true ]; then
+            rm -rfv ${YEAR_DIR}
+        fi
 	# unset does not get "$"
 	unset YEAR_DIR
 done
@@ -141,6 +145,7 @@ done
 	     end_date   is the last date to run in YYYYMMDD format
 
    Recognized optional command line arguments
+      -s  -- save the input data (default: not saved)
       -h  -- Display usage message
 
 
