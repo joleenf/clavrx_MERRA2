@@ -1,5 +1,6 @@
 #!/bin/bash
-#set -x
+export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() } cmd: ${BASH_COMMAND} result: '
+set -x
 #
 # Requires the merra2_clavrx environment.
 #
@@ -16,24 +17,60 @@
 #   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 #       Contains one line completion messages for input data and final product files.
 
+REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
 BIN_DIR=$HOME/clavrx_MERRA2
 LOG_DIR=$HOME/logs/merra_archive
-
 machine=`uname -a | awk -F" " '{print $2}'`
 machine=`echo ${machine%%.*}`
+
 if [ "$machine" == "vor" ]; then
 	DATA_PATH=/data/Personal/clavrx_ops/MERRA_INPUT
 else
 	DATA_PATH=/data/clavrx_ops/MERRA_INPUT
 fi
 
+delete_input=true
+while getopts "h:s" flag; do
+        case "$flag" in
+		s) delete_input=false;;
+                h) `/bin/pod2usage $0`
+                   exit;;
+        esac
+done
 
-START_DATE=${1:-20210331}
-END_DATE=${2:-20210331}
+START_DATE=${@:$OPTIND:1}
+END_DATE=${@:$OPTIND+1:1}
+
+if [ -z $START_DATE ] || [ -z $END_DATE ];then
+	`/bin/pod2usage $0`
+  	 exit
+fi
+
+function check_output {
+# this section checks if output has been created.
+    out_count=0
+    find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.200109*_F*.hdf -print | while read -r hdf;do
+        out_count=$(( out_count + 1))
+        hdp list $hdf
+	echo "Out count is ${out_count}"
+        if [ "$?" -ne "0" ]; then
+            cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
+  	    echo $cmd
+        fi
+    done
+
+    if [ "${out_count}" -ne "4" ]; then
+        date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Incomplete Merra Output ($out_count) ${year} ${month} ${day}" >> $INVENTORY_FILE
+    fi
+
+    echo "Success ${year} ${month} ${day}"
+    echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
+}
 
 trap finish EXIT
 finish() {
-	if [ -z $YEAR_DIR ]
+	if [[ -z $YEAR_DIR  &&  "${delete_input}" = true ]];
 	then
 		rm -rfv ${YEAR_DIR}
 	fi
@@ -54,77 +91,79 @@ TMPDIR=${DATA_PATH}/tmp
 mkdir -p $TMPDIR
 cd $TMPDIR || (hostname;echo \"could not access $TMPDIR\"; exit 1)
 
-if [ -d "${TMPDIR}/out" ]
-then
-    rm -rf ${TMPDIR}/out
-fi
-
-start=$(date -d $START_DATE +%Y%m%d)
-end=$(date -d $END_DATE +%Y%m%d)
+start_date=$(date -d $START_DATE +%Y%m%d)
+end_date=$(date -d $END_DATE +%Y%m%d)
 
 # this section gets the data and runs the python code.
-while [[ $start -le $end ]]
+while [[ $start_date -le $end_date ]]
 do
-	year=${start:0:4}
-	month="${start:4:2}"
-	day="${start:6:2}"
+	year=${start_date:0:4}
+	month="${start_date:4:2}"
+	day="${start_date:6:2}"
         YEAR_DIR=${DATA_PATH}/tmp/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
         sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 
 	# make sure all data is available
 	count=`find ${TMPDIR} -name "*${year}${month}${day}*.nc4" | wc -l`
-	if [ $count -lt 9 ]; then
+	echo $count
+	find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
+
+	if [ "$count" -lt "9" ]; then
 		cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Input $year ${month} ${day}"`
                 echo $cmd
-                start=$(date -d"$start + 1 day" +"%Y%m%d")
+                start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 		break
 	else
 		find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
 		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
 	fi
 
-	python -u ${BIN_DIR}/merra24clavrx.py ${start} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
-        start=$(date -d"$start + 1 day" +"%Y%m%d")
-	rm -rfv ${YEAR_DIR}
+	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
+	check_output 
+        start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
+	if [ "${delete_input}" = true ]; then
+            rm -rfv ${YEAR_DIR}
+        fi
 	# unset does not get "$"
 	unset YEAR_DIR
 done
 
-# this section checks if output has been created.
-start=$(date -d $START_DATE +%Y%m%d)
-while [[ $start -le $end ]]
-do
-    yy=${start:2:2}
-    year=${start:0:4}
-    month="${start:4:2}"
-    day="${start:6:2}"
-    cmd="find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.${yy}${month}${day}*_F*.hdf -print"
-    out_count=`$cmd | wc -l`
+: <<=cut
+=pod
 
-    if [ $? -eq 0 ]; then
-	    if [ ${out_count} != 4 ]; then
-	        cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
-                echo $cmd
-		echo $cmd >> $INVENTORY_FILE
-		exit 1
-	    fi
-    else
-	    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) No Merra Output (Incomplete) ${year} ${month} ${day}"`
-            echo $cmd
-            echo $cmd >> $INVENTORY_FILE
-	    exit 1
-    fi
+=head1 NAME
 
-    for hdf in $cmd; do
-	    listing=`hdp -list $hdf`
-	    if [ $? -ne 0 ]; then
-		    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
-		    echo $cmd
-	    fi
-    done
-    echo "Success ${year} ${month} ${day}"
-    echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
-    start=$(date -d"$start + 1 day" +"%Y%m%d")
-done
+
+    run_merra24.sh - Run the python code merra24clavrx.py using a start and end date.
+
+=head1 SYNOPSIS
+
+    sh run_merra24.sh <start_date:YYYYMMDD> <end_date:YYYYMMDD>
+    example: sh run_merra24.sh 20200101 20200102
+
+      where: start_date is the first date to run in YYYYMMDD format
+	     end_date   is the last date to run in YYYYMMDD format
+
+   Recognized optional command line arguments
+      -s  -- save the input data (default: not saved)
+      -h  -- Display usage message
+
+
+=head1 DESCRIPTION
+
+    Runs the series of dates from start date to end date.  First the MERRA2 input files
+    are downloaded and checked for readability.  Then, a check is performed to make sure
+    all files have downloaded.  Next, merra24clavrx.py is executed to produce the reanalysis
+    model files which can be used as in put to the CLAVRx cloud algorithm.  Finally, 
+    a check is done to verify that 4 files have been created and can at least be listed by hdp.
+    Temporary input directory and input files are removed.
+
+=head2 Requirements
+
+    merra2_clavrx enviroment should be made active.
+    scripts/wget_all.sh and support scripts
+    python/test_dataset.py
+
+=cut
 
 exit
