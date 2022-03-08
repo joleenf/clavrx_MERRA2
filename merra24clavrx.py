@@ -35,6 +35,8 @@ import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
+import yaml
+
 try:
     from datetime import datetime, timedelta
     from typing import Dict, Optional, TypedDict, Union
@@ -52,245 +54,19 @@ np.seterr(all="ignore")
 
 LOG = logging.getLogger(__name__)
 
-COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
-Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
-
-# this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
-LEVELS = [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700,
-          650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40,
-          30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1]  # [hPa]
-
+COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest fill
 TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
 CLAVRX_FILL = 9.999e20
 
 OUT_PATH_PARENT = "/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/"
 
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-def no_conversion(a):
-    """Do not convert this data."""
-    return a
+with open(os.path.join(ROOT_DIR, 'yamls', 'MERRA2_vars.yaml'), "r") as yml:
+    OUTPUT_VARS_ROSETTA = yaml.safe_load(yml)
 
-
-def fill_bad(a):
-    """Fill bad values with np.nan."""
-    return a * np.nan
-
-
-# the merra4clavrx rosetta stone one key for each output var
-OUTPUT_VARS_ROSETTA = {
-    # --- data vars from 'inst6_3d_(ana)_Np'
-    "MSL pressure": {
-        "in_file": "ana",
-        "in_varname": "SLP",
-        "out_units": "hPa",
-        "units_fn": lambda a: a / 100.0,  # scale factor for Pa --> hPa
-        "ndims_out": 2,
-    },
-    "temperature": {
-        "in_file": "ana",
-        "in_varname": "T",
-        "out_units": "K",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    "surface pressure": {
-        "in_file": "ana",
-        "in_varname": "PS",
-        "out_units": "hPa",
-        "units_fn": lambda a: a / 100.0,  # scale factor for Pa --> hPa
-        "ndims_out": 2,
-    },
-    "height": {
-        "in_file": "ana",
-        "in_varname": "H",
-        "out_units": "km",
-        "units_fn": lambda a: a / 1000.0,  # scale factor for m --> km
-        "ndims_out": 3,
-    },
-    "u-wind": {
-        "in_file": "ana",
-        "in_varname": "U",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    "v-wind": {
-        "in_file": "ana",
-        "in_varname": "V",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    "rh": {
-        "in_file": "ana",
-        "in_varname": "QV",
-        "out_units": "%",
-        "units_fn": None,  # special case due to add'l inputs
-        "ndims_out": 3,
-    },
-    "total ozone": {
-        "in_file": "ana",
-        "in_varname": "O3",
-        "out_units": "Dobson",
-        "units_fn": None,  # special case due to add'l inputs
-        "ndims_out": 2,
-    },
-    "o3mr": {
-        "in_file": "ana",
-        "in_varname": "O3",
-        "out_units": "kg/kg",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    # --- data vars from 'tavg1_2d_(slv)_Nx'
-    "tropopause pressure": {
-        "in_file": "slv",
-        "in_varname": "TROPPT",
-        "out_units": "hPa",
-        "units_fn": lambda a: a / 100.0,  # scale factor for Pa --> hPa
-        "ndims_out": 2,
-    },
-    "tropopause temperature": {
-        "in_file": "slv",
-        "in_varname": "TROPT",
-        "out_units": "K",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "u-wind at sigma=0.995": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "U10M",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "v-wind at sigma=0.995": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "V10M",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "surface temperature": {  # XXX confirm skin temp is correct choice for 'surface temperature'
-        "in_file": "slv",
-        "in_varname": "TS",
-        "out_units": "K",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "temperature at sigma=0.995": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "T10M",
-        "out_units": "K",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "rh at sigma=0.995": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "QV10M",
-        "out_units": "%",
-        "units_fn": fill_bad,  # XXX how to get p at sigma=0.995 for RH conversion?
-        "ndims_out": 2,
-    },
-    "u-wind at 50M": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "U50M",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    "v-wind at 50M": {  # not actually exactly sigma=0.995???
-        "in_file": "slv",
-        "in_varname": "V50M",
-        "out_units": "m/s",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    # --- data vars from 'tavg1_2d_(flx)_Nx'
-    "planetary boundary layer height": {
-        "in_file": "flx",
-        "in_varname": "PBLH",
-        "out_units": "km",
-        "units_fn": lambda a: a / 1000.0,  # scale factor for m --> km
-        "ndims_out": 2,
-    },
-    "ice fraction": {
-        "in_file": "flx",
-        "in_varname": "FRSEAICE",
-        "out_units": "none",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    # --- data vars from 'tavg1_2d_(lnd)_Nx'
-    "water equivalent snow depth": {
-        "in_file": "lnd",
-        "in_varname": "SNOMAS",
-        "out_units": "kg/m^2",
-        "units_fn": no_conversion,  # special case in do_conversion will set fill values to zero
-        "ndims_out": 2,
-    },
-    # --- data vars from 'inst3_3d_(asm)_Np'
-    "clwmr": {
-        "in_file": "asm3d",
-        "in_varname": "QL",
-        "out_units": "kg/kg",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    "cloud ice water mixing ratio": {
-        "in_file": "asm3d",
-        "in_varname": "QI",
-        "out_units": "kg/kg",
-        "units_fn": no_conversion,
-        "ndims_out": 3,
-    },
-    # --- data vars from 'inst1_2d_(asm)_Nx'
-    "total precipitable water": {
-        "in_file": "asm2d",
-        "in_varname": "TQV",
-        "out_units": "cm",
-        "units_fn": lambda a: a / 10.0,  # scale factor for kg/m^2 (mm) --> cm
-        "ndims_out": 2,
-    },
-    # --- data vars from 'tavg1_2d_(rad)_Nx'
-    "total cloud fraction": {
-        "in_file": "rad",
-        "in_varname": "CLDTOT",
-        "out_units": "none",
-        "units_fn": no_conversion,
-        "ndims_out": 2,
-    },
-    # --- geoloc vars from 'ana'
-    "lon": {
-        "in_file": "ana",
-        "in_varname": "lon",
-        "out_units": None,
-        "units_fn": no_conversion,
-        "ndims_out": 1,
-    },
-    "lat": {
-        "in_file": "ana",
-        "in_varname": "lat",
-        "out_units": None,
-        "units_fn": no_conversion,
-        "ndims_out": 1,
-    },
-    "pressure levels": {
-        "in_file": "ana",
-        "in_varname": "lev",
-        "out_units": "hPa",
-        "units_fn": no_conversion,
-        "ndims_out": 1,
-    },
-    #  level is needed for 3D variable in python and McV,
-    "level": {
-        "in_file": "ana",
-        "in_varname": "lev",
-        "out_units": "hPa",
-        "units_fn": no_conversion,  # yes this is indeed correct.
-        "ndims_out": 1,
-    },
-}
+levels_listings = OUTPUT_VARS_ROSETTA.pop("defined levels")
+LEVELS = levels_listings["hPa_levels"]
 
 
 class CommandLineMapping(TypedDict):
@@ -303,31 +79,28 @@ class CommandLineMapping(TypedDict):
     input_path: str
 
 
-class MerraConversion(object):
+class MerraConversion:
     """MerraConversion Handles Reading Data and Output Setup."""
 
     def __init__(
-        self,
-        nc_dataset,
-        in_name,
-        out_name,
-        out_units,
-        units_fn,
-        ndims_out,
-        time_ind,
+            self,
+            nc_dataset,
+            in_name,
+            out_name,
+            out_units,
+            ndims_out,
+            time_ind,
     ):
         """Based on variable, adjust shape, apply fill and determine dtype."""
         self.nc_dataset = nc_dataset
         self.in_name = in_name
         self.out_name = out_name
         self.out_units = out_units
-        # this function will be applied to data for units conversion
-        self.units_fn = units_fn
         self.ndims_out = ndims_out
         self.time_ind = time_ind
 
+        self.fill = self._get_fill
         self.data = self._get_data
-        self.data_sd_type = self._create_output_dtype
         self.shape = self._modify_shape
 
     def __repr__(self):
@@ -339,10 +112,21 @@ class MerraConversion(object):
         return self.nc_dataset.variables[item]
 
     @property
+    def _get_fill(self):
+        """Get the fill value of this data."""
+        if "_FillValue" in self[self.in_name].ncattrs():
+            fill = self[self.in_name].getncattr("_FillValue")
+        elif "missing_value" in self[self.in_name].ncattrs():
+            fill = self[self.in_name].getncattr("missing_value")
+        else:
+            fill = None
+
+        return fill
+
+    @property
     def _get_data(self):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
         data = np.ma.getdata(self[self.in_name])
-        self.fill = data.get_fill_value()
 
         data = np.asarray(data)
 
@@ -360,14 +144,14 @@ class MerraConversion(object):
             data = data[self.time_ind]
         if ndims_in == 4:
             data = data[self.time_ind]
-            data = _trim_toa(data)
+            data = self._trim_toa(data)
 
         # apply special cases
-        if self.out_name in ["pressure levels", "level"]:
+        if self.in_name == "lev":
             # trim to top CFSR level
             data = data[0: len(LEVELS)].astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.out_name == "lon":
+        elif self.in_name == "lon":
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
@@ -382,6 +166,15 @@ class MerraConversion(object):
                 data = np.where(data == self.fill, np.nan, data)
 
         return data
+
+    @staticmethod
+    def _trim_toa(data: np.ndarray) -> np.ndarray:
+        """Trim the top of the atmosphere."""
+        if len(data.shape) != 3:
+            LOG.warning("Warning: why did you run _trim_toa on a non-3d var?")
+        # at this point (before _reshape), data should be (level, lat, lon) and
+        # the level dim should be ordered surface -> toa
+        return data[0:len(LEVELS), :, :]
 
     @property
     def _create_output_dtype(self):
@@ -414,7 +207,7 @@ class MerraConversion(object):
     @property
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
-        if self.out_name == "total ozone" and len(self.data.shape) == 3:
+        if self.out_name == 'total ozone' and len(self.data.shape) == 3:
             # b/c we vertically integrate ozone to get dobson units here
             shape = (self.data.shape[1], self.data.shape[2])
         elif self.ndims_out == 3:
@@ -430,7 +223,7 @@ class MerraConversion(object):
         ndims = self.ndims_out
         out_fill = self.fill
 
-        out_sds = sd["out"].create(self.out_name, self.data_sd_type, self.shape)
+        out_sds = sd["out"].create(self.out_name, self._create_output_dtype, self.shape)
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)
         if self.out_name == "lon":
@@ -447,12 +240,13 @@ class MerraConversion(object):
             out_sds.units = self.out_units
 
         if "units" in self.nc_dataset.variables[self.in_name].ncattrs():
-            u = " in [" + self.nc_dataset.variables[self.in_name].units + "]"
+            unit_desc = " in [{}]".format(self[self.in_name].units)
         else:
-            u = ""
-        out_sds.source_data = ("MERRA->" + in_file_short_value + "->" + self.in_name + u)
-        out_sds.long_name = (self.nc_dataset.
-                             variables[self.in_name].long_name)
+            unit_desc = ""
+        out_sds.source_data = ("MERRA->{}->{}{}".format(in_file_short_value,
+                                                        self.in_name,
+                                                        unit_desc))
+        out_sds.long_name = (self[self.in_name].long_name)
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):
@@ -476,86 +270,133 @@ class MerraConversion(object):
         return out_sds
 
 
-def qv_to_rh(qv, t, ps=None):
-    """Convert Specific Humidity [kg/kg] -> relative humidity [%]."""
-    # See Petty Atmos. Thermo. 4.41 (p. 65), 8.1 (p. 140), 8.18 (p. 147)
-    levels = map(lambda a: a * 100.0, LEVELS)  # [hPa] -> [Pa]
+def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
+    """Calculate the total saturation pressure.
 
+    :param temp_in_k: Temperature in kelvin at all pressure levels
+    :param mix_lo:
+    :param mix_hi:
+    :return: Total saturation pressure
+    """
+    saturation_vapor_pressure_wmo = (vapor_pressure_liquid_water_wmo(temp_in_k))
+    es_total = saturation_vapor_pressure_wmo.copy()
+
+    vapor_pressure_ice = vapor_pressure_over_ice(temp_in_k)
+    ice_ind = temp_in_k <= mix_lo
+    es_total[ice_ind] = vapor_pressure_ice[ice_ind]
+
+    mix_ind = (temp_in_k > mix_lo) & (temp_in_k < mix_hi)
+    liq_weight = (temp_in_k - mix_lo) / (mix_hi - mix_lo)
+    ice_weight = (mix_hi - temp_in_k) / (mix_hi - mix_lo)
+
+    e_mix = ice_weight * vapor_pressure_ice + liq_weight * saturation_vapor_pressure_wmo
+    es_total[mix_ind] = e_mix[mix_ind]
+
+    return es_total
+
+
+def vapor_pressure_liquid_water_wmo(temp_in_kelvin):
+    """Calculate the Vapor pressure over liquid water below 0°C by WMO Formula."""
     # Saturation vapor pressure:
     #  http://faculty.eas.ualberta.ca/jdwilson/EAS372_13/Vomel_CIRES_satvpformulae.html
     # >273.16: w.r.t liquid water
     # 253.16 < T < 273.16: weighted interpolation of water / ice
     # < 253.16: w.r.t ice
-    mix_lo = 253.16
-    mix_hi = 273.16
-    mix_ind = (t > mix_lo) & (t < mix_hi)
-    ice_ind = t <= mix_lo
-    es_wmo = 10.0 ** (10.79574 * (1. - 273.16 / t)
-                      - 5.02800 * np.log10(t / 273.16)
-                      + 1.50475 * 10. ** -4. * (1. - 10. ** (-8.2969 * (t / 273.16 - 1)))
-                      + 0.42873 * 10. ** -3. * (10. ** (4.76955 * (1 - 273.16 / t)) - 1.)
-                      + 0.78614) * 100.0  # [Pa]
-    es_tot = es_wmo.copy()
-    ei_gg = (
-        10.0 ** (
-            -9.09718 * (273.16 / t - 1.0)
-            - 3.56654 * np.log10(273.16 / t)
-            + 0.876793 * (1.0 - t / 273.16)
-            + np.log10(6.1071)
-        ) * 100.0)  # [Pa]
-    es_tot[ice_ind] = ei_gg[ice_ind]
-    liq_weight = (t - mix_lo) / (mix_hi - mix_lo)
-    ice_weight = (mix_hi - t) / (mix_hi - mix_lo)
-    emix = ice_weight * ei_gg + liq_weight * es_wmo
-    es_tot[mix_ind] = emix[mix_ind]
 
-    # Vapor pressure e, to "a good approximation":
-    # e = qv / 0.622 # still need to multiply by pressure @ each level
-    # or, using unapproximated form:
+    es_wmo = 10.0 ** (10.79574 * (1. - 273.16 / temp_in_kelvin)
+                      - 5.02800 * np.log10(temp_in_kelvin / 273.16)
+                      + 1.50475 * 10. ** -4. *
+                      (1. - 10. ** (-8.2969 * (temp_in_kelvin / 273.16 - 1)))
+                      + 0.42873 * 10. ** -3. *
+                      (10. ** (4.76955 * (1 - 273.16 / temp_in_kelvin)) - 1.)
+                      + 0.78614) * 100.0  # [Pa])
+
+    return es_wmo
+
+
+def vapor_pressure_over_ice(temp_in_kelvin):
+    """Calculate the vapor pressure over ice using the Goff Gratch equation."""
+    goff_gratch_vapor_pressure_ice = (10.0 ** (
+            -9.09718 * (273.16 / temp_in_kelvin - 1.0)
+            - 3.56654 * np.log10(273.16 / temp_in_kelvin)
+            + 0.876793 * (1.0 - temp_in_kelvin / 273.16)
+            + np.log10(6.1071)
+    ) * 100.0)  # [Pa]
+
+    return goff_gratch_vapor_pressure_ice
+
+
+def vapor_pressure_approximation(qv, sfc_pressure, plevels):
+    """Approximate the vapor pressure using specific humidity and surface pressure.
+
+    :param qv: specific humidity of the water vapor
+    :param sfc_pressure: surface pressure
+    :param plevels: hPa levels of pressure
+    :return: a good approximation of vapor pressure (still should multiply by pressure @ each level)
+    """
     vapor_pressure = 1.0 / (
-        0.622 / qv + (1.0 - 0.622)
+            0.622 / qv + (1.0 - 0.622)
     )  # still need to multiply by pressure @ each level
-    if ps is None:
+    if sfc_pressure is None:
         # 3D RH field
-        for i, lev in enumerate(levels):
+        for i, lev in enumerate(plevels):
             # already cut out time dim
             vapor_pressure[i, :, :] = vapor_pressure[i, :, :] * lev
     else:
         # RH @ 10m: multiply by surface pressure
-        vapor_pressure = vapor_pressure * ps
-    rh = vapor_pressure / es_tot * 100.0  # relative humidity [%]
-    rh[rh > 100.0] = 100.0  # clamp to 100% to mimic CFSR
-    return rh
+        vapor_pressure = vapor_pressure * sfc_pressure
+
+    return vapor_pressure
 
 
-def kgkg_to_dobson(data):
-    """Convert Ozone mixing ratio in [kg/kg] to dobson units."""
-    dobson_unit_conversion = 2.69e16
-    gravity = 9.8
-    av = 6.02e23
-    mq = 0.048
-    md = 0.028966
-    const = 0.01 * av / (gravity * md)
-    nlevels = data.shape[0]
-    total = np.zeros(data[0].shape).astype("float32")
+def qv_to_rh(specific_humidity, temp_k, press_at_sfc=None):
+    """Convert Specific Humidity [kg/kg] -> relative humidity [%]."""
+    # See Petty Atmos. Thermo. 4.41 (p. 65), 8.1 (p. 140), 8.18 (p. 147)
+    levels = map(lambda a: a * 100.0, LEVELS)  # [hPa] -> [Pa]
+
+    es_tot = total_saturation_pressure(temp_k)
+
+    vapor_pressure = vapor_pressure_approximation(specific_humidity, press_at_sfc, levels)
+
+    relative_humidity = vapor_pressure / es_tot * 100.0  # relative hu¬idity [%]
+    relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
+    return relative_humidity
+
+
+def dobson_layer(mmr_data_array, level_index):
+    """Calculate a dobson layer from a 3D mmr data array given a level index.
+
+    :param mmr_data_array: Mass mixing ratio data array
+    :param level_index: index of current level
+    :return: dobson layer
+    """
+    dobson_unit_conversion = 2.69e16  # 1 DU = 2.69e16 molecules cm-2
+    gravity = 9.8  # m/s^2
+    avogadro_const = 6.02e23  # molecules/mol
+    o3_molecular_weight = 0.048  # kg/mol
+    dry_air_molecular_weight = 0.028966  # kg/mol molecular weight of dry air.
+
+    const = 0.01 * avogadro_const / (gravity * dry_air_molecular_weight)
+    vmr_j = mmr_data_array[level_index] * dry_air_molecular_weight / o3_molecular_weight
+    vmr_j_1 = mmr_data_array[level_index - 1] * dry_air_molecular_weight / o3_molecular_weight
+    ppmv = 0.5 * (vmr_j + vmr_j_1)
+    delta_pressure = LEVELS[level_index - 1] - LEVELS[level_index]
+    o3_dobs_layer = ppmv * delta_pressure * const / dobson_unit_conversion
+
+    return o3_dobs_layer
+
+
+def total_ozone(mmr, fill_value):
+    """Calculate total column ozone in dobson units (DU), from ozone mixing ratio in [kg/kg]."""
+    nlevels = mmr.shape[0]
+    dobson = np.zeros(mmr[0].shape).astype("float32")
     for j in range(1, nlevels):
-        mmr_j = data[j]
-        mmr_j_1 = data[j - 1]
-        good_j = np.logical_not(np.isnan(mmr_j))
-        good_j_1 = np.logical_not(np.isnan(mmr_j_1))
+        good_j = np.logical_not(np.isnan(mmr[j]))
+        good_j_1 = np.logical_not(np.isnan(mmr[j - 1]))
         good = good_j & good_j_1
-        vmr_j = mmr_j * md / mq
-        vmr_j_1 = mmr_j_1 * md / mq
-        ppmv = 0.5 * (vmr_j + vmr_j_1)
-        dp = LEVELS[j - 1] - LEVELS[j]
-        dobs_layer = ppmv * dp * const / dobson_unit_conversion
-        total[good] = total[good] + dobs_layer[good]
-    return total
+        dobs_layer = dobson_layer(mmr, j)
+        dobson[good] = dobson[good] + dobs_layer[good]
 
-
-def total_ozone(data, fill_value):
-    """Return total ozone in dobson units."""
-    dobson = kgkg_to_dobson(data)
     dobson[np.isnan(dobson)] = fill_value
 
     return dobson
@@ -568,21 +409,10 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
     # pressure in [Pa]
     sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
 
-    rh_sigma = qv_to_rh(data, temp_k, ps=sfc_pressure)
+    rh_sigma = qv_to_rh(data, temp_k, press_at_sfc=sfc_pressure)
     rh_sigma[np.isnan(rh_sigma)] = sfc_pressure_fill
 
     return rh_sigma
-
-
-def apply_conversion(units_fn, data, fill):
-    """Apply fill to converted data after function."""
-    converted = data.copy()
-    converted = units_fn(converted)
-
-    if np.isnan(data).any():
-        converted[np.isnan(data)] = fill
-
-    return converted
 
 
 def _reshape(data, ndims_out, fill):
@@ -682,13 +512,31 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def _trim_toa(data: np.ndarray) -> np.ndarray:
-    """Trim the top of the atmosphere."""
-    if len(data.shape) != 3:
-        LOG.warning("Warning: why did you run _trim_toa on a non-3d var?")
-    # at this point (before _reshape), data should be (level, lat, lon) and
-    # the level dim should be ordered surface -> toa
-    return data[0:len(LEVELS), :, :]
+def apply_scale(in_data, scale_func=None):
+    """Apply a function or scale to the data."""
+    if (scale_func is None) or (scale_func == "no_conversion"):
+        converted_data = in_data
+    elif scale_func == "fill_bad":
+        converted_data = in_data * np.nan
+    elif scale_func == "geopotential":
+        converted_data = (in_data / 9806.6)
+    elif isinstance(scale_func, (float, int)):
+        converted_data = in_data * scale_func
+    else:
+        raise ValueError("Scale function is not recognized {}".format(scale_func))
+
+    return converted_data
+
+
+def apply_conversion(units_fn, data, fill):
+    """Apply fill to converted data after function."""
+    converted = data.copy()
+    converted = apply_scale(converted, scale_func=units_fn)
+
+    if np.isnan(data).any():
+        converted[np.isnan(data)] = fill
+
+    return converted
 
 
 def get_common_time(datasets: Dict[str, Dataset]):
@@ -722,13 +570,13 @@ def get_common_time(datasets: Dict[str, Dataset]):
             time_set[ds_key].add(analysis_time)
     # find set of time common to all input files
     ds_common_times = (
-        time_set["ana"]
-        & time_set["flx"]
-        & time_set["slv"]
-        & time_set["lnd"]
-        & time_set["asm3d"]
-        & time_set["asm2d"]
-        & time_set["rad"]
+            time_set["ana"]
+            & time_set["flx"]
+            & time_set["slv"]
+            & time_set["lnd"]
+            & time_set["asm3d"]
+            & time_set["asm2d"]
+            & time_set["rad"]
     )
 
     # if we don't have 4 common times something is probably terribly wrong
@@ -738,13 +586,65 @@ def get_common_time(datasets: Dict[str, Dataset]):
     return dataset_times, ds_common_times
 
 
-def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
+def get_time_index(input_files, file_times, current_time):
+    """Determine the time index from the input files based on the output time."""
+    # --- determine time index we want from input files
+    time_index = dict()
+    for file_name_key in input_files:
+        # Get the index for the current timestamp:
+        if file_name_key == "mask":
+            time_index[file_name_key] = 0
+        else:
+            time_index[file_name_key] = [i for (i, t) in file_times[file_name_key]
+                                         if t == current_time][0]
+    return time_index
+
+
+def write_global_attributes(data_sd):
+    """Write global attributes."""
+    out_sd = data_sd["out"]
+    var = out_sd.select("temperature")
+    nlevel = var.dimensions(full=False)["level"]
+    nlat = var.dimensions(full=False)["lat"]
+    nlon = var.dimensions(full=False)["lon"]
+    setattr(out_sd, "NUMBER OF LATITUDES", nlat)
+    setattr(out_sd, "NUMBER OF LONGITUDES", nlon)
+    setattr(out_sd, "NUMBER OF PRESSURE LEVELS", nlevel)
+    setattr(out_sd, "NUMBER OF O3MR LEVELS", nlevel)
+    setattr(out_sd, "NUMBER OF RH LEVELS", nlevel)
+    setattr(out_sd, "NUMBER OF CLWMR LEVELS", nlevel)
+    lat = out_sd.select("lat")
+    lon = out_sd.select("lon")
+    attr = out_sd.attr("LATITUDE RESOLUTION")
+    attr.set(SDC.FLOAT32, lat.get()[1] - lat.get()[0])
+    attr = out_sd.attr("LONGITUDE RESOLUTION")
+    attr.set(SDC.FLOAT32, lon.get()[1] - lon.get()[0])
+    attr = out_sd.attr("FIRST LATITUDE")
+    attr.set(SDC.FLOAT32, lat.get()[0])
+    attr = out_sd.attr("FIRST LONGITUDE")
+    attr.set(SDC.FLOAT32, lon.get()[0])
+    setattr(
+        out_sd, "GRIB TYPE", "not applicable"
+    )
+    setattr(out_sd,
+            "3D ARRAY ORDER", "ZXY")  # XXX is this true here?
+    setattr(out_sd,
+            "MERRA STREAM",
+            "{}".format(data_sd["ana"].GranuleID.split(".")[0]))
+    setattr(out_sd, "MERRA History",
+            "{}".format(data_sd["ana"].History))
+    for a in [var, lat, lon]:
+        a.endaccess()
+    data_sd["out"].end()
+
+
+def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
     """Read input, parse times, and run conversion on one day at a time."""
-    mask_fn = str(in_files.pop("mask_file"))
+    in_files = build_input_collection(run_dt, input_path)
+
     merra_sd = dict()
-    for file_name_key in in_files.keys():
-        merra_sd[file_name_key] = Dataset(in_files[file_name_key])
-    merra_sd["mask"] = Dataset(mask_fn)
+    for file_name_key, file_name in in_files.items():
+        merra_sd[file_name_key] = Dataset(file_name)
 
     times, common_times = get_common_time(merra_sd)
 
@@ -752,17 +652,12 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
     for out_time in sorted(common_times):
         LOG.info("    working on time: %s", out_time)
         out_fname = str(out_dir.joinpath(out_time.strftime("merra.%y%m%d%H_F000.hdf")))
-        LOG.info(out_fname)
         out_fnames.append(out_fname)
         merra_sd["out"] = SD(
             out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC
         )  # TRUNC will clobber existing
 
-        # --- determine what time index we want from input files
-        time_inds = dict()
-        for file_name_key in in_files.keys():
-            # Get the index for the current timestamp:
-            time_inds[file_name_key] = [i for (i, t) in times[file_name_key] if t == out_time][0]
+        time_inds = get_time_index(in_files, times, out_time)
 
         # --- prepare input data variables
         output_vars = dict()
@@ -773,15 +668,16 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
                 rsk["in_varname"],
                 out_key,
                 rsk["out_units"],
-                rsk["units_fn"],
                 rsk["ndims_out"],
                 time_inds[rsk["in_file"]],
             )
-        # to insure that all the variables are filled before
-        # attempting the data conversions,
+
+        ps_pa = output_vars.pop("surface_pressure_at_sigma", None)
+        # need for calculation/not to file
         # read all the output_vars and then convert before
         # setting the hdf variables out.
         for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+            units_fn = rsk["units_fn"]
             var_fill = output_vars[out_key].fill
             out_data = output_vars[out_key].data
             if out_key == "total ozone":
@@ -794,120 +690,18 @@ def make_merra_one_day(in_files: Dict[str, Path], out_dir: Path):
                 ].fill  # keep to match original code
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = output_vars["temperature at sigma=0.995"].data
-                LOG.info("Get data from slv for rh at sigma=0.995")
-                ps_pa = MerraConversion(
-                    merra_sd["slv"],
-                    "PS",
-                    "surface pressure at sigma=0.995",
-                    "hPa",
-                    None,
-                    2,
-                    output_vars[out_key].time_ind,
-                ).data
-                out_data = rh_at_sigma(temp_t10m, ps_pa,
+                out_data = rh_at_sigma(temp_t10m, ps_pa.data,
                                        var_fill, out_data)
             elif out_key == "water equivalent snow depth":
                 out_data = _hack_snow(out_data, merra_sd["mask"])
+            elif out_key == "land mask":
+                out_data = _merra_land_mask(out_data, merra_sd["mask"])
             else:
-                out_data = apply_conversion(
-                    output_vars[out_key].units_fn, out_data, var_fill
-                )
+                out_data = apply_conversion(units_fn, out_data, var_fill)
 
             output_vars[out_key].update_output(merra_sd, rsk["in_file"], out_data)
 
-        # --- handle surface height and static land mask
-        # from constants (mask_fn) (no time dependence)
-        # lambda geopotential (m^2 s^-2) => height h/(1000.*g)
-        LOG.info("Get data from mask for surface height")
-        geopotential_height = MerraConversion(
-            merra_sd["mask"],
-            "PHIS",
-            "surface height",
-            "km",
-            lambda a: a / 9806.6,
-            2,
-            0,
-        )
-        out_data = apply_conversion(geopotential_height.units_fn,
-                                    geopotential_height.data,
-                                    geopotential_height.fill)
-        geopotential_height.update_output(merra_sd, "mask", out_data)
-
-        LOG.info("Get data from mask for land mask")
-        land_mask = MerraConversion(
-            merra_sd["mask"],
-            "FRLAND",
-            "land mask",
-            "1=land, 0=ocean, greenland and antarctica are land",
-            _merra_land_mask,
-            2,
-            0,
-        )
-        land_mask_calculated = _merra_land_mask(land_mask.data,
-                                                merra_sd["mask"])
-        land_mask.update_output(merra_sd, "mask", land_mask_calculated)
-        # --- handle ice-fraction and land ice-fraction
-        # from constants (mask_fn) specially
-        # use FRSEAICE (ice-fraction): GFS uses sea-ice fraction
-        # as 'ice fraction'. This version of ice-fraction is broken,
-        # so it is being shielded from CLAVR-x
-        # use with the output name 'FRACI' until this gets figured out.
-        sea_ice_fraction = MerraConversion(
-            merra_sd["mask"],
-            "FRACI",
-            "FRACI",  # see comment "use FRSEAICE (ice-fraction)..."
-            "none",
-            no_conversion,
-            2,
-            0,
-        )
-        sea_ice_fraction.update_output(merra_sd, "mask", sea_ice_fraction.data)
-        LOG.info("Get data from mask for land ice fraction.")
-        land_ice_fraction = MerraConversion(
-            merra_sd["mask"],
-            "FRLANDICE",
-            "land ice fraction",
-            "none",
-            no_conversion,
-            2,
-            0,
-        )
-        land_ice_fraction.update_output(merra_sd, "mask", land_ice_fraction.data)
-
-        # --- write global attributes
-        var = merra_sd["out"].select("temperature")
-        nlevel = var.dimensions(full=False)["level"]
-        nlat = var.dimensions(full=False)["lat"]
-        nlon = var.dimensions(full=False)["lon"]
-        setattr(merra_sd["out"], "NUMBER OF LATITUDES", nlat)
-        setattr(merra_sd["out"], "NUMBER OF LONGITUDES", nlon)
-        setattr(merra_sd["out"], "NUMBER OF PRESSURE LEVELS", nlevel)
-        setattr(merra_sd["out"], "NUMBER OF O3MR LEVELS", nlevel)
-        setattr(merra_sd["out"], "NUMBER OF RH LEVELS", nlevel)
-        setattr(merra_sd["out"], "NUMBER OF CLWMR LEVELS", nlevel)
-        lat = merra_sd["out"].select("lat")
-        lon = merra_sd["out"].select("lon")
-        attr = merra_sd["out"].attr("LATITUDE RESOLUTION")
-        attr.set(SDC.FLOAT32, lat.get()[1] - lat.get()[0])
-        attr = merra_sd["out"].attr("LONGITUDE RESOLUTION")
-        attr.set(SDC.FLOAT32, lon.get()[1] - lon.get()[0])
-        attr = merra_sd["out"].attr("FIRST LATITUDE")
-        attr.set(SDC.FLOAT32, lat.get()[0])
-        attr = merra_sd["out"].attr("FIRST LONGITUDE")
-        attr.set(SDC.FLOAT32, lon.get()[0])
-        setattr(
-            merra_sd["out"], "GRIB TYPE", "not applicable"
-        )
-        setattr(merra_sd["out"],
-                "3D ARRAY ORDER", "ZXY")  # XXX is this true here?
-        setattr(merra_sd["out"],
-                "MERRA STREAM",
-                "{}".format(merra_sd["ana"].GranuleID.split(".")[0]))
-        setattr(merra_sd["out"], "MERRA History",
-                "{}".format(merra_sd["ana"].History))
-        [a.endaccess() for a in [var, lat, lon]]
-
-        merra_sd["out"].end()
+        write_global_attributes(merra_sd)
 
     return out_fnames
 
@@ -941,7 +735,7 @@ def download_data(inpath: Union[str, Path], file_glob: str,
         file_list = list(inpath.glob(file_glob))
 
         if len(file_list) == 0:
-            raise FileNotFoundError("%s not found at %s.", file_glob, inpath)
+            raise FileNotFoundError("{} not found at {}.".format(file_glob, inpath))
 
     return file_list[0]
 
@@ -1002,7 +796,7 @@ def build_input_collection(desired_date: datetime,
             "tavg1_2d_rad_Nx",
             desired_date,
         ),
-        "mask_file": mask_fn,
+        "mask": mask_fn,
     }
     return in_files
 
@@ -1022,9 +816,9 @@ def process_merra(base_path=None, input_path=None, start_date=None,
     else:
         end_dt = start_dt
 
-    for dt in date_range(start_dt, end_dt, freq="D"):
-        year = dt.strftime("%Y")
-        year_month_day = dt.strftime("%Y_%m_%d")
+    for data_dt in date_range(start_dt, end_dt, freq="D"):
+        year = data_dt.strftime("%Y")
+        year_month_day = data_dt.strftime("%Y_%m_%d")
         out_path_full = Path(out_path_parent).joinpath(year)
 
         try:
@@ -1034,15 +828,13 @@ def process_merra(base_path=None, input_path=None, start_date=None,
 
         if store_temp:
             with tempfile.TemporaryDirectory() as tmp_dir_name:
-                in_data = build_input_collection(dt, Path(tmp_dir_name))
-                out_list = make_merra_one_day(in_data,
+                out_list = make_merra_one_day(data_dt, Path(tmp_dir_name),
                                               out_path_full)
                 LOG.info(", ".join(map(str, out_list)))
         else:
             input_path = Path(input_path).joinpath(year, year_month_day)
             input_path.mkdir(parents=True, exist_ok=True)
-            in_data = build_input_collection(dt, input_path)
-            out_list = make_merra_one_day(in_data, out_path_full)
+            out_list = make_merra_one_day(data_dt, input_path, out_path_full)
             LOG.info(", ".join(map(str, out_list)))
 
 
@@ -1136,6 +928,5 @@ def argument_parser() -> CommandLineMapping:
 
 
 if __name__ == "__main__":
-
     parser_args = argument_parser()
     process_merra(**parser_args)
