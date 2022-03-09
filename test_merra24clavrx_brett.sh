@@ -3,7 +3,8 @@ echo starting at `date`
 
 # USER OPTIONS
 BIN_DIR=$HOME/clavrx_MERRA2
-M2_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input
+#M2_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input
+M2_DIR=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/
 OUT_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2
 # END USER OPTIONS
 
@@ -20,13 +21,13 @@ TMPDIR=${BIN_DIR}/tmp
 mkdir -p $TMPDIR
 cd $TMPDIR || (hostname;echo \"could not access $TMPDIR\"; exit 1)
 
-INPUT_DATE=20210315
+INPUT_DATE=${1:-20210801}
 
 YYYY=${INPUT_DATE:0:4}
 MM=${INPUT_DATE:4:2}
 DD=${INPUT_DATE:6:2}
 
-M2_DIR=${M2_DIR}/${YYYY}/${YYYY}_${MM}_${DD}
+M2_DIR=${M2_DIR}/${YYYY}/
 mkdir -p $M2_DIR
 
 if [ -d "${TMPDIR}/out" ]
@@ -44,9 +45,8 @@ sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 python ${BIN_DIR}/merra2/merra24clavrx_brett.py ${INPUT_DATE}
 #
 # clean up
-M2_DIR=$(dirname M2_DIR)
+M2_DIR=`dirname $M2_DIR`
 echo $M2_DIR
-exit
 #rm -rfv $M2_DIR/
 #
 #echo finished at: `date`

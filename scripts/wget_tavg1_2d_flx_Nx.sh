@@ -30,9 +30,10 @@ source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_flx_Nx.${YYYY}${MM}${DD}.nc4
+REANALYSIS=MERRA2_401.tavg1_2d_flx_Nx.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXFLX.5.12.4
 
-if [ -f "2d_flx/${TARGET_FILE}" ]; then
+if [ -s "./2d_flx/${TARGET_FILE}" ] || [ -s "./2d_flx/${REANALYSIS}" ]; then
         echo "${TARGET_FILE} exists"
         exit
 fi
@@ -43,7 +44,7 @@ if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}
 fi
 
-if [ -f "$TARGET_FILE" ]; then
+if [ -s "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 2d_flx/.
 else 
     echo "${TARGET_FILE} does not exist."

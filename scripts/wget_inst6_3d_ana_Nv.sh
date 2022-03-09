@@ -30,12 +30,13 @@ source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
+REANALYSIS=MERRA2_401.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
 
 # Define base-URL
 
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NVANA.5.12.4/
 
-if [ -f "3d_ana/${TARGET_FILE}" ]; then
+if [ -s "./3d_ana/${TARGET_FILE}" ] || [ -s "./3d_ana/${REANALYSIS}" ]; then
         echo "${TARGET_FILE} exists"
         exit
 fi
@@ -46,7 +47,7 @@ if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}
 fi
 
-if [ -f "$TARGET_FILE" ]; then
+if [ -s "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
     echo "${TARGET_FILE} does not exist."
