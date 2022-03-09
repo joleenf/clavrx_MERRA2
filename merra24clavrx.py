@@ -512,16 +512,16 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def apply_scale(in_data, scale_func=None):
+def apply_scale(data_to_convert, scale_func=None):
     """Apply a function or scale to the data."""
     if (scale_func is None) or (scale_func == "no_conversion"):
-        converted_data = in_data
+        converted_data = data_to_convert
     elif scale_func == "fill_bad":
-        converted_data = in_data * np.nan
+        converted_data = data_to_convert * np.nan
     elif scale_func == "geopotential":
-        converted_data = (in_data / 9806.6)
+        converted_data = (data_to_convert / 9806.6)
     elif isinstance(scale_func, (float, int)):
-        converted_data = in_data * scale_func
+        converted_data = data_to_convert * scale_func
     else:
         raise ValueError("Scale function is not recognized {}".format(scale_func))
 
@@ -531,10 +531,13 @@ def apply_scale(in_data, scale_func=None):
 def apply_conversion(units_fn, data, fill):
     """Apply fill to converted data after function."""
     converted = data.copy()
-    converted = apply_scale(converted, scale_func=units_fn)
 
-    if np.isnan(data).any():
-        converted[np.isnan(data)] = fill
+    if units_fn == "total ozone":
+        converted = total_ozone(data, fill)
+    else:
+        converted = apply_scale(converted, scale_func=units_fn)
+        if np.isnan(data).any():
+            converted[np.isnan(data)] = fill
 
     return converted
 
@@ -672,17 +675,16 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
                 time_inds[rsk["in_file"]],
             )
 
-        ps_pa = output_vars.pop("surface_pressure_at_sigma", None)
         # need for calculation/not to file
         # read all the output_vars and then convert before
         # setting the hdf variables out.
         for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+            if out_key == "surface_pressure_at_sigma":
+                continue
             units_fn = rsk["units_fn"]
             var_fill = output_vars[out_key].fill
             out_data = output_vars[out_key].data
-            if out_key == "total ozone":
-                out_data = total_ozone(out_data, var_fill)
-            elif out_key == "rh":
+            if out_key == "rh":
                 out_data = qv_to_rh(out_data,
                                     output_vars["temperature"].data)
                 out_data[np.isnan(out_data)] = output_vars[
@@ -690,7 +692,8 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
                 ].fill  # keep to match original code
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = output_vars["temperature at sigma=0.995"].data
-                out_data = rh_at_sigma(temp_t10m, ps_pa.data,
+                ps_pa = output_vars["surface_pressure_at_sigma"].data
+                out_data = rh_at_sigma(temp_t10m, ps_pa,
                                        var_fill, out_data)
             elif out_key == "water equivalent snow depth":
                 out_data = _hack_snow(out_data, merra_sd["mask"])
