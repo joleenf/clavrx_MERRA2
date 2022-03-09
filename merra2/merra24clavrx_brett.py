@@ -523,8 +523,14 @@ class MerraConversion(object):
         else:
             if '_FillValue' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name]._FillValue
-                converted = self.units_fn(data)
-                converted[data == fill] = fill
+                if self.out_name == 'water equivalent snow depth':
+                    # Special case: set snow depth missing values to 0
+                    # to match CFSR behavior.
+                    data[data == fill] = 0.0
+                    converted = _hack_snow(data)
+                else:
+                    converted = self.units_fn(data)
+                    converted[data == fill] = fill
                 out_sds.set(_refill(_reshape(converted, self.ndims_out, fill), fill))
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value
@@ -735,8 +741,8 @@ if __name__ == '__main__':
     #outpath = '/Volumes/stuff/merra/output/'
     #inpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/'
     #outpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/out/'
-    inpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input'
-    outpath = os.path.dirname(inpath)
+    inpath = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
+    outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
 
     try:
         date_str_arg = sys.argv[1]
@@ -748,7 +754,7 @@ if __name__ == '__main__':
     year_str = date_str_arg[0:4]
     outpath_full = os.path.join(outpath, year_str) + '/'
     #inpath_full = inpath
-    inpath_full = os.path.join(inpath, year_str, date_parsed.strftime('%Y_%m_%d'))
+    inpath_full = os.path.join(inpath, year_str)
 
     try:
         os.makedirs(outpath_full)
