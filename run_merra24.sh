@@ -1,6 +1,5 @@
 #!/bin/bash
 export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() } cmd: ${BASH_COMMAND} result: '
-set -x
 #
 # Requires the merra2_clavrx environment.
 #
@@ -25,13 +24,13 @@ machine=`uname -a | awk -F" " '{print $2}'`
 machine=`echo ${machine%%.*}`
 
 if [ "$machine" == "vor" ]; then
-	DATA_PATH=/data/Personal/clavrx_ops/MERRA_INPUT
+	DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT
 else
 	DATA_PATH=/data/clavrx_ops/MERRA_INPUT
 fi
 
 delete_input=true
-while getopts "h:s" flag; do
+while getopts "h|s" flag; do
         case "$flag" in
 		s) delete_input=false;;
                 h) `/bin/pod2usage $0`
@@ -50,7 +49,7 @@ fi
 function check_output {
 # this section checks if output has been created.
     out_count=0
-    find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name merra.200109*_F*.hdf -print | while read -r hdf;do
+    find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name "merra.${year:2,2}${month}${day}_F*.hdf" -print | while read -r hdf;do
         out_count=$(( out_count + 1))
         hdp list $hdf
 	echo "Out count is ${out_count}"
@@ -62,17 +61,18 @@ function check_output {
 
     if [ "${out_count}" -ne "4" ]; then
         date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Incomplete Merra Output ($out_count) ${year} ${month} ${day}" >> $INVENTORY_FILE
+    else
+        echo "Success ${year} ${month} ${day}"
+        echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
     fi
-
-    echo "Success ${year} ${month} ${day}"
-    echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
 }
 
 trap finish EXIT
 finish() {
 	if [[ -z $YEAR_DIR  &&  "${delete_input}" = true ]];
 	then
-		rm -rfv ${YEAR_DIR}
+		cmd="rm -rfv ${YEAR_DIR}/*/*${year}${month}${day}*.nc4"
+		eval $cmd
 	fi
 }
 
@@ -100,17 +100,18 @@ do
 	year=${start_date:0:4}
 	month="${start_date:4:2}"
 	day="${start_date:6:2}"
-        YEAR_DIR=${DATA_PATH}/tmp/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+        YEAR_DIR=${TMPDIR}/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+	mkdir -p $YEAR_DIR
+
         sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 
 	# make sure all data is available
-	count=`find ${TMPDIR} -name "*${year}${month}${day}*.nc4" | wc -l`
+	count=`find ${YEAR_DIR} -name "*${year}${month}${day}*.nc4" | wc -l`
 	echo $count
-	find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
+	find ${YEAR_DIR} -name "*${year}${month}${day}*.nc4"
 
 	if [ "$count" -lt "9" ]; then
 		cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Input $year ${month} ${day}"`
-                echo $cmd
                 start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 		break
 	else
@@ -118,11 +119,12 @@ do
 		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
 	fi
 
-	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -v -i ${TMPDIR} >> $LOG_FILE 2>&1
+	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
 	check_output 
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	if [ "${delete_input}" = true ]; then
-            rm -rfv ${YEAR_DIR}
+	    cmd="rm -rfv ${YEAR_DIR}/*${year}${month}${day}*.nc4"
+	    eval $cmd
         fi
 	# unset does not get "$"
 	unset YEAR_DIR
@@ -138,8 +140,8 @@ done
 
 =head1 SYNOPSIS
 
-    sh run_merra24.sh <start_date:YYYYMMDD> <end_date:YYYYMMDD>
-    example: sh run_merra24.sh 20200101 20200102
+    sh run_merra24.sh <OPTIONS> <start_date:YYYYMMDD> <end_date:YYYYMMDD>
+    example: sh run_merra24.sh -s 20200101 20200102
 
       where: start_date is the first date to run in YYYYMMDD format
 	     end_date   is the last date to run in YYYYMMDD format

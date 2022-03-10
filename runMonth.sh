@@ -42,8 +42,7 @@ start_day=${YEAR}${month}01
 end_day=${YEAR}${month}${ndays}
 
 #screen -dm -S $screen_name /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
-cmd="/bin/bash $bin_dir/run_merra24.sh $start_day $end_day"
-echo $cmd
-eval $cmd
+/bin/bash $bin_dir/run_merra24.sh $start_day $end_day
+echo "/bin/bash $bin_dir/run_merra24.sh $start_day $end_day"
 sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}.log
 exit
