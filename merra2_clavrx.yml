@@ -12,5 +12,6 @@ dependencies:
   - jupyter
   - wget
   - pip
+  - pyyaml
   - pip:
     - cdsapi

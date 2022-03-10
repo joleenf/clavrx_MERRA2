@@ -25,7 +25,7 @@ height:
   in_varname: H
   ndims_out: 3
   out_units: km
-  units_fn: 0.001
+  units_fn: 0.0010
 ice fraction:
   in_file: flx
   in_varname: FRSEAICE
@@ -121,7 +121,7 @@ total ozone:
   in_varname: O3
   ndims_out: 2
   out_units: Dobson
-  units_fn: null
+  units_fn: total_ozone
 total precipitable water:
   in_file: asm2d
   in_varname: TQV

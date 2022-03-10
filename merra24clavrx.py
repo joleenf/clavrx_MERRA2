@@ -101,7 +101,6 @@ class MerraConversion:
 
         self.fill = self._get_fill
         self.data = self._get_data
-        self.shape = self._modify_shape
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
@@ -204,7 +203,6 @@ class MerraConversion:
 
         return sd_dtype
 
-    @property
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
         if self.out_name == 'total ozone' and len(self.data.shape) == 3:
@@ -220,20 +218,19 @@ class MerraConversion:
 
     def update_output(self, sd, in_file_short_value, data_array):
         """Finalize output variables."""
-        ndims = self.ndims_out
         out_fill = self.fill
 
-        out_sds = sd["out"].create(self.out_name, self._create_output_dtype, self.shape)
+        out_sds = sd["out"].create(self.out_name, self._create_output_dtype, self._modify_shape())
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)
         if self.out_name == "lon":
             out_sds.set(_reshape(data_array, self.ndims_out, None))
         else:
             if self.out_name == "rh":
-                new = _refill(_reshape(data_array, ndims, out_fill), out_fill)
+                new = _refill(_reshape(data_array, self.ndims_out, out_fill), out_fill)
                 out_sds.set(new)
             else:
-                out_sds.set(_refill(_reshape(data_array, ndims, out_fill), out_fill))
+                out_sds.set(_refill(_reshape(data_array, self.ndims_out, out_fill), out_fill))
 
         out_sds.setfillvalue(CLAVRX_FILL)
         if self.out_units is not None:
@@ -512,30 +509,25 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def apply_scale(data_to_convert, scale_func=None):
-    """Apply a function or scale to the data."""
-    if (scale_func is None) or (scale_func == "no_conversion"):
-        converted_data = data_to_convert
-    elif scale_func == "fill_bad":
-        converted_data = data_to_convert * np.nan
-    elif scale_func == "geopotential":
-        converted_data = (data_to_convert / 9806.6)
-    elif isinstance(scale_func, (float, int)):
-        converted_data = data_to_convert * scale_func
-    else:
-        raise ValueError("Scale function is not recognized {}".format(scale_func))
-
-    return converted_data
-
-
-def apply_conversion(units_fn, data, fill):
+def apply_conversion(scale_func, data, fill):
     """Apply fill to converted data after function."""
     converted = data.copy()
 
-    if units_fn == "total ozone":
+    if scale_func == "total_ozone":
         converted = total_ozone(data, fill)
     else:
-        converted = apply_scale(converted, scale_func=units_fn)
+        if (scale_func is None) or (scale_func == "no_conversion"):
+            pass
+        elif scale_func == "fill_bad":
+            converted = converted * np.nan
+        elif scale_func == "geopotential":
+            converted = (converted / 9806.65)
+        elif isinstance(scale_func, (float, int)):
+            converted = converted * scale_func
+        else:
+            raise ValueError("Scale function is not recognized {}".format(scale_func))
+
+        converted[data == fill] = fill
         if np.isnan(data).any():
             converted[np.isnan(data)] = fill
 
@@ -630,7 +622,7 @@ def write_global_attributes(data_sd):
         out_sd, "GRIB TYPE", "not applicable"
     )
     setattr(out_sd,
-            "3D ARRAY ORDER", "ZXY")  # XXX is this true here?
+            "3D ARRAY ORDER", "YXZ")
     setattr(out_sd,
             "MERRA STREAM",
             "{}".format(data_sd["ana"].GranuleID.split(".")[0]))
@@ -835,7 +827,7 @@ def process_merra(base_path=None, input_path=None, start_date=None,
                                               out_path_full)
                 LOG.info(", ".join(map(str, out_list)))
         else:
-            input_path = Path(input_path).joinpath(year, year_month_day)
+            input_path = Path(input_path).joinpath(year)
             input_path.mkdir(parents=True, exist_ok=True)
             out_list = make_merra_one_day(data_dt, input_path, out_path_full)
             LOG.info(", ".join(map(str, out_list)))
