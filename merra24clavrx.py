@@ -63,7 +63,7 @@ OUT_PATH_PARENT = "/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/"
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 with open(os.path.join(ROOT_DIR, 'yamls', 'MERRA2_vars.yaml'), "r") as yml:
-    OUTPUT_VARS_ROSETTA = yaml.safe_load(yml)
+    OUTPUT_VARS_ROSETTA = yaml.load(yml, Loader=yaml.Loader)
 
 levels_listings = OUTPUT_VARS_ROSETTA.pop("defined levels")
 LEVELS = levels_listings["hPa_levels"]
@@ -97,10 +97,9 @@ class MerraConversion:
         self.out_name = out_name
         self.out_units = out_units
         self.ndims_out = ndims_out
-        self.time_ind = time_ind
 
         self.fill = self._get_fill
-        self.data = self._get_data
+        self.data = self._get_data(time_ind)
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
@@ -122,8 +121,7 @@ class MerraConversion:
 
         return fill
 
-    @property
-    def _get_data(self):
+    def _get_data(self, time_ind):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
         data = np.ma.getdata(self[self.in_name])
 
@@ -140,9 +138,9 @@ class MerraConversion:
         ndims_in = len(data.shape)
         if ndims_in == 3:
             # note, vars w/ 3 spatial dims will be 4d due to time
-            data = data[self.time_ind]
+            data = data[time_ind]
         if ndims_in == 4:
-            data = data[self.time_ind]
+            data = data[time_ind]
             data = self._trim_toa(data)
 
         # apply special cases
@@ -243,7 +241,7 @@ class MerraConversion:
         out_sds.source_data = ("MERRA->{}->{}{}".format(in_file_short_value,
                                                         self.in_name,
                                                         unit_desc))
-        out_sds.long_name = (self[self.in_name].long_name)
+        out_sds.long_name = self[self.in_name].long_name
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):
@@ -516,16 +514,7 @@ def apply_conversion(scale_func, data, fill):
     if scale_func == "total_ozone":
         converted = total_ozone(data, fill)
     else:
-        if (scale_func is None) or (scale_func == "no_conversion"):
-            pass
-        elif scale_func == "fill_bad":
-            converted = converted * np.nan
-        elif scale_func == "geopotential":
-            converted = (converted / 9806.65)
-        elif isinstance(scale_func, (float, int)):
-            converted = converted * scale_func
-        else:
-            raise ValueError("Scale function is not recognized {}".format(scale_func))
+        converted = scale_func(converted)
 
         converted[data == fill] = fill
         if np.isnan(data).any():
@@ -633,6 +622,35 @@ def write_global_attributes(data_sd):
     data_sd["out"].end()
 
 
+def write_output_variables(datasets, output_vars):
+    """Calculate the final output and write to file."""
+    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+        if out_key == "surface_pressure_at_sigma":
+            continue
+        units_fn = rsk["units_fn"]
+        var_fill = output_vars[out_key].fill
+        out_data = output_vars[out_key].data
+        if out_key == "rh":
+            out_data = qv_to_rh(out_data,
+                                output_vars["temperature"].data)
+            out_data[np.isnan(out_data)] = output_vars[
+                "temperature"
+            ].fill  # keep to match original code
+        elif out_key == "rh at sigma=0.995":
+            temp_t10m = output_vars["temperature at sigma=0.995"].data
+            ps_pa = output_vars["surface_pressure_at_sigma"].data
+            out_data = rh_at_sigma(temp_t10m, ps_pa,
+                                   var_fill, out_data)
+        elif out_key == "water equivalent snow depth":
+            out_data = _hack_snow(out_data, datasets["mask"])
+        elif out_key == "land mask":
+            out_data = _merra_land_mask(out_data, datasets["mask"])
+        else:
+            out_data = apply_conversion(units_fn, out_data, var_fill)
+
+        output_vars[out_key].update_output(datasets, rsk["in_file"], out_data)
+
+
 def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
     """Read input, parse times, and run conversion on one day at a time."""
     in_files = build_input_collection(run_dt, input_path)
@@ -655,10 +673,10 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
         time_inds = get_time_index(in_files, times, out_time)
 
         # --- prepare input data variables
-        output_vars = dict()
+        out_vars = dict()
         for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
             LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
-            output_vars[out_key] = MerraConversion(
+            out_vars[out_key] = MerraConversion(
                 merra_sd[rsk["in_file"]],
                 rsk["in_varname"],
                 out_key,
@@ -667,35 +685,7 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
                 time_inds[rsk["in_file"]],
             )
 
-        # need for calculation/not to file
-        # read all the output_vars and then convert before
-        # setting the hdf variables out.
-        for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
-            if out_key == "surface_pressure_at_sigma":
-                continue
-            units_fn = rsk["units_fn"]
-            var_fill = output_vars[out_key].fill
-            out_data = output_vars[out_key].data
-            if out_key == "rh":
-                out_data = qv_to_rh(out_data,
-                                    output_vars["temperature"].data)
-                out_data[np.isnan(out_data)] = output_vars[
-                    "temperature"
-                ].fill  # keep to match original code
-            elif out_key == "rh at sigma=0.995":
-                temp_t10m = output_vars["temperature at sigma=0.995"].data
-                ps_pa = output_vars["surface_pressure_at_sigma"].data
-                out_data = rh_at_sigma(temp_t10m, ps_pa,
-                                       var_fill, out_data)
-            elif out_key == "water equivalent snow depth":
-                out_data = _hack_snow(out_data, merra_sd["mask"])
-            elif out_key == "land mask":
-                out_data = _merra_land_mask(out_data, merra_sd["mask"])
-            else:
-                out_data = apply_conversion(units_fn, out_data, var_fill)
-
-            output_vars[out_key].update_output(merra_sd, rsk["in_file"], out_data)
-
+        write_output_variables(merra_sd, out_vars)
         write_global_attributes(merra_sd)
 
     return out_fnames
@@ -714,13 +704,14 @@ def download_data(inpath: Union[str, Path], file_glob: str,
             "sh",
             script_name,
             "-w",
-            inpath.parent,
+            str(inpath.parent),
             "-k",
             file_type,
             get_date.strftime("%Y %m %d"),
         ]
         try:
             proc = subprocess.run(cmd, text=True, check=True)
+            LOG.info(" ".join(proc.args))
             if proc.returncode != 0:
                 LOG.info(proc.stdout)
                 LOG.error(proc.stderr)
@@ -814,7 +805,7 @@ def process_merra(base_path=None, input_path=None, start_date=None,
     for data_dt in date_range(start_dt, end_dt, freq="D"):
         year = data_dt.strftime("%Y")
         year_month_day = data_dt.strftime("%Y_%m_%d")
-        out_path_full = Path(out_path_parent).joinpath(year)
+        out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
 
         try:
             out_path_full.mkdir(parents=True, exist_ok=True)

@@ -10,7 +10,7 @@ export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0
 #   START_DATE            First date of MERRA2 data to process
 #   END_DATE              Last date of MERRA2 data to process
 #
-# Log files are placed in 
+# Log files are placed in
 #   $HOME/logs/merra_archive/s${START_DATE}_e${END_DATE}run.log
 #       Contains the run information for both the bash script and python code
 #   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
@@ -71,7 +71,7 @@ trap finish EXIT
 finish() {
 	if [[ -z $YEAR_DIR  &&  "${delete_input}" = true ]];
 	then
-		cmd="rm -rfv ${YEAR_DIR}/*/*${year}${month}${day}*.nc4"
+		cmd="rm -rfv ${YEAR_DIR}"
 		eval $cmd
 	fi
 }
@@ -100,7 +100,7 @@ do
 	year=${start_date:0:4}
 	month="${start_date:4:2}"
 	day="${start_date:6:2}"
-        YEAR_DIR=${TMPDIR}/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+        YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
 	mkdir -p $YEAR_DIR
 
         sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
@@ -120,10 +120,10 @@ do
 	fi
 
 	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
-	check_output 
+	check_output
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	if [ "${delete_input}" = true ]; then
-	    cmd="rm -rfv ${YEAR_DIR}/*${year}${month}${day}*.nc4"
+	    cmd="rm -rfv ${YEAR_DIR}"
 	    eval $cmd
         fi
 	# unset does not get "$"
@@ -156,7 +156,7 @@ done
     Runs the series of dates from start date to end date.  First the MERRA2 input files
     are downloaded and checked for readability.  Then, a check is performed to make sure
     all files have downloaded.  Next, merra24clavrx.py is executed to produce the reanalysis
-    model files which can be used as in put to the CLAVRx cloud algorithm.  Finally, 
+    model files which can be used as in put to the CLAVRx cloud algorithm.  Finally,
     a check is done to verify that 4 files have been created and can at least be listed by hdp.
     Temporary input directory and input files are removed.
 

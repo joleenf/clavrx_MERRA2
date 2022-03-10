@@ -7,115 +7,117 @@ MSL pressure:
   in_varname: SLP
   ndims_out: 2
   out_units: hPa
-  units_fn: 0.01
+  units_fn: !!python/name:conversions.pa_to_hPa
 cloud ice water mixing ratio:
   in_file: asm3d
   in_varname: QI
   ndims_out: 3
   out_units: kg/kg
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 clwmr:
   in_file: asm3d
   in_varname: QL
   ndims_out: 3
   out_units: kg/kg
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 height:
   in_file: ana
   in_varname: H
   ndims_out: 3
   out_units: km
-  units_fn: 0.0010
+  units_fn: !!python/name:conversions.meter_to_km
 ice fraction:
   in_file: flx
   in_varname: FRSEAICE
   ndims_out: 2
   out_units: none
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 lat:
   in_file: ana
   in_varname: lat
   ndims_out: 1
   out_units: null
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 level:
   in_file: ana
   in_varname: lev
   ndims_out: 1
   out_units: hPa
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 lon:
   in_file: ana
   in_varname: lon
   ndims_out: 1
   out_units: null
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 o3mr:
   in_file: ana
   in_varname: O3
   ndims_out: 3
   out_units: kg/kg
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 planetary boundary layer height:
   in_file: flx
   in_varname: PBLH
   ndims_out: 2
   out_units: km
-  units_fn: 0.001
+  units_fn: !!python/name:conversions.meter_to_km
 pressure levels:
   in_file: ana
   in_varname: lev
   ndims_out: 1
   out_units: hPa
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 rh:
   in_file: ana
   in_varname: QV
   ndims_out: 3
   out_units: '%'
-  units_fn: null
+  # units_fn: null
+  units_fn: !!python/name:conversions.no_conversion
 rh at sigma=0.995:
   in_file: slv
   in_varname: QV10M
   ndims_out: 2
   out_units: '%'
-  units_fn: fill_bad
+  units_fn: !!python/name:conversions.fill_bad
 surface_pressure_at_sigma:
   in_file: slv
   in_varname: PS
   ndims_out: 2
   out_units: hPa
-  units_fn: null
+  # units_fn: null
+  units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: ana
   in_varname: PS
   ndims_out: 2
   out_units: hPa
-  units_fn: 0.01
+  units_fn: !!python/name:conversions.pa_to_hPa
 surface temperature:
   in_file: slv
   in_varname: TS
   ndims_out: 2
   out_units: K
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 temperature:
   in_file: ana
   in_varname: T
   ndims_out: 3
   out_units: K
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 temperature at sigma=0.995:
   in_file: slv
   in_varname: T10M
   ndims_out: 2
   out_units: K
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 total cloud fraction:
   in_file: rad
   in_varname: CLDTOT
   ndims_out: 2
   out_units: none
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 total ozone:
   in_file: ana
   in_varname: O3
@@ -127,82 +129,82 @@ total precipitable water:
   in_varname: TQV
   ndims_out: 2
   out_units: cm
-  units_fn: 0.1
+  units_fn: !!python/name:conversions.scale_tpw
 tropopause pressure:
   in_file: slv
   in_varname: TROPPT
   ndims_out: 2
   out_units: hPa
-  units_fn: 0.01
+  units_fn: !!python/name:conversions.pa_to_hPa
 tropopause temperature:
   in_file: slv
   in_varname: TROPT
   ndims_out: 2
   out_units: K
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 u-wind:
   in_file: ana
   in_varname: U
   ndims_out: 3
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 u-wind at 50M:
   in_file: slv
   in_varname: U50M
   ndims_out: 2
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 u-wind at sigma=0.995:
   in_file: slv
   in_varname: U10M
   ndims_out: 2
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 v-wind:
   in_file: ana
   in_varname: V
   ndims_out: 3
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 v-wind at 50M:
   in_file: slv
   in_varname: V50M
   ndims_out: 2
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 v-wind at sigma=0.995:
   in_file: slv
   in_varname: V10M
   ndims_out: 2
   out_units: m/s
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 water equivalent snow depth:
   in_file: lnd
   in_varname: SNOMAS
   ndims_out: 2
   out_units: kg/m^2
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 surface height:  # geopotential height
   in_file: mask
   in_varname: PHIS
   ndims_out: 2
   out_units: km
-  units_fn: geopotential
+  units_fn: !!python/name:conversions.geopotential
 land mask:
   in_file: mask
   in_varname: FRLAND
   ndims_out: 2
   out_units: 1=land, 0=ocean, greenland and antarctica are land
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 FRACI:
   in_file: mask
   in_varname: FRACI
   ndims_out: 2
   out_units: None
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
 land ice fraction:
   in_file: mask
   in_varname:  FRLANDICE
   out_units: None
   ndims_out: 2
-  units_fn: no_conversion
+  units_fn: !!python/name:conversions.no_conversion
