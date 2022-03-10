@@ -29,22 +29,29 @@ scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
+echo $PWD
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
+REANALYSIS=MERRA2_401.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
 
 # Define base-URL
 
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NVANA.5.12.4/
 
-#wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+if [ -s "./3d_ana/${TARGET_FILE}" ] || [ -s "./3d_ana/${REANALYSIS}" ]; then
+        echo "${TARGET_FILE} exists"
+        exit
+fi
 
-any_stream ${TARGET_FILE} ${BASEURL}
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+
+if [ $? != 0 ]; then
+        any_stream ${TARGET_FILE} ${BASEURL}
+fi
 
 if [ -s "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
     echo "${TARGET_FILE} does not exist."
-    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
-    echo $cmd
     exit 1
 fi
 

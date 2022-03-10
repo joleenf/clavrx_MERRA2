@@ -22,28 +22,37 @@ DD=${3}
 # Define STREAM by date:
 
 #set -x
+export PS4='+(${BASH_SOURCE}:${LINENO}:  ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 let YMD=${YYYY}${MM}${DD}
 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+
+echo $(pwd)
 
 source ${scripts_home}/get_stream.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
+REANALYSIS=MERRA2_401.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4
 
-#wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+echo $PWD
+if [ -s "3d_ana/${TARGET_FILE}" ] || [ -s "3d_ana/${REANALYSIS}" ]; then
+        echo "${TARGET_FILE} exists"
+        exit
+fi
 
-#if [ $? != 0 ]; then
-any_stream ${TARGET_FILE} ${BASEURL}
-#fi
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+
+if [ $? != 0 ]; then
+        any_stream ${TARGET_FILE} ${BASEURL}
+fi
+
 
 if [ -s "$TARGET_FILE" ]; then
     mv ${TARGET_FILE} 3d_ana/.
 else 
     echo "${TARGET_FILE} does not exist."
-    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
-    echo $cmd
     exit 1
 fi
 

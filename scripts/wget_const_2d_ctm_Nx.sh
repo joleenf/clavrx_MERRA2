@@ -36,16 +36,18 @@ if [ -s ${TARGET_FILE} ]; then
 	exit
 fi
 
-wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
+if [ -s "2d_ctm/${FALSE_DATE_TARGET_NAME}" ]; then
+	echo "already on disc, 2d_ctm/${FALSE_DATE_TARGET_NAME}"
+        exit
+fi
+
+wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
 
 if [ -s "$TARGET_FILE" ]; then
     # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?
     cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME}
 else 
     echo "${TARGET_FILE} does not exist."
-    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) FileNotFound ${TARGET_FILE}"`
-    echo $cmd
-    exit 1
 fi
 
 exit
