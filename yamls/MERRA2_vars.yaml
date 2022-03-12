@@ -73,7 +73,6 @@ rh:
   in_varname: QV
   ndims_out: 3
   out_units: '%'
-  # units_fn: null
   units_fn: !!python/name:conversions.no_conversion
 rh at sigma=0.995:
   in_file: slv
