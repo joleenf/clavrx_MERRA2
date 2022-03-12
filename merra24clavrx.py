@@ -125,7 +125,7 @@ class MerraConversion:
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
         data = np.ma.getdata(self[self.in_name])
 
-        data = np.asarray(data)
+        data = np.asarray(data.filled())
 
         if self.in_name == "lev" and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
@@ -159,6 +159,11 @@ class MerraConversion:
             if self.out_name == "water equivalent snow depth":
                 #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
                 data = np.where(data == self.fill, 0.0, data)
+            elif self.out_name == "rh":
+                # Cannot understand why for this variable,
+                # np.where(data == self.fill, np.nan, data)
+                # is not equivalent to data[data == self.fill] = np.nan
+                data[data == self.fill] = np.nan
             else:
                 data = np.where(data == self.fill, np.nan, data)
 
@@ -224,11 +229,8 @@ class MerraConversion:
         if self.out_name == "lon":
             out_sds.set(_reshape(data_array, self.ndims_out, None))
         else:
-            if self.out_name == "rh":
-                new = _refill(_reshape(data_array, self.ndims_out, out_fill), out_fill)
-                out_sds.set(new)
-            else:
-                out_sds.set(_refill(_reshape(data_array, self.ndims_out, out_fill), out_fill))
+            LOG.info("Writing %s", self)
+            out_sds.set(_refill(_reshape(data_array, self.ndims_out, out_fill), out_fill))
 
         out_sds.setfillvalue(CLAVRX_FILL)
         if self.out_units is not None:
@@ -411,30 +413,32 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
 
 
 def _reshape(data, ndims_out, fill):
-    """Make MERRA look like CFSR.
+    """Do a bunch of manipulation needed to make MERRA look like CFSR.
 
-    * Convert array dimensions of (level, lat, lon) to (lat, lon, level)
-    * CFSR fields are continuous but MERRA below-ground values are set to fill.
+    * For arrays with dims (level, lat, lon) make level the last dim.
+    * All CFSR fields are continuous but MERRA sets below-ground values to fill.
     * CFSR starts at 0 deg lon but merra starts at -180.
     """
-    if ndims_out in (2, 3):
+    if (ndims_out == 3) or (ndims_out == 2):
         data = _shift_lon(data)
 
-    if ndims_out == 3:
-        # do extrapolation before reshape (depends on a certain dimensionality/ordering)
-        data = _extrapolate_below_sfc(data, fill)
-        data = np.swapaxes(data, 0, 2)
-        data = np.swapaxes(data, 0, 1)
-        data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+    if ndims_out != 3:
+        return data
+    # do extrapolation before reshape
+    # (extrapolate fn depends on a certain dimensionality/ordering)
+    data = _extrapolate_below_sfc(data, fill)
+    data = np.swapaxes(data, 0, 2)
+    data = np.swapaxes(data, 0, 1)
+    data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
     return data
 
 
 def _refill(data, old_fill):
     """Assumes CLAVRx fill value instead of variable attribute."""
     if (data.dtype == np.float32) or (data.dtype == np.float64):
-        if np.isnan(data).any():
+        if (data.dtype == np.float32) or (data.dtype == np.float64):
             data[np.isnan(data)] = CLAVRX_FILL
-        data[data == old_fill] = CLAVRX_FILL
+            data[data == old_fill] = CLAVRX_FILL
     return data
 
 
@@ -633,9 +637,6 @@ def write_output_variables(datasets, output_vars):
         if out_key == "rh":
             out_data = qv_to_rh(out_data,
                                 output_vars["temperature"].data)
-            out_data[np.isnan(out_data)] = output_vars[
-                "temperature"
-            ].fill  # keep to match original code
         elif out_key == "rh at sigma=0.995":
             temp_t10m = output_vars["temperature at sigma=0.995"].data
             ps_pa = output_vars["surface_pressure_at_sigma"].data
@@ -709,19 +710,19 @@ def download_data(inpath: Union[str, Path], file_glob: str,
             file_type,
             get_date.strftime("%Y %m %d"),
         ]
+        # sh_cmd = (" ".join(cmd))
+
+        # raise FileNotFoundError("Download with command: {}.".format(sh_cmd))
         try:
             proc = subprocess.run(cmd, text=True, check=True)
-            LOG.info(" ".join(proc.args))
-            if proc.returncode != 0:
-                LOG.info(proc.stdout)
-                LOG.error(proc.stderr)
+            sh_cmd = (" ".join(proc.args))
         except subprocess.CalledProcessError as proc_error_noted:
             raise subprocess.CalledProcessError from proc_error_noted
 
         file_list = list(inpath.glob(file_glob))
 
         if len(file_list) == 0:
-            raise FileNotFoundError("{} not found at {}.".format(file_glob, inpath))
+            raise FileNotFoundError("{}.".format(sh_cmd))
 
     return file_list[0]
 
@@ -805,7 +806,7 @@ def process_merra(base_path=None, input_path=None, start_date=None,
     for data_dt in date_range(start_dt, end_dt, freq="D"):
         year = data_dt.strftime("%Y")
         year_month_day = data_dt.strftime("%Y_%m_%d")
-        out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
+        out_path_full = Path(out_path_parent).joinpath(year)
 
         try:
             out_path_full.mkdir(parents=True, exist_ok=True)
@@ -818,7 +819,7 @@ def process_merra(base_path=None, input_path=None, start_date=None,
                                               out_path_full)
                 LOG.info(", ".join(map(str, out_list)))
         else:
-            input_path = Path(input_path).joinpath(year)
+            input_path = Path(input_path).joinpath(year, year_month_day)
             input_path.mkdir(parents=True, exist_ok=True)
             out_list = make_merra_one_day(data_dt, input_path, out_path_full)
             LOG.info(", ".join(map(str, out_list)))
