@@ -158,14 +158,13 @@ class MerraConversion:
         if self.fill is not None:
             if self.out_name == "water equivalent snow depth":
                 #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
-                data = np.where(data == self.fill, 0.0, data)
-            elif self.out_name == "rh":
-                # Cannot understand why for this variable,
+                data[data == self.fill] = 0.0
+            else:
+                # Cannot understand why for rh variable,
                 # np.where(data == self.fill, np.nan, data)
                 # is not equivalent to data[data == self.fill] = np.nan
+                # apply fill the same way for all fields if possible.
                 data[data == self.fill] = np.nan
-            else:
-                data = np.where(data == self.fill, np.nan, data)
 
         return data
 
