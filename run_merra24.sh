@@ -29,6 +29,8 @@ else
 	DATA_PATH=/data/clavrx_ops/MERRA_INPUT
 fi
 
+OUT_PATH=/data/Personal/joleenf/test_JF_merra2/clavrx_ancil_data/dynamic/merra2/
+
 delete_input=true
 while getopts "h|s" flag; do
         case "$flag" in
@@ -49,7 +51,7 @@ fi
 function check_output {
 # this section checks if output has been created.
     out_count=0
-    find /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/${year} -name "merra.${year:2,2}${month}${day}_F*.hdf" -print | while read -r hdf;do
+    find ${OUT_PATH}/${year} -name "merra.${year:2,2}${month}${day}_F*.hdf" -print | while read -r hdf;do
         out_count=$(( out_count + 1))
         hdp list $hdf
 	echo "Out count is ${out_count}"
@@ -100,8 +102,9 @@ do
 	year=${start_date:0:4}
 	month="${start_date:4:2}"
 	day="${start_date:6:2}"
-        YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
-	mkdir -p $YEAR_DIR
+        #YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+        YEAR_DIR=${TMPDIR}/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+	#mkdir -p $YEAR_DIR
 
         sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 
@@ -119,7 +122,7 @@ do
 		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
 	fi
 
-	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
+	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -d ${OUT_PATH} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
 	check_output
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	if [ "${delete_input}" = true ]; then
