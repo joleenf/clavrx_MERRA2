@@ -160,10 +160,6 @@ class MerraConversion:
                 #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
                 data[data == self.fill] = 0.0
             else:
-                # Cannot understand why for rh variable,
-                # np.where(data == self.fill, np.nan, data)
-                # is not equivalent to data[data == self.fill] = np.nan
-                # apply fill the same way for all fields if possible.
                 data[data == self.fill] = np.nan
 
         return data
