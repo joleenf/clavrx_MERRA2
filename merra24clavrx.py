@@ -39,7 +39,8 @@ import yaml
 
 try:
     from datetime import datetime, timedelta
-    from typing import Dict, Optional, TypedDict, Union
+    from typing import (Callable, Dict, KeysView, List, Optional, Tuple,
+                        TypedDict, Union)
 
     import numpy as np
     from netCDF4 import Dataset, num2date
@@ -355,6 +356,19 @@ def qv_to_rh(specific_humidity, temp_k, press_at_sfc=None):
     return relative_humidity
 
 
+def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
+    """Calculate the rh at sigma using 10m fields."""
+    temp_k = temp10m  # temperature in [K] (Y, X) not in (time, Y, X)
+
+    # pressure in [Pa]
+    sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
+
+    rh_sigma = qv_to_rh(data, temp_k, press_at_sfc=sfc_pressure)
+    rh_sigma[np.isnan(rh_sigma)] = sfc_pressure_fill
+
+    return rh_sigma
+
+
 def dobson_layer(mmr_data_array, level_index):
     """Calculate a dobson layer from a 3D mmr data array given a level index.
 
@@ -394,20 +408,42 @@ def total_ozone(mmr, fill_value):
     return dobson
 
 
-def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
-    """Calculate the rh at sigma using 10m fields."""
-    temp_k = temp10m  # temperature in [K] (Y, X) not in (time, Y, X)
+def _merra_land_mask(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
+    """Convert fractional merra land mask to 1=land 0=ocean.
 
-    # pressure in [Pa]
-    sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
-
-    rh_sigma = qv_to_rh(data, temp_k, press_at_sfc=sfc_pressure)
-    rh_sigma[np.isnan(rh_sigma)] = sfc_pressure_fill
-
-    return rh_sigma
+    use FRLANDICE so antarctica and greenland get included.
+    :rtype: np.ndarray
+    """
+    frlandice = mask_sd.variables["FRLANDICE"][0]  # 0th time index
+    data = frlandice + data
+    return data > 0.25
 
 
-def _reshape(data, ndims_out, fill):
+def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
+    """Force greenland/antarctica to be snowy like CFSR."""
+    # Special case: set snow depth missing values to match CFSR behavior.
+    frlandice = mask_sd.variables["FRLANDICE"][0]  # 0th time index
+    data[frlandice > 0.25] = 100.0
+    return data
+
+
+def apply_conversion(scale_func: Callable, data: np.ndarray, fill: float) -> np.ndarray:
+    """Apply fill to converted data after function."""
+    converted = data.copy()
+
+    if scale_func == "total_ozone":
+        converted = total_ozone(data, fill)
+    else:
+        converted = scale_func(converted)
+
+        converted[data == fill] = fill
+        if np.isnan(data).any():
+            converted[np.isnan(data)] = fill
+
+    return converted
+
+
+def _reshape(data: np.ndarray, ndims_out: int, fill: Union[float, None]) -> np.ndarray:
     """Do a bunch of manipulation needed to make MERRA look like CFSR.
 
     * For arrays with dims (level, lat, lon) make level the last dim.
@@ -428,7 +464,7 @@ def _reshape(data, ndims_out, fill):
     return data
 
 
-def _refill(data, old_fill):
+def _refill(data: np.ndarray, old_fill: float) -> np.ndarray:
     """Assumes CLAVRx fill value instead of variable attribute."""
     if (data.dtype == np.float32) or (data.dtype == np.float64):
         if (data.dtype == np.float32) or (data.dtype == np.float64):
@@ -437,7 +473,7 @@ def _refill(data, old_fill):
     return data
 
 
-def _shift_lon_2d(data):
+def _shift_lon_2d(data: np.ndarray) -> np.ndarray:
     """Assume dims are 2d and (lat, lon)."""
     nlon = data.shape[1]
     halfway = nlon // 2
@@ -447,7 +483,7 @@ def _shift_lon_2d(data):
     return data
 
 
-def _shift_lon(data):
+def _shift_lon(data: np.ndarray) -> np.ndarray:
     """Make lon start at 0deg instead of -180.
 
     Assume dims are (level, lat, lon) or (lat, lon)
@@ -460,7 +496,7 @@ def _shift_lon(data):
     return data
 
 
-def _extrapolate_below_sfc(t, fill):
+def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
     """Set below ground fill values to lowest good value instead of exptrapolation.
 
     Major difference between CFSR and MERRA is that CFSR extrapolates
@@ -487,44 +523,8 @@ def _extrapolate_below_sfc(t, fill):
     return t
 
 
-def _merra_land_mask(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
-    """Convert fractional merra land mask to 1=land 0=ocean.
-
-    use FRLANDICE so antarctica and greenland get included.
-    :rtype: np.ndarray
-    """
-    frlandice = mask_sd.variables["FRLANDICE"][0]  # 0th time index
-    data = frlandice + data
-    return data > 0.25
-
-
-def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
-    """Force greenland/antarctica to be snowy like CFSR."""
-    # Special case: set snow depth missing values to match CFSR behavior.
-    frlandice = mask_sd.variables["FRLANDICE"][0]  # 0th time index
-    data[frlandice > 0.25] = 100.0
-    return data
-
-
-def apply_conversion(scale_func, data, fill):
-    """Apply fill to converted data after function."""
-    converted = data.copy()
-
-    if scale_func == "total_ozone":
-        converted = total_ozone(data, fill)
-    else:
-        converted = scale_func(converted)
-
-        converted[data == fill] = fill
-        if np.isnan(data).any():
-            converted[np.isnan(data)] = fill
-
-    return converted
-
-
 def get_common_time(datasets: Dict[str, Dataset]):
     """Find common start time among the input datasets."""
-    # --- build a list of all times in all input files
     dataset_times = dict()
     time_set = dict()
     for ds_key in datasets.keys():
@@ -566,14 +566,19 @@ def get_common_time(datasets: Dict[str, Dataset]):
     if len(ds_common_times) != 4:
         raise ValueError("Input files have not produced common times")
 
-    return dataset_times, ds_common_times
+    return [dataset_times, ds_common_times]
 
 
-def get_time_index(input_files, file_times, current_time):
-    """Determine the time index from the input files based on the output time."""
+def get_time_index(file_keys: KeysView[str],
+                   file_times: Dict[str, Tuple[int, datetime]],
+                   current_time: datetime) -> Dict[str, int]:
+    """Determine the time index from the input files based on the output time.
+
+    :rtype: Dict[str, int] time index based on input file.
+    """
     # --- determine time index we want from input files
     time_index = dict()
-    for file_name_key in input_files:
+    for file_name_key in file_keys:
         # Get the index for the current timestamp:
         if file_name_key == "mask":
             time_index[file_name_key] = 0
@@ -583,9 +588,58 @@ def get_time_index(input_files, file_times, current_time):
     return time_index
 
 
-def write_global_attributes(data_sd):
-    """Write global attributes."""
-    out_sd = data_sd["out"]
+def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
+                   time_index: Dict[str, int]) -> Dict[str, MerraConversion]:
+    """Prepare input variables."""
+    out_vars = dict()
+    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+        LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
+        out_vars[out_key] = MerraConversion(
+            merra_ds[rsk["in_file"]],
+            rsk["in_varname"],
+            out_key,
+            rsk["out_units"],
+            rsk["ndims_out"],
+            time_index[rsk["in_file"]],
+        )
+    return out_vars
+
+
+def write_output_variables(datasets: Dict[str, Dataset],
+                           output_vars: Dict[str, MerraConversion]) -> None:
+    """Calculate the final output and write to file."""
+    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+        if out_key == "surface_pressure_at_sigma":
+            continue
+        units_fn = rsk["units_fn"]
+        var_fill = output_vars[out_key].fill
+        out_data = output_vars[out_key].data
+        if out_key == "rh":
+            out_data = qv_to_rh(out_data,
+                                output_vars["temperature"].data)
+        elif out_key == "rh at sigma=0.995":
+            temp_t10m = output_vars["temperature at sigma=0.995"].data
+            ps_pa = output_vars["surface_pressure_at_sigma"].data
+            out_data = rh_at_sigma(temp_t10m, ps_pa,
+                                   var_fill, out_data)
+        elif out_key == "water equivalent snow depth":
+            out_data = _hack_snow(out_data, datasets["mask"])
+        elif out_key == "land mask":
+            out_data = _merra_land_mask(out_data, datasets["mask"])
+        else:
+            out_data = apply_conversion(units_fn, out_data, var_fill)
+
+        output_vars[out_key].update_output(datasets, rsk["in_file"], out_data)
+
+
+def write_global_attributes(out_sd: SD, info_nc: Dataset) -> None:
+    """Write Global Attributes.
+
+    :param out_sd: The handle to the output pyhf.SD dataset created.
+    :param info_nc: The "ana" netCDF.Dataset for stream and history
+                    information.
+    :return: None
+    """
     var = out_sd.select("temperature")
     nlevel = var.dimensions(full=False)["level"]
     nlat = var.dimensions(full=False)["lat"]
@@ -613,41 +667,15 @@ def write_global_attributes(data_sd):
             "3D ARRAY ORDER", "YXZ")
     setattr(out_sd,
             "MERRA STREAM",
-            "{}".format(data_sd["ana"].GranuleID.split(".")[0]))
+            "{}".format(info_nc.GranuleID.split(".")[0]))
     setattr(out_sd, "MERRA History",
-            "{}".format(data_sd["ana"].History))
+            "{}".format(info_nc.History))
     for a in [var, lat, lon]:
         a.endaccess()
-    data_sd["out"].end()
+    out_sd.end()
 
 
-def write_output_variables(datasets, output_vars):
-    """Calculate the final output and write to file."""
-    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
-        if out_key == "surface_pressure_at_sigma":
-            continue
-        units_fn = rsk["units_fn"]
-        var_fill = output_vars[out_key].fill
-        out_data = output_vars[out_key].data
-        if out_key == "rh":
-            out_data = qv_to_rh(out_data,
-                                output_vars["temperature"].data)
-        elif out_key == "rh at sigma=0.995":
-            temp_t10m = output_vars["temperature at sigma=0.995"].data
-            ps_pa = output_vars["surface_pressure_at_sigma"].data
-            out_data = rh_at_sigma(temp_t10m, ps_pa,
-                                   var_fill, out_data)
-        elif out_key == "water equivalent snow depth":
-            out_data = _hack_snow(out_data, datasets["mask"])
-        elif out_key == "land mask":
-            out_data = _merra_land_mask(out_data, datasets["mask"])
-        else:
-            out_data = apply_conversion(units_fn, out_data, var_fill)
-
-        output_vars[out_key].update_output(datasets, rsk["in_file"], out_data)
-
-
-def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
+def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path) -> List[str]:
     """Read input, parse times, and run conversion on one day at a time."""
     in_files = build_input_collection(run_dt, input_path)
 
@@ -666,23 +694,13 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path):
             out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC
         )  # TRUNC will clobber existing
 
-        time_inds = get_time_index(in_files, times, out_time)
+        time_inds = get_time_index(in_files.keys(), times, out_time)
 
         # --- prepare input data variables
-        out_vars = dict()
-        for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
-            LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
-            out_vars[out_key] = MerraConversion(
-                merra_sd[rsk["in_file"]],
-                rsk["in_varname"],
-                out_key,
-                rsk["out_units"],
-                rsk["ndims_out"],
-                time_inds[rsk["in_file"]],
-            )
+        out_vars = get_input_data(merra_sd, time_inds)
 
         write_output_variables(merra_sd, out_vars)
-        write_global_attributes(merra_sd)
+        write_global_attributes(merra_sd["out"], merra_sd["ana"])
 
     return out_fnames
 
