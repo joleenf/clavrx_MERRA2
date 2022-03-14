@@ -24,12 +24,18 @@ machine=`uname -a | awk -F" " '{print $2}'`
 machine=`echo ${machine%%.*}`
 
 if [ "$machine" == "vor" ]; then
-	DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT
+	if [ $USER -eq "clavrx_ops" ]; then
+        	DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT
+		OUT_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/
+	else
+		DATA_PATH=/data/Personal/$USER/MERRA_INPUT
+		OUT_PATH=/data/Personal/$USER/test_JF_merra2/clavrx_ancil_data/dynamic/merra2/
+	fi
 else
 	DATA_PATH=/data/clavrx_ops/MERRA_INPUT
+	OUT_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
 fi
 
-OUT_PATH=/data/Personal/joleenf/test_JF_merra2/clavrx_ancil_data/dynamic/merra2/
 
 delete_input=true
 while getopts "h|s" flag; do
@@ -104,7 +110,7 @@ do
 	day="${start_date:6:2}"
         #YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
         YEAR_DIR=${TMPDIR}/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
-	#mkdir -p $YEAR_DIR
+	mkdir -p $YEAR_DIR
 
         sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 

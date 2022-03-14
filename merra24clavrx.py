@@ -805,7 +805,8 @@ def process_merra(base_path=None, input_path=None, start_date=None,
     for data_dt in date_range(start_dt, end_dt, freq="D"):
         year = data_dt.strftime("%Y")
         year_month_day = data_dt.strftime("%Y_%m_%d")
-        out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
+        #out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
+        out_path_full = Path(out_path_parent).joinpath(year)
 
         try:
             out_path_full.mkdir(parents=True, exist_ok=True)

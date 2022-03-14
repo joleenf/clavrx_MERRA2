@@ -29,7 +29,10 @@ MONTH=$2
 test -d $YEAR && usage 
 test -d $MONTH && usage 
 len_year=`expr length "$YEAR"`
-[[ $len_year -ne 4 ]] && usage
+if [ ${#YEAR} -ne 4 ]; then
+	echo \n Year must be 4-digits!!!
+	usage
+fi
 
 month=`printf "%02d" $MONTH`
 
