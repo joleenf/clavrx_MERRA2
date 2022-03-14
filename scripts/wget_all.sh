@@ -1,8 +1,8 @@
 #! /bin/sh
-
+set -x
 # Runs all (9) wget_* scripts to collect data for a given YYYY, MM, DD
 
-function usage() {
+usage() {
 cat << EndOfMessage
 
     Usage: sh $0 [options] YYYY MM DD"
@@ -10,9 +10,9 @@ cat << EndOfMessage
     Download data from GES DISC based on date and key"
 
     Options:
-    	-w download directory (default is pwd).
-    	-k key (valid keys: all ${!FILETYPES[@]})
-   	-h Display this usage information
+        -w download directory (default is pwd).
+        -k key (valid keys: all)
+        -h Display this usage information
 
 EndOfMessage
     echo $VAR
@@ -20,7 +20,9 @@ EndOfMessage
 
 }
 
-function oops() {
+set -x
+
+oops() {
     printf "\nScript must always have a YYYY MM DD entered regardless of flags used!!!!!\n"
     usage
 }
@@ -30,20 +32,24 @@ in_key=all
 
 [ $# -eq 0 ] && usage
 while getopts "w:k:h" flag; do
-	case "$flag" in 
+	case "$flag" in
 		w) download_dir=$OPTARG;;
 		k) in_key=$OPTARG;;
-		h) usage;;
+		h|*) usage;;
 	esac
 done
 
-YYYY=${@:$OPTIND:1}
-MM=${@:$OPTIND+1:1}
-DD=${@:$OPTIND+2:1}
+shift $(($OPTIND - 1))
+args=$*
 
-[[ -z "${YYYY}" ]] && oops
-[[ -z "${MM}" ]] && oops
-[[ -z "${DD}" ]] && oops
+YYYY=`echo $args | awk -F" " '{print $1}'`
+MM=`echo $args | awk -F" " '{print $2}'`
+DD=`echo $args | awk -F" " '{print $3}'`
+
+
+[ -z "${YYYY}" ] && oops || pass
+[ -z "${MM}" ] && oops || pass
+[ -z "${DD}" ] && oops || pass
 
 
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -52,7 +58,7 @@ if [ -d ${download_dir} ];
 then
 	cd ${download_dir}
 else
-	echo "Directory ${download_dir} does not exist." 
+	echo "Directory ${download_dir} does not exist."
 	exit 1
 fi
 
@@ -97,4 +103,4 @@ done
 rm robots*.txt.tmp
 rm robots*.txt.tmp*
 
-exit
+exit 0
