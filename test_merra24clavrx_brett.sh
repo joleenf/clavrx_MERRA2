@@ -48,6 +48,6 @@ python ${BIN_DIR}/merra2/merra24clavrx_brett.py ${INPUT_DATE}
 # clean up
 M2_DIR=`dirname $M2_DIR`
 echo $M2_DIR
-#rm -rfv $M2_DIR/
+rm -rfv $M2_DIR/
 #
 #echo finished at: `date`
