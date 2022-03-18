@@ -19,7 +19,7 @@ EndOfMessage
 
 #set -x
 
-bin_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+scripts_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOG_DIR=$HOME/logs/merra_archive
 
 mkdir -p $LOG_DIR
@@ -44,8 +44,8 @@ ndays=`cal ${MONTH} ${YEAR} | awk 'NF {DAYS = $NF}; END {print DAYS}'`
 start_day=${YEAR}${month}01
 end_day=${YEAR}${month}${ndays}
 
-#screen -dm -S $screen_name /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
-/bin/bash $bin_dir/run_merra24.sh $start_day $end_day
-echo "/bin/bash $bin_dir/run_merra24.sh $start_day $end_day"
-sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}.log
+#screen -dm -S $screen_name /bin/bash $scripts_dir/run_merra24.sh $start_day $end_day
+/bin/bash $scripts_dir/run_merra24.sh $start_day $end_day
+echo "/bin/bash $scripts_dir/run_merra24.sh $start_day $end_day"
+sh $scripts_dir/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}.log
 exit

@@ -16,15 +16,66 @@ export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0
 #   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 #       Contains one line completion messages for input data and final product files.
 
-REPO_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+set -e
+SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 BIN_DIR=$HOME/clavrx_MERRA2
 LOG_DIR=$HOME/logs/merra_archive
 machine=`uname -a | awk -F" " '{print $2}'`
 machine=`echo ${machine%%.*}`
 
+: <<=cut
+=pod
+
+=head1 NAME
+
+
+    run_merra24.sh - Run the python code merra24clavrx.py using a start and end date.
+
+=head1 SYNOPSIS
+
+    sh run_merra24.sh <OPTIONS> <start_date:YYYYMMDD> <end_date:YYYYMMDD>
+    example: sh run_merra24.sh -s 20200101 20200102
+
+      where: start_date is the first date to run in YYYYMMDD format
+	     end_date   is the last date to run in YYYYMMDD format
+
+   Recognized optional command line arguments
+      -s  -- save the input data (default: not saved)
+      -h  -- Display usage message
+
+
+=head1 DESCRIPTION
+
+    Runs the series of dates from start date to end date.  First the MERRA2 input files
+    are downloaded and checked for readability.  Then, a check is performed to make sure
+    all files have downloaded.  Next, merra24clavrx.py is executed to produce the reanalysis
+    model files which can be used as in put to the CLAVRx cloud algorithm.  Finally,
+    a check is done to verify that 4 files have been created and can at least be listed by hdp.
+    Temporary input directory and input files are removed.
+
+=head2 Requirements
+
+    merra2_clavrx enviroment should be made active.
+    scripts/wget_all.sh and support scripts
+    python/test_dataset.py
+
+    In addition, script environment variables should be changed as needed by user.
+     
+      Requires the merra2_clavrx environment.
+     
+      Environment Variables:
+        BIN_DIR               Location of this script, merra24clarx.py code and the scripts sub-directory.
+        LOG_DIR               Location of log directory.  Path will be created if not already built.
+        DATA_PATH             MERRA2 input data tmp directory (script creates DATA_PATH tree)
+        START_DATE            First date of MERRA2 data to process
+        END_DATE              Last date of MERRA2 data to process
+     
+=cut
+
+
 if [ "$machine" == "vor" ]; then
-	if [ $USER -eq "clavrx_ops" ]; then
+	if [ "$USER" == "clavrx_ops" ]; then
         	DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT
 		OUT_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/
 	else
@@ -138,43 +189,5 @@ do
 	# unset does not get "$"
 	unset YEAR_DIR
 done
-
-: <<=cut
-=pod
-
-=head1 NAME
-
-
-    run_merra24.sh - Run the python code merra24clavrx.py using a start and end date.
-
-=head1 SYNOPSIS
-
-    sh run_merra24.sh <OPTIONS> <start_date:YYYYMMDD> <end_date:YYYYMMDD>
-    example: sh run_merra24.sh -s 20200101 20200102
-
-      where: start_date is the first date to run in YYYYMMDD format
-	     end_date   is the last date to run in YYYYMMDD format
-
-   Recognized optional command line arguments
-      -s  -- save the input data (default: not saved)
-      -h  -- Display usage message
-
-
-=head1 DESCRIPTION
-
-    Runs the series of dates from start date to end date.  First the MERRA2 input files
-    are downloaded and checked for readability.  Then, a check is performed to make sure
-    all files have downloaded.  Next, merra24clavrx.py is executed to produce the reanalysis
-    model files which can be used as in put to the CLAVRx cloud algorithm.  Finally,
-    a check is done to verify that 4 files have been created and can at least be listed by hdp.
-    Temporary input directory and input files are removed.
-
-=head2 Requirements
-
-    merra2_clavrx enviroment should be made active.
-    scripts/wget_all.sh and support scripts
-    python/test_dataset.py
-
-=cut
 
 exit

@@ -13,5 +13,7 @@ dependencies:
   - wget
   - pip
   - pyyaml
+  - pydap
   - pip:
     - cdsapi
+    - lxml
