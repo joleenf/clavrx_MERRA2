@@ -1,5 +1,4 @@
 #! /bin/sh
-set -x
 # Runs all (9) wget_* scripts to collect data for a given YYYY, MM, DD
 
 usage() {
@@ -21,6 +20,7 @@ EndOfMessage
 }
 
 set -x
+export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() } cmd: ${BASH_COMMAND} result: '
 
 oops() {
     printf "\nScript must always have a YYYY MM DD entered regardless of flags used!!!!!\n"
@@ -53,6 +53,7 @@ DD=`echo $args | awk -F" " '{print $3}'`
 
 
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+export BASE="$( dirname $SCRIPTS_DIR)"
 
 if [ -d ${download_dir} ];
 then
@@ -63,44 +64,36 @@ else
 fi
 
 case "${in_key}" in
-   all) FILETYPES=(inst6_3d_ana_Np::3d_ana inst6_3d_ana_Nv::3d_ana tavg1_2d_slv_Nx::2d_slv
-                   tavg1_2d_flx_Nx::2d_flx inst3_3d_asm_Np::3d_asm const_2d_ctm_Nx::2d_ctm
-                   inst1_2d_asm_Nx::2d_asm tavg1_2d_lnd_Nx::2d_lnd tavg1_2d_rad_Nx::2d_rad)
+   all) FILETYPES=(inst6_3d_ana_Np inst6_3d_ana_Nv tavg1_2d_slv_Nx
+                   tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx
+                   inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
                     ;;
-   inst6_3d_ana_Np) FILETYPES=(inst6_3d_ana_Np::3d_ana)
-                    ;;
-   inst6_3d_ana_Nv) FILETYPES=(inst6_3d_ana_Nv::3d_ana)
-                    ;;
-   tavg1_2d_slv_Nx) FILETYPES=(tavg1_2d_slv_Nx::2d_slv)
-                    ;;
-   tavg1_2d_flx_Nx) FILETYPES=(tavg1_2d_flx_Nx::2d_flx)
-                    ;;
-   inst3_3d_asm_Np) FILETYPES=(inst3_3d_asm_Np::3d_asm)
-                    ;;
-   const_2d_ctm_Nx) FILETYPES=(const_2d_ctm_Nx::2d_ctm)
-                    ;;
-   inst1_2d_asm_Nx) FILETYPES=(inst1_2d_asm_Nx::2d_asm)
-                    ;;
-   tavg1_2d_lnd_Nx) FILETYPES=(tavg1_2d_lnd_Nx::2d_lnd)
-                    ;;
-   tavg1_2d_rad_Nx) FILETYPES=(tavg1_2d_rad_Nx::2d_rad)
+   inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |  \
+   inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx | \
+   tavg1_2d_rad_Nx) FILETYPES=(${in_key})
                     ;;
    *) echo "Unkown key $in_key"
       exit 1
       ;;
 esac
 
-for association in "${FILETYPES[@]}"
+source $SCRIPTS_DIR/get_stream.sh ${YYYY} ${MM} ${DD}
+cd ${download_dir}
+
+for key in "${FILETYPES[@]}"
 do
-	echo "${association}"
-        key="${association%%::*}"
-        value="${association##*::}"
-	mkdir -p ${value}
-	${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
-	cd ${download_dir}
+	#${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
+	if [ "${key}" == "const_2d_ctm_Nx" ]; then
+		${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
+	else
+		echo $key
+        	eval ${key}
+		check_before_any_stream_call $LOCAL_DIR $TARGET_FILE $REANALYSIS
+	fi
+        cd ${download_dir}
 done
 
-rm robots*.txt.tmp
-rm robots*.txt.tmp*
+rm */robots.txt
+rm */robots.txt.*
 
 exit 0
