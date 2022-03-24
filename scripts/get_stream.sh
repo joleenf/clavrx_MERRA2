@@ -9,29 +9,32 @@ function get_stream {
     else
     	STREAM=400
     fi
-    export $STREAM
 }
 
 function any_stream {
     TARGET_FILE=$1
     BASEURL=$2
+    REANALYSIS=$3
+    LOCAL_DIR=$4
     TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/[0-4]0[0-1]}"`
     # try to get any stream.
     wget_cmd="wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/"
     eval $wget_cmd
     if [ $? == 0 ]; then
-	    TARGET_REGEX=`find . -name ${TARGET_REGEX} -print`
-	    echo $TARGET_REGEX
-	    python ${BASE}/python/test_dataset.py $TARGET_REGEX
-	    if [ $? != 0 ]; then
-		    eval $wget_cmd
-	    fi
-	    python ${BASE}/python/test_dataset.py $TARGET_REGEX
-	    if [ $? != 0 ]; then
-		    echo "REMOVE ${TARGET_REGEX} second wget attempt also failed to produce a readable file."
-		    rm ${TARGET_REGEX}
-		    echo "Run $wget_cmd to try again."
-            fi
+        current_dir=$(pwd)
+        FILE_RETRIEVED=`find $current_dir -name $TARGET_FILE -type f -or -name $REANALYSIS`
+        if [ ${FILE_RETRIEVED} > 0 ]; then
+             python ${BASE}/python/test_dataset.py $FILE_RETRIEVED
+             if [ $? != 0 ]; then
+                 eval $wget_cmd
+             fi
+	     python ${BASE}/python/test_dataset.py $FILE_RETRIEVED
+             if [ $? != 0 ]; then
+                 echo "REMOVE ${FILE_RETRIEVED} second wget attempt also failed to produce a readable file."
+                 rm ${FILE_RETRIEVED}
+                 echo "Run $wget_cmd to try again."
+             fi
+	fi
     fi
 }
 
@@ -39,10 +42,11 @@ function check_before_any_stream_call {
 	LOCAL_DIR=$1
 	TARGET_FILE=$2
 	REANALYSIS=$2
-	if [ -s "${LOCAL_DIR}/${TARGET_FILE}" ] || [ -s "${LOCAL_DIR}/${REANALYSIS}" ];  then
-            echo "${TARGET_FILE} exists"
+	if [ -s "${TARGET_FILE}" ] || [ -s "${REANALYSIS}" ];  then
+            FILE_RETRIEVED=`find -name $TARGET_FILE -type f -or -name $REANALYSIS`
+	    current_dir=$(pwd)
 	else
-            any_stream $TARGET_FILE $BASEURL
+            any_stream $TARGET_FILE $BASEURL $REANALYSIS $LOCAL_DIR
 	fi
 }
 

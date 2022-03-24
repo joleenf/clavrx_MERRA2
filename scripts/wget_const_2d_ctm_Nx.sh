@@ -3,6 +3,7 @@
 YYYY=${1}
 MM=${2}
 DD=${3}
+download_dir=${4}
 
 # MERRA-2 files are identified by their assimilation stream, of which there are 4 (100, 200, 300, and 400).
 # The stream a file comes from depends on its date, as referenced on page 13 of:
@@ -23,31 +24,31 @@ DD=${3}
 #       "date" 00000000. The "stream" is defined as 101, so values are hard-coded here
 #       regardless of the YYYY, MM, DD values provided.
 
-#set -x
+set -x
 let YMD=${YYYY}${MM}${DD}
 
 TARGET_FILE=MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 FALSE_DATE_TARGET_NAME=MERRA2_101.const_2d_ctm_Nx.${YMD}.nc4
 
+mkdir -p 2d_ctm
+# Put the constant file in a permanent location (one up from the download_dir) and this makes it very confusing...  
+# was thinking that permanent parent_download_dir location would be something like /apollo/.../merra/{YEAR} and the current working dir would be 
+# /apollo/.../merra/{YEAR}/{YEAR}_{MONTH}_{DATE}
+parent_download_dir=$(dirname $download_dir)
 # check if file already exists on disk
-if [ -s ${TARGET_FILE} ]; then
-	cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
+ncount=`find ${parent_download_dir} -name ${TARGET_FILE} | wc -l`
+if [ $ncount > 0 ]; then
+	cp ${parent_download_dir}/${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
 	echo "${TARGET_FILE} already on disc, copying to 2d_ctm/${FALSE_DATE_TARGET_NAME}"
-	exit
-fi
-
-if [ -s "2d_ctm/${FALSE_DATE_TARGET_NAME}" ]; then
-	echo "already on disc, 2d_ctm/${FALSE_DATE_TARGET_NAME}"
-        exit
-fi
-
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
-
-if [ -s "$TARGET_FILE" ]; then
-    # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?
-    cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME}
-else 
-    echo "${TARGET_FILE} does not exist."
+else
+    wget -N --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
+    if [ -s "$TARGET_FILE" ]; then
+        # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?
+        cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME}
+    else 
+        echo "${TARGET_FILE} does not exist."
+	exit 1
+    fi
 fi
 
 exit

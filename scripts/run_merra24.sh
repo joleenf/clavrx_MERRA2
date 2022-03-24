@@ -1,6 +1,5 @@
 #!/bin/bash
-export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() } cmd: ${BASH_COMMAND} result: '
-#
+export PS4='line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH_COMMAND} \n result: '#
 # Requires the merra2_clavrx environment.
 #
 # Environment Variables:
@@ -16,7 +15,7 @@ export PS4=' ${DATETIME_NOW} line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0
 #   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 #       Contains one line completion messages for input data and final product files.
 
-set -e
+set -x
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 BIN_DIR=$HOME/clavrx_MERRA2
@@ -108,7 +107,7 @@ fi
 function check_output {
 # this section checks if output has been created.
     out_count=0
-    find ${OUT_PATH}/${year} -name "merra.${year:2,2}${month}${day}_F*.hdf" -print | while read -r hdf;do
+    find ${OUT_PATH}/${year} -name "merra.${year:2,2}${month}${day}??_F*.hdf" -print | while read -r hdf;do
         out_count=$(( out_count + 1))
         hdp list $hdf
 	echo "Out count is ${out_count}"
@@ -159,11 +158,10 @@ do
 	year=${start_date:0:4}
 	month="${start_date:4:2}"
 	day="${start_date:6:2}"
-        #YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
-        YEAR_DIR=${TMPDIR}/${year}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.
+        YEAR_DIR=${TMPDIR}/${year}/${year}_${month}_${day}  #  Not ideal?? merra code appends year to end of input directory given with -i flag.  With the rm in this code, it is just best to keep each day separate so that code can be run in multiple screens.
 	mkdir -p $YEAR_DIR
 
-        sh ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
+        ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 
 	# make sure all data is available
 	count=`find ${YEAR_DIR} -name "*${year}${month}${day}*.nc4" | wc -l`
@@ -172,15 +170,14 @@ do
 
 	if [ "$count" -lt "9" ]; then
 		cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Input $year ${month} ${day}"`
-                start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
-		break
 	else
 		find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
 		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
+	        echo $OUT_PATH
+        	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -d ${OUT_PATH} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
+        	check_output
 	fi
 
-	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -d ${OUT_PATH} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
-	check_output
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	if [ "${delete_input}" = true ]; then
 	    cmd="rm -rfv ${YEAR_DIR}"
@@ -188,6 +185,7 @@ do
         fi
 	# unset does not get "$"
 	unset YEAR_DIR
+	printf "%0.s-" {1..80}
 done
 
 exit
