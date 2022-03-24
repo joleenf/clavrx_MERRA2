@@ -45,6 +45,7 @@ start_day=${YEAR}${month}01
 end_day=${YEAR}${month}${ndays}
 
 LOG_FILE=$LOG_DIR/month_${start_day}_${end_day}.log
+echo $LOG_FILE
 
 # send stderr and stdout to log file
 exec 1>>$LOG_FILE
