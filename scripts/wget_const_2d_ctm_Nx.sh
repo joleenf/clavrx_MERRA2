@@ -28,11 +28,12 @@ let YMD=${YYYY}${MM}${DD}
 
 TARGET_FILE=MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 FALSE_DATE_TARGET_NAME=MERRA2_101.const_2d_ctm_Nx.${YMD}.nc4
+HOLD_FILE=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 
 # check if file already exists on disk
-if [ -s ${TARGET_FILE} ]; then
-	cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
-	echo "${TARGET_FILE} already on disc, copying to 2d_ctm/${FALSE_DATE_TARGET_NAME}"
+if [ -s ${HOLD_FILE} ]; then
+	cp ${HOLD_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
+	echo "${HOLD_FILE} already on disc, copying to 2d_ctm/${FALSE_DATE_TARGET_NAME}"
 	exit
 fi
 
