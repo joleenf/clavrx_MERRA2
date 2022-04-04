@@ -85,7 +85,6 @@ surface_pressure_at_sigma:
   in_varname: PS
   ndims_out: 2
   out_units: hPa
-  # units_fn: null
   units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: ana

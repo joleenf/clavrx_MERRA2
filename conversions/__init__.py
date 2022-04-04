@@ -31,3 +31,21 @@ def geopotential(data):
     """Convert geopotential in meters per second squared to geopotential height."""
     # this is height/1000.0*g
     return data / 9806.65
+
+
+def kg_per_metersq_to_dobson(data):
+    """Convert kg/m^2 to dobson units."""
+    return data / 2.1415e-5
+
+
+def pressure_to_altitude(pressure):
+    """Use surface pressure to converted to km rather than surface geopotential for altitude."""
+    P_zero = 101325  # Pa (Pressure at altitude 0)
+    T_zero = 288.15  # K (Temperature at altitude 0)
+    g = 9.80665      # m/s^2 (gravitational acceleration)
+    L = -6.50E-03    # K/m (Lapse Rate)
+    R = 287.053      # J/(KgK) (Gas constant for air)
+
+    altitude = (T_zero/L)*((pressure / P_zero)*np.exp(-L*R/g) - 1)
+
+    return altitude

@@ -26,6 +26,7 @@ optional arguments:
                         CRITICAL-ERROR-WARNING-INFO-DEBUG (default: 0)
 
 """
+from __future__ import annotations
 
 import logging
 import os
@@ -197,7 +198,7 @@ class MerraConversion:
         else:
             raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
 
-        if self.out_name in ["pressure levels", "level"]:
+        if self.out_name in ["pressure levels", "level"] and sd_dtype == SDC.FLOAT64:
             sd_dtype = SDC.FLOAT32  # don't want double
 
         return sd_dtype
@@ -228,7 +229,8 @@ class MerraConversion:
             LOG.info("Writing %s", self)
             out_sds.set(_refill(_reshape(data_array, self.ndims_out, out_fill), out_fill))
 
-        out_sds.setfillvalue(CLAVRX_FILL)
+        if out_fill is not None:
+            out_sds.setfillvalue(CLAVRX_FILL)
         if self.out_units is not None:
             out_sds.units = self.out_units
 
@@ -236,9 +238,8 @@ class MerraConversion:
             unit_desc = " in [{}]".format(self[self.in_name].units)
         else:
             unit_desc = ""
-        out_sds.source_data = ("MERRA->{}->{}{}".format(in_file_short_value,
-                                                        self.in_name,
-                                                        unit_desc))
+        out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
+                               self.in_name, unit_desc))
         out_sds.long_name = self[self.in_name].long_name
         out_sds.endaccess()
 
@@ -436,7 +437,8 @@ def apply_conversion(scale_func: Callable, data: np.ndarray, fill: float) -> np.
     else:
         converted = scale_func(converted)
 
-        converted[data == fill] = fill
+        if fill is not None:
+            converted[data == fill] = fill
         if np.isnan(data).any():
             converted[np.isnan(data)] = fill
 
@@ -467,9 +469,8 @@ def _reshape(data: np.ndarray, ndims_out: int, fill: Union[float, None]) -> np.n
 def _refill(data: np.ndarray, old_fill: float) -> np.ndarray:
     """Assumes CLAVRx fill value instead of variable attribute."""
     if (data.dtype == np.float32) or (data.dtype == np.float64):
-        if (data.dtype == np.float32) or (data.dtype == np.float64):
-            data[np.isnan(data)] = CLAVRX_FILL
-            data[data == old_fill] = CLAVRX_FILL
+        data[np.isnan(data)] = CLAVRX_FILL
+        data[data == old_fill] = CLAVRX_FILL
     return data
 
 
@@ -628,8 +629,7 @@ def write_output_variables(datasets: Dict[str, Dataset],
             out_data = _merra_land_mask(out_data, datasets["mask"])
         else:
             out_data = apply_conversion(units_fn, out_data, var_fill)
-
-        output_vars[out_key].update_output(datasets, rsk["in_file"], out_data)
+        output_vars[out_key].update_output(datasets, "MERRA2->{}".format(rsk["in_file"]), out_data)
 
 
 def write_global_attributes(out_sd: SD, info_nc: Dataset) -> None:
@@ -819,7 +819,7 @@ def process_merra(base_path=None, input_path=None, start_date=None,
     for data_dt in date_range(start_dt, end_dt, freq="D"):
         year = data_dt.strftime("%Y")
         year_month_day = data_dt.strftime("%Y_%m_%d")
-        #out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
+        # out_path_full = Path(out_path_parent).joinpath(year, year_month_day)
         out_path_full = Path(out_path_parent).joinpath(year)
 
         try:
