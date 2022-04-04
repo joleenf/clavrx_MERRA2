@@ -146,11 +146,11 @@ class MerraConversion:
             data = self._trim_toa(data)
 
         # apply special cases
-        if self.in_name == "lev":
+        if self.in_name in ("lev", "level"):
             # trim to top CFSR level
             data = data[0: len(LEVELS)].astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.in_name == "lon":
+        elif self.in_name in ("lon", "longitude"):
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
@@ -428,7 +428,7 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def apply_conversion(scale_func: Callable, data: np.ndarray, fill: float) -> np.ndarray:
+def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray:
     """Apply fill to converted data after function."""
     converted = data.copy()
 
