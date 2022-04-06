@@ -36,7 +36,7 @@ lat:
   in_file: pressureLevels
   in_varname: latitude
   ndims_out: 1
-  out_units: None
+  out_units: Null
   units_fn: !!python/name:conversions.no_conversion
 level:
   in_file: pressureLevels
@@ -48,7 +48,7 @@ lon:
   in_file: pressureLevels
   in_varname: longitude
   ndims_out: 1
-  out_units: None
+  out_units: Null
   units_fn: !!python/name:conversions.no_conversion
 planetary boundary layer height:
   in_file: singleLevel

@@ -291,7 +291,9 @@ def process_era5(base_path=None, input_path=None, start_date=None,
             msg = "Oops!  {} \n Enter a valid directory with -d flag".format(emsg)
             raise OSError(msg)
 
-        for hour in ["0:00", "6:00", "12:00", "18:00"]:
+        input_path = Path(input_path).joinpath(year, year_month_day)
+
+        for hour in ["00:00", "06:00", "12:00", "18:00"]:
             if store_temp:
                 with tempfile.TemporaryDirectory() as tmp_dir_name:
                     in_data = build_input_collection(dt, hour, Path(tmp_dir_name))
@@ -300,7 +302,6 @@ def process_era5(base_path=None, input_path=None, start_date=None,
                     out_list = make_era5_one_hour(in_data, out_path_full)
                     LOG.info(', '.join(map(str, out_list)))
             else:
-                input_path = Path(input_path).joinpath(year, year_month_day)
                 input_path.mkdir(parents=True, exist_ok=True)
                 in_data = build_input_collection(dt, hour, input_path)
                 out_list = make_era5_one_hour(in_data, out_path_full)
