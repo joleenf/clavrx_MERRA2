@@ -150,7 +150,7 @@ class MerraConversion:
             # trim to top CFSR level
             data = data[0: len(LEVELS)].astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.in_name in ("lon", "longitude"):
+        elif self.in_name in ("lon"):
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
