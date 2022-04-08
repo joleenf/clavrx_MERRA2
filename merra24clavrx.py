@@ -511,6 +511,9 @@ def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
     # Algorithm: For each pair of horizontal indices, find lowest vertical index
     #            that is not CLAVRX_FILL. Use this data value to fill in missing
     #            values down to bottom index.
+
+    # this extrapolation created with MaskedArrays, convert np.nan back to fill.
+    t[np.isnan(t)] = fill
     lowest_good = t[0] * 0.0 + fill
     lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int64)
     for l_ind in np.arange(t.shape[0]):
