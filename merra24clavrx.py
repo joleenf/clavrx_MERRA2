@@ -154,6 +154,8 @@ class MerraConversion:
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
+        elif self.in_name == "longitude":
+            data = data - 180.
         else:
             pass
 
@@ -240,7 +242,10 @@ class MerraConversion:
             unit_desc = ""
         out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
                                self.in_name, unit_desc))
-        out_sds.long_name = self[self.in_name].long_name
+        if self.out_name == "height":
+            out_sds.long_name = "Geopotential Height"
+        else:
+            out_sds.long_name = self[self.in_name].long_name
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):
