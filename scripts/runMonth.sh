@@ -54,5 +54,5 @@ exec 2>>$LOG_FILE
 
 /bin/bash $scripts_dir/run_merra24.sh $start_day $end_day
 echo "/bin/bash $scripts_dir/run_merra24.sh $start_day $end_day"
-sh $scripts_dir/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}.log
+sh $scripts_dir/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}.log
 exit

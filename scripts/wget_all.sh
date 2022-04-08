@@ -54,8 +54,8 @@ YYYY=`echo $args | awk -F" " '{print $1}'`
 MM=`echo $args | awk -F" " '{print $2}'`
 DD=`echo $args | awk -F" " '{print $3}'`
 
-set -ex
-export PS4='line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH_COMMAND} \n result: '
+#set -x
+#export PS4='$BASH_SOURCE:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH_COMMAND} \n result: '
 
 [ -z "${YYYY}" ] && oops || continue
 [ -z "${MM}" ] && oops || MM=`printf "%02d" $MM`

@@ -109,8 +109,8 @@ function check_output {
     out_count=0
     find ${OUT_PATH}/${year} -name "merra.${year:2,2}${month}${day}??_F*.hdf" -print | while read -r hdf;do
         out_count=$(( out_count + 1))
-        hdp list $hdf
 	echo "Out count is ${out_count}"
+        hdp_list=`hdp list $hdf`
         if [ "$?" -ne "0" ]; then
             cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
   	    echo $cmd
@@ -186,6 +186,7 @@ do
 	# unset does not get "$"
 	unset YEAR_DIR
 	printf "%0.s-" {1..80}
+	echo
 done
 
 exit
