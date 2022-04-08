@@ -36,9 +36,10 @@ mkdir -p 2d_ctm
 # /apollo/.../merra/{YEAR}/{YEAR}_{MONTH}_{DATE}
 parent_download_dir=$(dirname $download_dir)
 # check if file already exists on disk
-ncount=`find ${parent_download_dir} -name ${TARGET_FILE} | wc -l`
-if [ $ncount > 0 ]; then
-	cp ${parent_download_dir}/${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
+ncount=`find ${parent_download_dir} -name ${TARGET_FILE} -maxdepth 1 | wc -l`
+if [ $ncount -gt 0 ]; then
+	filename=`find ${parent_download_dir} -maxdepth 1 -name ${TARGET_FILE}`
+	cp ${filename} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
 	echo "${TARGET_FILE} already on disc, copying to 2d_ctm/${FALSE_DATE_TARGET_NAME}"
 else
     wget -N --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
