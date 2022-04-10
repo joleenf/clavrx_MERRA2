@@ -41,10 +41,10 @@ function any_stream {
 function check_before_any_stream_call {
 	LOCAL_DIR=$1
 	TARGET_FILE=$2
-	REANALYSIS=$2
+	REANALYSIS=$3
+        current_dir=$(pwd)
 	if [ -s "${TARGET_FILE}" ] || [ -s "${REANALYSIS}" ];  then
-            FILE_RETRIEVED=`find -name $TARGET_FILE -type f -or -name $REANALYSIS`
-	    current_dir=$(pwd)
+            FILE_RETRIEVED=`find $current_dir -name $TARGET_FILE -type f -or -name $REANALYSIS`
 	else
             any_stream $TARGET_FILE $BASEURL $REANALYSIS $LOCAL_DIR
 	fi
@@ -107,7 +107,7 @@ function tavg1_2d_lnd_Nx {
 
 function tavg1_2d_rad_Nx {
 	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
+	export REANALYSIS=MERRA2_401.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXRAD.5.12.4
 	export LOCAL_DIR=2d_rad
     	get_dataset
@@ -115,7 +115,7 @@ function tavg1_2d_rad_Nx {
 
 function tavg1_2d_slv_Nx {
 	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_${STREAM}.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
+	export REANALYSIS=MERRA2_401.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXSLV.5.12.4
 	export LOCAL_DIR=2d_slv
     	get_dataset

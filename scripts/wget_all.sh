@@ -14,6 +14,10 @@ cat << EndOfMessage
         -l lists valid keys.
         -h Display this usage information
 
+    Current Key Options:  inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |
+                          inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx |
+                          tavg1_2d_rad_Nx
+
 EndOfMessage
     echo $VAR
     exit
@@ -50,13 +54,12 @@ YYYY=`echo $args | awk -F" " '{print $1}'`
 MM=`echo $args | awk -F" " '{print $2}'`
 DD=`echo $args | awk -F" " '{print $3}'`
 
-
-set -x
+set -ex
 export PS4='line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH_COMMAND} \n result: '
 
 [ -z "${YYYY}" ] && oops || continue
-[ -z "${MM}" ] && oops || continue
-[ -z "${DD}" ] && oops || continue
+[ -z "${MM}" ] && oops || MM=`printf "%02d" $MM`
+[ -z "${DD}" ] && oops || DD=`printf "%02d" $DD`
 
 source $SCRIPTS_DIR/get_stream.sh ${YYYY} ${MM} ${DD}
 
@@ -97,7 +100,4 @@ do
         cd ${download_dir}
 done
 
-rm */robots.txt
-rm */robots.txt.*
-
-exit 0
+exit
