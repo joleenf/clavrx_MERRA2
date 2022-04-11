@@ -14,8 +14,13 @@ cat << EndOfMessage
         -l lists valid keys.
         -h Display this usage information
 
+<<<<<<< HEAD
     Current Key Options:  inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |
                           inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx |
+=======
+    Current Key Options:  inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx | 
+                          inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx | 
+>>>>>>> c8a4cdc (Add keys to help doc.)
                           tavg1_2d_rad_Nx
 
 EndOfMessage
