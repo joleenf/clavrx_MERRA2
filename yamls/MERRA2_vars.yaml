@@ -74,18 +74,32 @@ rh:
   ndims_out: 3
   out_units: '%'
   units_fn: !!python/name:conversions.no_conversion
+  dependent:
+      masked_temp_k: # this is a support variable which is stored as a masked array to match old code.
+        in_file: ana
+        in_varname: T
+        ndims_out: 3
+        out_units: K
+        units_fn: !!python/name:conversions.no_conversion
 rh at sigma=0.995:
   in_file: slv
   in_varname: QV10M
   ndims_out: 2
   out_units: '%'
   units_fn: !!python/name:conversions.fill_bad
-surface_pressure_at_sigma:
-  in_file: slv
-  in_varname: PS
-  ndims_out: 2
-  out_units: hPa
-  units_fn: !!python/name:conversions.no_conversion
+  dependent:
+    surface_pressure_at_sigma:   # supports rh at sigma calculation
+      in_file: slv
+      in_varname: PS
+      ndims_out: 2
+      out_units: hPa
+      units_fn: !!python/name:conversions.no_conversion
+    masked_temperature_at_sigma: # this is a support variable which is stored as a masked array to match old code.
+      in_file: slv
+      in_varname: T10M
+      ndims_out: 2
+      out_units: K
+      units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: ana
   in_varname: PS

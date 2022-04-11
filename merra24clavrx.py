@@ -40,8 +40,8 @@ import yaml
 
 try:
     from datetime import datetime, timedelta
-    from typing import (Callable, Dict, KeysView, List, Optional, Tuple,
-                        TypedDict, Union)
+    from typing import (Callable, Dict, Generator, KeysView, List, Optional,
+                        Tuple, TypedDict, Union)
 
     import numpy as np
     from netCDF4 import Dataset, num2date
@@ -92,7 +92,8 @@ class MerraConversion:
             out_units,
             ndims_out,
             time_ind,
-    ):
+            not_masked=True,
+    ) -> object:
         """Based on variable, adjust shape, apply fill and determine dtype."""
         self.nc_dataset = nc_dataset
         self.in_name = in_name
@@ -101,7 +102,7 @@ class MerraConversion:
         self.ndims_out = ndims_out
 
         self.fill = self._get_fill
-        self.data = self._get_data(time_ind)
+        self.data = self._get_data(time_ind, not_masked)
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
@@ -110,6 +111,10 @@ class MerraConversion:
     def __getitem__(self, item):
         """Access data in the NetCDF dataset variable by variable key."""
         return self.nc_dataset.variables[item]
+
+    def out_name(self):
+        """Return variable name as defined in the output file."""
+        return self.out_name
 
     @property
     def _get_fill(self):
@@ -123,11 +128,13 @@ class MerraConversion:
 
         return fill
 
-    def _get_data(self, time_ind):
+    def _get_data(self, time_ind, not_masked):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
         data = np.ma.getdata(self[self.in_name])
 
-        data = np.asarray(data.filled())
+        # want only dependent arrays as masked arrays, everything else can be a regular np.array.
+        if not_masked:
+            data = np.asarray(data.filled())
 
         if self.in_name == "lev" and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
@@ -150,7 +157,7 @@ class MerraConversion:
             # trim to top CFSR level
             data = data[0: len(LEVELS)].astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.in_name in ("lon"):
+        elif self.in_name in "lon":
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
@@ -160,11 +167,20 @@ class MerraConversion:
             pass
 
         if self.fill is not None:
-            if self.out_name == "water equivalent snow depth":
-                #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
-                data[data == self.fill] = 0.0
-            else:
-                data[data == self.fill] = np.nan
+            data = self.apply_fill(data, self.fill, self.out_name)
+
+        return data
+
+    @staticmethod
+    def apply_fill(data: np.ndarray, fill_value, variable_name: str):
+        """Apply different fill value to data in special cases."""
+        if variable_name == "water equivalent snow depth":
+            #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
+            data[data == fill_value] = 0.0
+        elif variable_name in ["total ozone"]:
+            data[data == fill_value] = np.nan
+        else:
+            pass
 
         return data
 
@@ -512,8 +528,6 @@ def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
     #            that is not CLAVRX_FILL. Use this data value to fill in missing
     #            values down to bottom index.
 
-    # this extrapolation created with MaskedArrays, convert np.nan back to fill.
-    t[np.isnan(t)] = fill
     lowest_good = t[0] * 0.0 + fill
     lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int64)
     for l_ind in np.arange(t.shape[0]):
@@ -598,46 +612,70 @@ def get_time_index(file_keys: KeysView[str],
 
 
 def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
-                   time_index: Dict[str, int]) -> Dict[str, MerraConversion]:
+                   time_index: Dict[str, int]) -> Generator[Dict]:
     """Prepare input variables."""
     out_vars = dict()
     for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
-        out_vars[out_key] = MerraConversion(
+        out_vars["data_object"] = MerraConversion(
             merra_ds[rsk["in_file"]],
             rsk["in_varname"],
             out_key,
             rsk["out_units"],
             rsk["ndims_out"],
             time_index[rsk["in_file"]],
+            True,
         )
-    return out_vars
+        out_vars["in_file"] = rsk["in_file"]
+        out_vars["units_fn"] = rsk["units_fn"]
+        if "dependent" in rsk:
+            out_vars["dependent"] = dict()
+            for support_var_name in rsk["dependent"]:
+                support_obj = MerraConversion(
+                    merra_ds[rsk["in_file"]],
+                    rsk["in_varname"],
+                    out_key,
+                    rsk["out_units"],
+                    rsk["ndims_out"],
+                    time_index[rsk["in_file"]],
+                    False,   # want these as masked arrays.
+                )
+                out_vars["dependent"].update({support_var_name: support_obj})
+
+        yield out_vars
 
 
-def write_output_variables(datasets: Dict[str, Dataset],
-                           output_vars: Dict[str, MerraConversion]) -> None:
+def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[Dict]) -> None:
     """Calculate the final output and write to file."""
-    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
-        if out_key == "surface_pressure_at_sigma":
-            continue
-        units_fn = rsk["units_fn"]
-        var_fill = output_vars[out_key].fill
-        out_data = output_vars[out_key].data
-        if out_key == "rh":
-            out_data = qv_to_rh(out_data,
-                                output_vars["temperature"].data)
-        elif out_key == "rh at sigma=0.995":
-            temp_t10m = output_vars["temperature at sigma=0.995"].data
-            ps_pa = output_vars["surface_pressure_at_sigma"].data
-            out_data = rh_at_sigma(temp_t10m, ps_pa,
-                                   var_fill, out_data)
-        elif out_key == "water equivalent snow depth":
-            out_data = _hack_snow(out_data, datasets["mask"])
-        elif out_key == "land mask":
-            out_data = _merra_land_mask(out_data, datasets["mask"])
-        else:
-            out_data = apply_conversion(units_fn, out_data, var_fill)
-        output_vars[out_key].update_output(datasets, "MERRA2->{}".format(rsk["in_file"]), out_data)
+    while True:
+        try:
+            result = next(out_fields)
+            output_vars = result["data_object"]
+            file_tag = result["in_file"]
+            units_fn = result["units_fn"]
+            out_key = output_vars.out_name
+
+            var_fill = output_vars.fill
+            out_data = output_vars.data
+
+            if out_key == "rh":
+                temp_k = result["dependent"]["masked_temp_k"].data
+                out_data = qv_to_rh(out_data, temp_k)
+            elif out_key == "rh at sigma=0.995":
+                temp_t10m = result["dependent"]["masked_temperature_at_sigma"].data
+                ps_pa = result["dependent"]["surface_pressure_at_sigma"].data
+                out_data = rh_at_sigma(temp_t10m, ps_pa,
+                                       var_fill, out_data)
+            elif out_key == "water equivalent snow depth":
+                out_data = _hack_snow(out_data, datasets["mask"])
+            elif out_key == "land mask":
+                out_data = _merra_land_mask(out_data, datasets["mask"])
+            else:
+                out_data = apply_conversion(units_fn, out_data, var_fill)
+            output_vars.update_output(datasets, "MERRA2->{}".format(file_tag), out_data)
+
+        except StopIteration:
+            break
 
 
 def write_global_attributes(out_sd: SD, info_nc: Dataset) -> None:
