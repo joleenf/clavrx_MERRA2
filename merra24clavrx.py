@@ -36,17 +36,20 @@ import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
 
+import pint
 import yaml
 
 try:
     from datetime import datetime, timedelta
-    from typing import (Callable, Dict, Generator, KeysView, List, Optional,
-                        Tuple, TypedDict, Union)
+    from typing import Callable, Dict, Generator, KeysView, List, Tuple, Union
 
     import numpy as np
     from netCDF4 import Dataset, num2date
     from pandas import date_range
+    from pint import UnitRegistry
     from pyhdf.SD import SD, SDC
+
+    from conversion_class import CommandLineMapping, ReanalysisConversion
 except ImportError as e:
     print("Import Error {}".format(e))
     print("Type:  conda activate merra2_clavrx")
@@ -56,233 +59,28 @@ np.seterr(all="ignore")
 
 LOG = logging.getLogger(__name__)
 
-COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest fill
-TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
-CLAVRX_FILL = 9.999e20
-
 OUT_PATH_PARENT = "/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/"
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-with open(os.path.join(ROOT_DIR, 'yamls', 'MERRA2_vars.yaml'), "r") as yml:
-    OUTPUT_VARS_ROSETTA = yaml.load(yml, Loader=yaml.Loader)
 
-levels_listings = OUTPUT_VARS_ROSETTA.pop("defined levels")
-LEVELS = levels_listings["hPa_levels"]
+class MerraConversion(ReanalysisConversion):
+    """Adjust longitude as appropriate for MERRA data."""
 
+    @staticmethod
+    def _reorder_lon(in_name, data):
+        """Reorder longitude as needed for datasets.
 
-class CommandLineMapping(TypedDict):
-    """Type hints for result of the argparse parsing."""
-
-    start_date: str
-    end_date: Optional[str]
-    store_temp: bool
-    base_path: str
-    input_path: str
-
-
-class MerraConversion:
-    """MerraConversion Handles Reading Data and Output Setup."""
-
-    def __init__(
-            self,
-            nc_dataset,
-            in_name,
-            out_name,
-            out_units,
-            ndims_out,
-            time_ind,
-            not_masked=True,
-    ) -> object:
-        """Based on variable, adjust shape, apply fill and determine dtype."""
-        self.nc_dataset = nc_dataset
-        self.in_name = in_name
-        self.out_name = out_name
-        self.out_units = out_units
-        self.ndims_out = ndims_out
-
-        self.fill = self._get_fill
-        self.data = self._get_data(time_ind, not_masked)
-
-    def __repr__(self):
-        """Report the name conversion when creating this object."""
-        return "Input name {} ==> Output Name: {}".format(self.in_name, self.out_name)
-
-    def __getitem__(self, item):
-        """Access data in the NetCDF dataset variable by variable key."""
-        return self.nc_dataset.variables[item]
-
-    def out_name(self):
-        """Return variable name as defined in the output file."""
-        return self.out_name
-
-    @property
-    def _get_fill(self):
-        """Get the fill value of this data."""
-        if "_FillValue" in self[self.in_name].ncattrs():
-            fill = self[self.in_name].getncattr("_FillValue")
-        elif "missing_value" in self[self.in_name].ncattrs():
-            fill = self[self.in_name].getncattr("missing_value")
-        else:
-            fill = None
-
-        return fill
-
-    def _get_data(self, time_ind, not_masked):
-        """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
-        data = np.ma.getdata(self[self.in_name])
-
-        # want only dependent arrays as masked arrays, everything else can be a regular np.array.
-        if not_masked:
-            data = np.asarray(data.filled())
-
-        if self.in_name == "lev" and len(data) != 42:
-            # insurance policy while levels are hard-coded in unit conversion fn's
-            # also is expected based on data documentation:
-            # https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
-            raise ValueError(
-                "Incorrect number of levels {} rather than 42.".format(len(data))
-            )
-
-        ndims_in = len(data.shape)
-        if ndims_in == 3:
-            # note, vars w/ 3 spatial dims will be 4d due to time
-            data = data[time_ind]
-        if ndims_in == 4:
-            data = data[time_ind]
-            data = self._trim_toa(data)
-
-        # apply special cases
-        if self.in_name in ("lev", "level"):
-            # trim to top CFSR level
-            data = data[0: len(LEVELS)].astype(np.float32)
-            data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.in_name in "lon":
+        Merra2:  Stack halfway to end and then start to halfway.
+        """
+        if in_name in "lon":
             tmp = np.copy(data)
             halfway = data.shape[0] // 2
             data = np.r_[tmp[halfway:], tmp[:halfway]]
-        elif self.in_name == "longitude":
-            data = data - 180.
         else:
-            pass
-
-        if self.fill is not None:
-            data = self.apply_fill(data, self.fill, self.out_name)
+            raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
 
         return data
-
-    @staticmethod
-    def apply_fill(data: np.ndarray, fill_value, variable_name: str):
-        """Apply different fill value to data in special cases."""
-        if variable_name == "water equivalent snow depth":
-            #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
-            data[data == fill_value] = 0.0
-        elif variable_name in ["total ozone"]:
-            data[data == fill_value] = np.nan
-        else:
-            pass
-
-        return data
-
-    @staticmethod
-    def _trim_toa(data: np.ndarray) -> np.ndarray:
-        """Trim the top of the atmosphere."""
-        if len(data.shape) != 3:
-            LOG.warning("Warning: why did you run _trim_toa on a non-3d var?")
-        # at this point (before _reshape), data should be (level, lat, lon) and
-        # the level dim should be ordered surface -> toa
-        return data[0:len(LEVELS), :, :]
-
-    @property
-    def _create_output_dtype(self):
-        """Convert between string and the equivalent SD.<DTYPE>."""
-        nc4_dtype = self.data.dtype
-        if (nc4_dtype == "single") | (nc4_dtype == "float32"):
-            sd_dtype = SDC.FLOAT32
-        elif (nc4_dtype == "double") | (nc4_dtype == "float64"):
-            sd_dtype = SDC.FLOAT64
-        elif nc4_dtype == "uint32":
-            sd_dtype = SDC.UINT32
-        elif nc4_dtype == "int32":
-            sd_dtype = SDC.INT32
-        elif nc4_dtype == "uint16":
-            sd_dtype = SDC.UINT16
-        elif nc4_dtype == "int16":
-            sd_dtype = SDC.INT16
-        elif nc4_dtype == "int8":
-            sd_dtype = SDC.INT8
-        elif nc4_dtype == "char":
-            sd_dtype = SDC.CHAR
-        else:
-            raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
-
-        if self.out_name in ["pressure levels", "level"] and sd_dtype == SDC.FLOAT64:
-            sd_dtype = SDC.FLOAT32  # don't want double
-
-        return sd_dtype
-
-    def _modify_shape(self):
-        """Modify shape based on output characteristics."""
-        if self.out_name == 'total ozone' and len(self.data.shape) == 3:
-            # b/c we vertically integrate ozone to get dobson units here
-            shape = (self.data.shape[1], self.data.shape[2])
-        elif self.ndims_out == 3:
-            # clavr-x needs level to be the last dim
-            shape = (self.data.shape[1], self.data.shape[2], self.data.shape[0])
-        else:
-            shape = self.data.shape
-
-        return shape
-
-    def update_output(self, sd, in_file_short_value, data_array):
-        """Finalize output variables."""
-        out_fill = self.fill
-
-        out_sds = sd["out"].create(self.out_name, self._create_output_dtype, self._modify_shape())
-        out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
-        self.set_dim_names(out_sds)
-        if self.out_name == "lon":
-            out_sds.set(_reshape(data_array, self.ndims_out, None))
-        else:
-            LOG.info("Writing %s", self)
-            out_sds.set(_refill(_reshape(data_array, self.ndims_out, out_fill), out_fill))
-
-        if out_fill is not None:
-            out_sds.setfillvalue(CLAVRX_FILL)
-        if self.out_units is not None:
-            out_sds.units = self.out_units
-
-        if "units" in self.nc_dataset.variables[self.in_name].ncattrs():
-            unit_desc = " in [{}]".format(self[self.in_name].units)
-        else:
-            unit_desc = ""
-        out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
-                               self.in_name, unit_desc))
-        if self.out_name == "height":
-            out_sds.long_name = "Geopotential Height"
-        else:
-            out_sds.long_name = self[self.in_name].long_name
-        out_sds.endaccess()
-
-    def set_dim_names(self, out_sds):
-        """Set dimension names in hdf file."""
-        if self.in_name == "lat" or self.in_name == "latitude":
-            out_sds.dim(0).setname("lat")
-        elif self.in_name == "lon" or self.in_name == "longitude":
-            out_sds.dim(0).setname("lon")
-        elif self.in_name == "lev" or self.in_name == "level":
-            out_sds.dim(0).setname("level")
-        elif self.ndims_out == 2:
-            out_sds.dim(0).setname("lat")
-            out_sds.dim(1).setname("lon")
-        elif self.ndims_out == 3:
-            out_sds.dim(0).setname("lat")
-            out_sds.dim(1).setname("lon")
-            out_sds.dim(2).setname("level")
-        else:
-            raise ValueError("unsupported dimensionality")
-
-        return out_sds
 
 
 def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
@@ -364,10 +162,11 @@ def vapor_pressure_approximation(qv, sfc_pressure, plevels):
     return vapor_pressure
 
 
-def qv_to_rh(specific_humidity, temp_k, press_at_sfc=None):
+def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None):
     """Convert Specific Humidity [kg/kg] -> relative humidity [%]."""
     # See Petty Atmos. Thermo. 4.41 (p. 65), 8.1 (p. 140), 8.18 (p. 147)
-    levels = map(lambda a: a * 100.0, LEVELS)  # [hPa] -> [Pa]
+    ureg = UnitRegistry()
+    levels = np.asarray(levels.to(ureg.pascal))   # [hPa] -> [Pa] when necessary.
 
     es_tot = total_saturation_pressure(temp_k)
 
@@ -378,26 +177,30 @@ def qv_to_rh(specific_humidity, temp_k, press_at_sfc=None):
     return relative_humidity
 
 
-def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, data):
+def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, levels: pint.Quantity, data):
     """Calculate the rh at sigma using 10m fields."""
     temp_k = temp10m  # temperature in [K] (Y, X) not in (time, Y, X)
 
     # pressure in [Pa]
     sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
 
-    rh_sigma = qv_to_rh(data, temp_k, press_at_sfc=sfc_pressure)
+    rh_sigma = qv_to_rh(data, temp_k, levels, press_at_sfc=sfc_pressure)
     rh_sigma[np.isnan(rh_sigma)] = sfc_pressure_fill
 
     return rh_sigma
 
 
-def dobson_layer(mmr_data_array, level_index):
+def dobson_layer(mmr_data_array, level_index, pressure_levels: pint.Quantity):
     """Calculate a dobson layer from a 3D mmr data array given a level index.
 
+    :param pressure_levels: 1D pint Quantity array of pressure levels in hPa from data file.
     :param mmr_data_array: Mass mixing ratio data array
     :param level_index: index of current level
     :return: dobson layer
     """
+    ureg = UnitRegistry()
+    pressure_levels = np.asarray(pressure_levels.to(ureg.hectopascal))  # ensure hPa
+
     dobson_unit_conversion = 2.69e16  # 1 DU = 2.69e16 molecules cm-2
     gravity = 9.8  # m/s^2
     avogadro_const = 6.02e23  # molecules/mol
@@ -408,13 +211,13 @@ def dobson_layer(mmr_data_array, level_index):
     vmr_j = mmr_data_array[level_index] * dry_air_molecular_weight / o3_molecular_weight
     vmr_j_1 = mmr_data_array[level_index - 1] * dry_air_molecular_weight / o3_molecular_weight
     ppmv = 0.5 * (vmr_j + vmr_j_1)
-    delta_pressure = LEVELS[level_index - 1] - LEVELS[level_index]
+    delta_pressure = pressure_levels[level_index - 1] - pressure_levels[level_index]
     o3_dobs_layer = ppmv * delta_pressure * const / dobson_unit_conversion
 
     return o3_dobs_layer
 
 
-def total_ozone(mmr, fill_value):
+def total_ozone(mmr, fill_value, pressure_levels: pint.Quantity):
     """Calculate total column ozone in dobson units (DU), from ozone mixing ratio in [kg/kg]."""
     nlevels = mmr.shape[0]
     dobson = np.zeros(mmr[0].shape).astype("float32")
@@ -422,7 +225,7 @@ def total_ozone(mmr, fill_value):
         good_j = np.logical_not(np.isnan(mmr[j]))
         good_j_1 = np.logical_not(np.isnan(mmr[j - 1]))
         good = good_j & good_j_1
-        dobs_layer = dobson_layer(mmr, j)
+        dobs_layer = dobson_layer(mmr, j, pressure_levels)
         dobson[good] = dobson[good] + dobs_layer[good]
 
     dobson[np.isnan(dobson)] = fill_value
@@ -449,12 +252,12 @@ def _hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray:
+def apply_conversion(scale_func: Callable, data: np.ndarray, fill, p_levels=None) -> np.ndarray:
     """Apply fill to converted data after function."""
     converted = data.copy()
 
     if scale_func == "total_ozone":
-        converted = total_ozone(data, fill)
+        converted = total_ozone(data, fill, p_levels)
     else:
         converted = scale_func(converted)
 
@@ -464,86 +267,6 @@ def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray
             converted[np.isnan(data)] = fill
 
     return converted
-
-
-def _reshape(data: np.ndarray, ndims_out: int, fill: Union[float, None]) -> np.ndarray:
-    """Do a bunch of manipulation needed to make MERRA look like CFSR.
-
-    * For arrays with dims (level, lat, lon) make level the last dim.
-    * All CFSR fields are continuous but MERRA sets below-ground values to fill.
-    * CFSR starts at 0 deg lon but merra starts at -180.
-    """
-    if (ndims_out == 3) or (ndims_out == 2):
-        data = _shift_lon(data)
-
-    if ndims_out != 3:
-        return data
-    # do extrapolation before reshape
-    # (extrapolate fn depends on a certain dimensionality/ordering)
-    data = _extrapolate_below_sfc(data, fill)
-    data = np.swapaxes(data, 0, 2)
-    data = np.swapaxes(data, 0, 1)
-    data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
-    return data
-
-
-def _refill(data: np.ndarray, old_fill: float) -> np.ndarray:
-    """Assumes CLAVRx fill value instead of variable attribute."""
-    if (data.dtype == np.float32) or (data.dtype == np.float64):
-        data[np.isnan(data)] = CLAVRX_FILL
-        data[data == old_fill] = CLAVRX_FILL
-    return data
-
-
-def _shift_lon_2d(data: np.ndarray) -> np.ndarray:
-    """Assume dims are 2d and (lat, lon)."""
-    nlon = data.shape[1]
-    halfway = nlon // 2
-    tmp = data.copy()
-    data[:, 0:halfway] = tmp[:, halfway:]
-    data[:, halfway:] = tmp[:, 0:halfway]
-    return data
-
-
-def _shift_lon(data: np.ndarray) -> np.ndarray:
-    """Make lon start at 0deg instead of -180.
-
-    Assume dims are (level, lat, lon) or (lat, lon)
-    """
-    if len(data.shape) == 3:
-        for l_ind in np.arange(data.shape[0]):
-            data[l_ind] = _shift_lon_2d(data[l_ind])
-    elif len(data.shape) == 2:
-        data = _shift_lon_2d(data)
-    return data
-
-
-def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
-    """Set below ground fill values to lowest good value instead of exptrapolation.
-
-    Major difference between CFSR and MERRA is that CFSR extrapolates
-    below ground and MERRA sets to fill. For now,
-    """
-    # Algorithm: For each pair of horizontal indices, find lowest vertical index
-    #            that is not CLAVRX_FILL. Use this data value to fill in missing
-    #            values down to bottom index.
-
-    lowest_good = t[0] * 0.0 + fill
-    lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int64)
-    for l_ind in np.arange(t.shape[0]):
-        t_at_l = t[l_ind]
-        t_at_l_good = t_at_l != fill
-        replace = t_at_l_good & (lowest_good == fill)
-        lowest_good[replace] = t_at_l[replace]
-        lowest_good_ind[replace] = l_ind
-
-    for l_ind in np.arange(t.shape[0]):
-        t_at_l = t[l_ind]
-        # Limit extrapolation to bins below lowest good bin:
-        t_at_l_bad = (t_at_l == fill) & (l_ind < lowest_good_ind)
-        t_at_l[t_at_l_bad] = lowest_good[t_at_l_bad]
-
-    return t
 
 
 def get_common_time(datasets: Dict[str, Dataset]):
@@ -615,7 +338,11 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
                    time_index: Dict[str, int]) -> Generator[Dict]:
     """Prepare input variables."""
     out_vars = dict()
-    for out_key, rsk in OUTPUT_VARS_ROSETTA.items():
+
+    with open(os.path.join(ROOT_DIR, 'yamls', 'MERRA2_vars.yaml'), "r") as yml:
+        output_vars_dict = yaml.load(yml, Loader=yaml.Loader)
+
+    for out_key, rsk in output_vars_dict.items():
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
         out_vars["data_object"] = MerraConversion(
             merra_ds[rsk["in_file"]],
@@ -647,6 +374,10 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
 
 def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[Dict]) -> None:
     """Calculate the final output and write to file."""
+    ureg = UnitRegistry()
+    file_pressure_levels = datasets["ana"].variables["lev"]
+    pint_unit_levels = np.asarray(file_pressure_levels) * ureg(file_pressure_levels.units)
+
     while True:
         try:
             result = next(out_fields)
@@ -660,18 +391,18 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
 
             if out_key == "rh":
                 temp_k = result["dependent"]["masked_temp_k"].data
-                out_data = qv_to_rh(out_data, temp_k)
+                out_data = qv_to_rh(out_data, temp_k, pint_unit_levels)
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = result["dependent"]["masked_temperature_at_sigma"].data
                 ps_pa = result["dependent"]["surface_pressure_at_sigma"].data
                 out_data = rh_at_sigma(temp_t10m, ps_pa,
-                                       var_fill, out_data)
+                                       var_fill, pint_unit_levels, out_data)
             elif out_key == "water equivalent snow depth":
                 out_data = _hack_snow(out_data, datasets["mask"])
             elif out_key == "land mask":
                 out_data = _merra_land_mask(out_data, datasets["mask"])
             else:
-                out_data = apply_conversion(units_fn, out_data, var_fill)
+                out_data = apply_conversion(units_fn, out_data, var_fill, p_levels=pint_unit_levels)
             output_vars.update_output(datasets, "MERRA2->{}".format(file_tag), out_data)
 
         except StopIteration:

@@ -36,10 +36,11 @@ import sys
 import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
-from merra24clavrx import CommandLineMapping, MerraConversion, apply_conversion
+from conversion_class import CommandLineMapping, ReanalysisConversion
 
 try:
     from datetime import datetime
@@ -59,22 +60,48 @@ np.seterr(all='ignore')
 
 LOG = logging.getLogger(__name__)
 
-comp_level = 6  # 6 is the gzip default; 9 is best/slowest/smallest file
-
-FOCUS_VAR = ["rh"]
-Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
-
+# FOCUS_VAR = ["rh"]
+# Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/era5/'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-
 with open(os.path.join(ROOT_DIR, 'yamls', 'ERA5_vars.yaml'), "r") as yml:
     OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
 
-# this is trimmed to the top CFSR level (i.e., exclude higher than 10hPa)
 levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
 LEVELS = levels_listings["hPa_levels"]
+
+
+class ERA5Conversion(ReanalysisConversion):
+    """Convert ERA5 Specific variables."""
+
+    @staticmethod
+    def _reorder_lon(in_name, data):
+        """Reorder longitude as needed for datasets.
+
+        ERA5:  Convert from 0-360 to -180,180.
+        """
+        if in_name == "longitude":
+            data = data - 180.
+        else:
+            raise ValueError("Unexpected ERA5 Longitude Variable name {}".format(in_name))
+
+        return data
+
+
+def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray:
+    """Apply fill to converted data after function."""
+    converted = data.copy()
+
+    converted = scale_func(converted)
+
+    if fill is not None:
+        converted[data == fill] = fill
+    if np.isnan(data).any():
+        converted[np.isnan(data)] = fill
+
+    return converted
 
 
 def total_precipitable_water(tcwv):
@@ -122,13 +149,13 @@ def check_dataset_times(data_files):
     return common_times
 
 
-def get_input_variables(in_ds: Dict[str, Union[Dataset, SD]]) -> Dict[str, MerraConversion]:
+def get_input_variables(in_ds: Dict[str, Union[Dataset, SD]]) -> Dict[str, ERA5Conversion]:
     """Prepare input data variables."""
     output_vars = dict()
     for out_key in OUTPUT_VARS_DICT:
         rsk = OUTPUT_VARS_DICT[out_key]
 
-        output_vars[out_key] = MerraConversion(
+        output_vars[out_key] = ERA5Conversion(
             in_ds[rsk['in_file']],
             rsk['in_varname'],
             out_key,
