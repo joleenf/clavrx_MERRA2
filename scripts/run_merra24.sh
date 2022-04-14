@@ -98,6 +98,7 @@ done
 START_DATE=${@:$OPTIND:1}
 END_DATE=${@:$OPTIND+1:1}
 all_keys=(inst6_3d_ana_Np tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
+script_start=`date +"($0=>%Y-%m-%d %H:%M:%S)"`
 
 if [ -z $START_DATE ] || [ -z $END_DATE ];then
 	`/bin/pod2usage $0`
@@ -109,11 +110,14 @@ function check_output {
     out_count=0
     find ${OUT_PATH}/${year} -name "merra.${year:2,2}${month}${day}??_F*.hdf" -print | while read -r hdf;do
         out_count=$(( out_count + 1))
-	echo "Out count is ${out_count}"
         hdp_list=`hdp list $hdf`
         if [ "$?" -ne "0" ]; then
             cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Reading $hdf"`
   	    echo $cmd
+	else
+		filename=`basename $hdf`
+		filedate=`date -r $hdf`
+		echo $filedate $filename $script_start
         fi
     done
 
