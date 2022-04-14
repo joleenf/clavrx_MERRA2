@@ -5,6 +5,12 @@
 #  This is a general class which accepts NetCDF4 Dataset objects, reads and formats
 #  the variables as needed for various variable conversions.
 #
+#  Mixture of fill choices for the data represents how the data was filled in older
+#  code.  The extrapolation and vapor pressure routines rely on masked arrays to work
+#  properly.  The extrapolation below surface will not fill to the lowest level when
+#  nan values are present.  Masked arrays were filled with NaN, but as far as I can tell
+#  that action produces no affect on a masked array.
+#
 #  Other functions handle final filling of data with CLAVRx fill values, reshaping
 #  and extrapolation below the surface.
 """Conversion Class and Functions to handle Reanalysis Data read by netCDF4.Dataset."""
@@ -113,17 +119,18 @@ class CommandLineMapping(TypedDict):
 
 
 class ReanalysisConversion:
-    """MerraConversion Handles Reading Data and Output Setup."""
+    """Handles extracting variables from netCDF4.Dataset."""
 
     def __init__(
             self,
-            nc_dataset,
-            in_name,
-            out_name,
-            out_units,
-            ndims_out,
-            time_ind,
+            nc_dataset=None,
+            in_name=None,
+            out_name=None,
+            out_units=None,
+            ndims_out=None,
+            time_ind=None,
             not_masked=True,
+            nan_fill=False
     ) -> None:
         """Based on variable, adjust shape, apply fill and determine dtype."""
         self.nc_dataset = nc_dataset
@@ -133,7 +140,7 @@ class ReanalysisConversion:
         self.ndims_out = ndims_out
 
         self.fill = self._get_fill
-        self.data = self._get_data(time_ind, not_masked)
+        self.data = self._get_data(time_ind, not_masked, nan_fill)
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
@@ -159,7 +166,7 @@ class ReanalysisConversion:
 
         return fill
 
-    def _get_data(self, time_ind, not_masked):
+    def _get_data(self, time_ind, not_masked, nan_fill):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
         data = np.ma.getdata(self[self.in_name])
 
@@ -191,18 +198,20 @@ class ReanalysisConversion:
             pass
 
         if self.fill is not None:
-            data = self.apply_fill(data, self.fill, self.out_name)
+            data = self.apply_fill(data, self.fill, self.out_name, nan_fill)
 
         return data
 
     @staticmethod
-    def apply_fill(data: np.ndarray, fill_value, variable_name: str):
+    def apply_fill(data: np.ndarray, fill_value, variable_name: str, nan_fill: bool):
         """Apply different fill value to data in special cases."""
         if variable_name == "water equivalent snow depth":
             #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
             data[data == fill_value] = 0.0
-        else:
+        if nan_fill:
             data[data == fill_value] = np.nan   # no effect on masked arrays.
+        else:
+            pass  # default from old code and this matters for extrapolation below surface.
 
         return data
 

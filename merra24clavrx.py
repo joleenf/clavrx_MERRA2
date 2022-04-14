@@ -344,13 +344,14 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
     for out_key, rsk in output_vars_dict.items():
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
         out_vars["data_object"] = MerraConversion(
-            merra_ds[rsk["in_file"]],
-            rsk["in_varname"],
-            out_key,
-            rsk["out_units"],
-            rsk["ndims_out"],
-            time_index[rsk["in_file"]],
-            True,
+            nc_dataset=merra_ds[rsk["in_file"]],
+            in_name=rsk["in_varname"],
+            out_name=out_key,
+            out_units=rsk["out_units"],
+            ndims_out=rsk["ndims_out"],
+            time_ind=time_index[rsk["in_file"]],
+            not_masked=True,
+            nan_fill=rsk["nan_fill"],
         )
         out_vars["in_file"] = rsk["in_file"]
         out_vars["units_fn"] = rsk["units_fn"]
@@ -359,13 +360,14 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
             for support_var_name in rsk["dependent"]:
                 sub_field = rsk["dependent"][support_var_name]
                 support_obj = MerraConversion(
-                    merra_ds[sub_field["in_file"]],
-                    sub_field["in_varname"],
-                    support_var_name,
-                    sub_field["out_units"],
-                    sub_field["ndims_out"],
-                    time_index[sub_field["in_file"]],
-                    False,   # load these as masked arrays.
+                    nc_dataset=merra_ds[sub_field["in_file"]],
+                    in_name=sub_field["in_varname"],
+                    out_name=support_var_name,
+                    out_units=sub_field["out_units"],
+                    ndims_out=sub_field["ndims_out"],
+                    time_ind=time_index[sub_field["in_file"]],
+                    not_masked=False,   # load these as masked arrays.
+                    nan_fill=sub_field["nan_fill"]
                 )
                 out_vars["dependent"].update({support_var_name: support_obj})
 
