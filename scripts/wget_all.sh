@@ -14,14 +14,11 @@ cat << EndOfMessage
         -l lists valid keys.
         -h Display this usage information
 
-<<<<<<< HEAD
-    Current Key Options:  inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |
+    Current Key Options:  inst6_3d_ana_Np | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |
                           inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx |
-=======
-    Current Key Options:  inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx | 
-                          inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx | 
->>>>>>> c8a4cdc (Add keys to help doc.)
-                          tavg1_2d_rad_Nx
+                          inst6_3d_ana_Nv * | all
+
+    * inst6_3d_ana_Nv not pulled with "all" keyword.
 
 EndOfMessage
     echo $VAR
@@ -39,7 +36,7 @@ export BASE="$( dirname $SCRIPTS_DIR)"
 
 download_dir=$(pwd)
 in_key=all
-all_keys=(inst6_3d_ana_Np inst6_3d_ana_Nv tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
+all_keys=(inst6_3d_ana_Np tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
 [ $# -eq 0 ] && usage
 while getopts "w:k:h:l" flag; do
 	case "$flag" in
@@ -77,7 +74,7 @@ else
 fi
 
 case "${in_key}" in
-   all) FILETYPES=(inst6_3d_ana_Np inst6_3d_ana_Nv tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
+   all) FILETYPES=(inst6_3d_ana_Np tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
                     ;;
    inst6_3d_ana_Np | inst6_3d_ana_Nv | tavg1_2d_slv_Nx | tavg1_2d_flx_Nx |  \
    inst3_3d_asm_Np | const_2d_ctm_Nx | inst1_2d_asm_Nx | tavg1_2d_lnd_Nx | \

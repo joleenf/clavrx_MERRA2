@@ -15,7 +15,6 @@ export PS4='line:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH
 #   $HOME/logs/merra_archive/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 #       Contains one line completion messages for input data and final product files.
 
-set -x
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 BIN_DIR=$HOME/clavrx_MERRA2
@@ -98,6 +97,7 @@ done
 
 START_DATE=${@:$OPTIND:1}
 END_DATE=${@:$OPTIND+1:1}
+all_keys=(inst6_3d_ana_Np tavg1_2d_slv_Nx tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
 
 if [ -z $START_DATE ] || [ -z $END_DATE ];then
 	`/bin/pod2usage $0`
@@ -118,10 +118,10 @@ function check_output {
     done
 
     if [ "${out_count}" -ne "4" ]; then
-        date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Incomplete Merra Output ($out_count) ${year} ${month} ${day}" >> $INVENTORY_FILE
+        date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Incomplete Merra Output ($out_count) ${year} ${month} ${day}" >> $LOG_FILE
     else
         echo "Success ${year} ${month} ${day}"
-        echo "${year} ${month} ${day} Merra Output Complete." >> $INVENTORY_FILE
+        echo "${year} ${month} ${day} Merra Output Complete." >> $LOG_FILE
     fi
 }
 
@@ -129,7 +129,7 @@ trap finish EXIT
 finish() {
 	if [[ -z $YEAR_DIR  &&  "${delete_input}" = true ]];
 	then
-		cmd="rm -rfv ${YEAR_DIR}"
+		cmd="rm -rf ${YEAR_DIR}"
 		eval $cmd
 	fi
 }
@@ -138,9 +138,8 @@ finish() {
 mkdir -p $LOG_DIR
 
 LOG_FILE=${LOG_DIR}/s${START_DATE}_e${END_DATE}run.log
-INVENTORY_FILE=${LOG_DIR}/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 
-echo "Writing logs to ${LOG_FILE} and ${INVENTORY_FILE}"
+echo "Writing logs to ${LOG_FILE}"
 
 source ~/.bashrc
 conda activate merra2_clavrx
@@ -164,15 +163,23 @@ do
         ${BIN_DIR}/scripts/wget_all.sh -w ${YEAR_DIR} ${year} ${month} ${day}
 
 	# make sure all data is available
-	count=`find ${YEAR_DIR} -name "*${year}${month}${day}*.nc4" | wc -l`
-	echo $count
-	find ${YEAR_DIR} -name "*${year}${month}${day}*.nc4"
+	count=0
+	for key in "${all_keys[@]}"
+	do
+            count_key=`find ${YEAR_DIR} -name "MERRA2_*.${key}.${year}${month}${day}*.nc4" | wc -l`
+	    if [ "${count_key}" -eq 0 ]; then
+		    cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Input MERRA2_???.${key}.${year}.${month}.${day}.nc4"`
+		    echo $cmd
+	    else
+		    ((count+=$count_key)) 
+	    fi
+        done
 
-	if [ "$count" -lt "9" ]; then
+	if [ "$count" -lt "8" ]; then
 		cmd=`date +"ERROR: ($0=>%Y-%m-%d %H:%M:%S) Missing Input $year ${month} ${day}"`
 	else
 		find ${TMPDIR} -name "*${year}${month}${day}*.nc4"
-		echo ${year} ${month} ${day} Input Complete >> $INVENTORY_FILE
+		echo ${year} ${month} ${day} Input Complete >> $LOG_FILE
 	        echo $OUT_PATH
         	python -u ${BIN_DIR}/merra24clavrx.py ${start_date} -d ${OUT_PATH} -vvvv -i ${TMPDIR} >> $LOG_FILE 2>&1
         	check_output
@@ -180,7 +187,7 @@ do
 
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 	if [ "${delete_input}" = true ]; then
-	    cmd="rm -rfv ${YEAR_DIR}"
+	    cmd="rm -rf ${YEAR_DIR}"
 	    eval $cmd
         fi
 	# unset does not get "$"
@@ -188,5 +195,7 @@ do
 	printf "%0.s-" {1..80}
 	echo
 done
+
+echo Finished:  $LOG_FILE
 
 exit
