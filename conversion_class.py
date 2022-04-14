@@ -201,12 +201,8 @@ class ReanalysisConversion:
         if variable_name == "water equivalent snow depth":
             #  Special case: set snow depth missing values to 0 matching CFSR behavoir.
             data[data == fill_value] = 0.0
-        elif variable_name in ["total ozone"]:
-            data[data == fill_value] = np.nan
         else:
-            # In most cases, fill value is needed for the extrapolate below surface routine.
-            # np.nan will interfere with filling to surface with the logic as built in that routine.
-            pass
+            data[data == fill_value] = np.nan   # no effect on masked arrays.
 
         return data
 

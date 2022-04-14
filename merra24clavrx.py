@@ -174,6 +174,7 @@ def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None
 
     relative_humidity = vapor_pressure / es_tot * 100.0  # relative hu¬idity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
+
     return relative_humidity
 
 
@@ -263,8 +264,6 @@ def apply_conversion(scale_func: Callable, data: np.ndarray, fill, p_levels=None
 
         if fill is not None:
             converted[data == fill] = fill
-        if np.isnan(data).any():
-            converted[np.isnan(data)] = fill
 
     return converted
 
@@ -358,14 +357,15 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
         if "dependent" in rsk:
             out_vars["dependent"] = dict()
             for support_var_name in rsk["dependent"]:
+                sub_field = rsk["dependent"][support_var_name]
                 support_obj = MerraConversion(
-                    merra_ds[rsk["in_file"]],
-                    rsk["in_varname"],
-                    out_key,
-                    rsk["out_units"],
-                    rsk["ndims_out"],
-                    time_index[rsk["in_file"]],
-                    False,   # want these as masked arrays.
+                    merra_ds[sub_field["in_file"]],
+                    sub_field["in_varname"],
+                    support_var_name,
+                    sub_field["out_units"],
+                    sub_field["ndims_out"],
+                    time_index[sub_field["in_file"]],
+                    False,   # load these as masked arrays.
                 )
                 out_vars["dependent"].update({support_var_name: support_obj})
 
@@ -380,21 +380,22 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
 
     while True:
         try:
-            result = next(out_fields)
-            output_vars = result["data_object"]
-            file_tag = result["in_file"]
-            units_fn = result["units_fn"]
-            out_key = output_vars.out_name
+            current_var = next(out_fields)
+            out_var = current_var["data_object"]
+            file_tag = current_var["in_file"]
+            units_fn = current_var["units_fn"]
+            out_key = out_var.out_name
 
-            var_fill = output_vars.fill
-            out_data = output_vars.data
+            var_fill = out_var.fill
+            out_data = out_var.data
 
             if out_key == "rh":
-                temp_k = result["dependent"]["masked_temp_k"].data
+                temp_k = current_var["dependent"]["masked_temp_k"].data
                 out_data = qv_to_rh(out_data, temp_k, pint_unit_levels)
+                out_data[np.isnan(out_data)] = var_fill
             elif out_key == "rh at sigma=0.995":
-                temp_t10m = result["dependent"]["masked_temperature_at_sigma"].data
-                ps_pa = result["dependent"]["surface_pressure_at_sigma"].data
+                temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
+                ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
                 out_data = rh_at_sigma(temp_t10m, ps_pa,
                                        var_fill, pint_unit_levels, out_data)
             elif out_key == "water equivalent snow depth":
@@ -403,7 +404,7 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
                 out_data = _merra_land_mask(out_data, datasets["mask"])
             else:
                 out_data = apply_conversion(units_fn, out_data, var_fill, p_levels=pint_unit_levels)
-            output_vars.update_output(datasets, "MERRA2->{}".format(file_tag), out_data)
+            out_var.update_output(datasets, "MERRA2->{}".format(file_tag), out_data)
 
         except StopIteration:
             break
