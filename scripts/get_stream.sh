@@ -54,7 +54,7 @@ function get_dataset {
 	mkdir -p $LOCAL_DIR
 	cd $LOCAL_DIR
 	export TARGET_FILE=MERRA2_${STREAM}.${key}.${YYYY}${MM}${DD}.nc4
-        #export REANALYSIS=MERRA2_401.${key}.${YYYY}${MM}${DD}.nc4
+        export REANALYSIS=MERRA2_401.${key}.${YYYY}${MM}${DD}.nc4
 	check_before_any_stream_call $LOCAL_DIR $TARGET_FILE $REANALYSIS
 }
 
