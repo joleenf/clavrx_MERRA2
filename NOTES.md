@@ -16,6 +16,8 @@ For more information on retrieving MERRA2 files from GES-DESC, please read
     The inst6_3d_ana_Nv analysis is on hybrid sigma-pressure coordinate surfaces.
     This collection could provide the data requested at or near the 0.9950 sigma-level.
     The 10m data is currently substituted for the 0.995 sigma-level and is working fine.
+    The key inst6_3d_ana_Nv should be added back into wget_all all_keys if this file is needed on a regular basis.  The
+    structure to pull the data is still in the get_stream script.
   
 
 2. The python code produces the  following warning:

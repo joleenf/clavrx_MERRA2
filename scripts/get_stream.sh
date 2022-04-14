@@ -53,69 +53,63 @@ function check_before_any_stream_call {
 function get_dataset {
 	mkdir -p $LOCAL_DIR
 	cd $LOCAL_DIR
+	export TARGET_FILE=MERRA2_${STREAM}.${key}.${YYYY}${MM}${DD}.nc4
+        #export REANALYSIS=MERRA2_401.${key}.${YYYY}${MM}${DD}.nc4
 	check_before_any_stream_call $LOCAL_DIR $TARGET_FILE $REANALYSIS
 }
 
 
 function inst1_2d_asm_Nx {
-	export TARGET_FILE=MERRA2_${STREAM}.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
+	export key=inst1_2d_asm_Nx
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I1NXASM.5.12.4
 	export LOCAL_DIR=2d_asm
 	get_dataset
 }
 
 function inst3_3d_asm_Np {
-	export TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
+	export key=inst3_3d_asm_Np
 	export BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 	export LOCAL_DIR=3d_asm
         get_dataset
 }
 
 function inst6_3d_ana_Np {
-	export TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
+	export key=inst6_3d_ana_Np
 	export BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4
 	export LOCAL_DIR=3d_ana
     	get_dataset
 }
 
 function inst6_3d_ana_Nv {
-	export TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.inst6_3d_ana_Nv.${YYYY}${MM}${DD}.nc4
+	export key=inst6_3d_ana_Nv
 	export BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NVANA.5.12.4/
 	export LOCAL_DIR=3d_ana
     	get_dataset
 }
 
 function tavg1_2d_flx_Nx {
-	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_flx_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.tavg1_2d_flx_Nx.${YYYY}${MM}${DD}.nc4
+	export key=tavg1_2d_flx_Nx
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXFLX.5.12.4
 	export LOCAL_DIR=2d_flx
     	get_dataset
 }
 
 function tavg1_2d_lnd_Nx {
-	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_lnd_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.tavg1_2d_lnd_Nx.${YYYY}${MM}${DD}.nc4
+	export key=tavg1_2d_lnd_Nx
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXLND.5.12.4
 	export LOCAL_DIR=2d_lnd
     	get_dataset
 }
 
 function tavg1_2d_rad_Nx {
-	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
+	export key=tavg1_2d_rad_Nx
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXRAD.5.12.4
 	export LOCAL_DIR=2d_rad
     	get_dataset
 }
 
 function tavg1_2d_slv_Nx {
-	export TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
-	export REANALYSIS=MERRA2_401.tavg1_2d_slv_Nx.${YYYY}${MM}${DD}.nc4
+	export key=tavg1_2d_slv_Nx
 	export BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXSLV.5.12.4
 	export LOCAL_DIR=2d_slv
     	get_dataset
