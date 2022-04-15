@@ -175,6 +175,8 @@ def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None
     relative_humidity = vapor_pressure / es_tot * 100.0  # relative hu¬idity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
 
+    relative_humidity = np.ma.masked_invalid(relative_humidity)
+
     return relative_humidity
 
 
@@ -186,7 +188,7 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, levels: pint.Quantity,
     sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
 
     rh_sigma = qv_to_rh(data, temp_k, levels, press_at_sfc=sfc_pressure)
-    rh_sigma[np.isnan(rh_sigma)] = sfc_pressure_fill
+    rh_sigma.set_fill_value = sfc_pressure_fill
 
     return rh_sigma
 
@@ -342,6 +344,7 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
         output_vars_dict = yaml.load(yml, Loader=yaml.Loader)
 
     for out_key, rsk in output_vars_dict.items():
+
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
         out_vars["data_object"] = MerraConversion(
             nc_dataset=merra_ds[rsk["in_file"]],
@@ -394,19 +397,22 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
             if out_key == "rh":
                 temp_k = current_var["dependent"]["masked_temp_k"].data
                 out_data = qv_to_rh(out_data, temp_k, pint_unit_levels)
-                out_data[np.isnan(out_data)] = var_fill
+                var_fill = out_data.fill_value
+                out_data = out_data.filled()
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
                 ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
                 out_data = rh_at_sigma(temp_t10m, ps_pa,
                                        var_fill, pint_unit_levels, out_data)
+                var_fill = out_data.fill_value
+                out_data = out_data.filled()
             elif out_key == "water equivalent snow depth":
                 out_data = _hack_snow(out_data, datasets["mask"])
             elif out_key == "land mask":
                 out_data = _merra_land_mask(out_data, datasets["mask"])
             else:
                 out_data = apply_conversion(units_fn, out_data, var_fill, p_levels=pint_unit_levels)
-            out_var.update_output(datasets, "MERRA2->{}".format(file_tag), out_data)
+            out_var.update_output(datasets, "MERRA2->{}".format(file_tag), out_data, var_fill)
 
         except StopIteration:
             break
@@ -478,8 +484,8 @@ def make_merra_one_day(run_dt: datetime, input_path: Path, out_dir: Path) -> Lis
 
         # --- prepare input data variables
         out_vars = get_input_data(merra_sd, time_inds)
-
         write_output_variables(merra_sd, out_vars)
+
         write_global_attributes(merra_sd["out"], merra_sd["ana"])
 
     return out_fnames

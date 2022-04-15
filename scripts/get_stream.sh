@@ -18,7 +18,7 @@ function any_stream {
     LOCAL_DIR=$4
     TARGET_REGEX=`echo "${TARGET_FILE/${STREAM}/[0-4]0[0-1]}"`
     # try to get any stream.
-    wget_cmd="wget -nv --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/"
+    wget_cmd="wget -v --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies -r --no-parent --no-directories -A ${TARGET_REGEX} ${BASEURL}/${YYYY}/${MM}/"
     eval $wget_cmd
     if [ $? == 0 ]; then
         current_dir=$(pwd)
@@ -45,6 +45,7 @@ function check_before_any_stream_call {
         current_dir=$(pwd)
 	if [ -s "${TARGET_FILE}" ] || [ -s "${REANALYSIS}" ];  then
             FILE_RETRIEVED=`find $current_dir -name $TARGET_FILE -type f -or -name $REANALYSIS`
+            echo $FILE_RETRIEVED already on disk
 	else
             any_stream $TARGET_FILE $BASEURL $REANALYSIS $LOCAL_DIR
 	fi
