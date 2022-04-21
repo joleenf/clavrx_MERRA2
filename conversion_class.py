@@ -51,9 +51,10 @@ def _reshape(data: np.ndarray, ndims_out: int, fill: Union[float, None]) -> np.n
 
 def _refill(data: np.ndarray, old_fill: float) -> np.ndarray:
     """Assumes CLAVRx fill value instead of variable attribute."""
-    if (data.dtype == np.float32) or (data.dtype == np.float64):
+    if data.dtype in (np.float32, np.float64):
         data[np.isnan(data)] = CLAVRX_FILL
         data[data == old_fill] = CLAVRX_FILL
+
     return data
 
 
@@ -261,10 +262,8 @@ class ReanalysisConversion:
 
         return shape
 
-    def update_output(self, sd, in_file_short_value, data_array):
+    def update_output(self, sd, in_file_short_value, data_array, out_fill):
         """Finalize output variables."""
-        out_fill = self.fill
-
         out_sds = sd["out"].create(self.out_name, self._create_output_dtype, self._modify_shape())
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)

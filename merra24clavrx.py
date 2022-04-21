@@ -30,7 +30,6 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
 import sys
 import tempfile
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
@@ -172,7 +171,7 @@ def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None
 
     vapor_pressure = vapor_pressure_approximation(specific_humidity, press_at_sfc, levels)
 
-    relative_humidity = vapor_pressure / es_tot * 100.0  # relative hu¬idity [%]
+    relative_humidity = vapor_pressure / es_tot * 100.0  # relative humidity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
 
     relative_humidity = np.ma.masked_invalid(relative_humidity)
@@ -509,19 +508,19 @@ def download_data(inpath: Union[str, Path], file_glob: str,
             file_type,
             get_date.strftime("%Y %m %d"),
         ]
-        # sh_cmd = (" ".join(cmd))
+        sh_cmd = (" ".join(cmd))
 
-        # raise FileNotFoundError("Download with command: {}.".format(sh_cmd))
-        try:
-            proc = subprocess.run(cmd, text=True, check=True)
-            sh_cmd = (" ".join(proc.args))
-        except subprocess.CalledProcessError as proc_error_noted:
-            raise subprocess.CalledProcessError from proc_error_noted
+        raise FileNotFoundError("Download with command: {}.".format(sh_cmd))
+        # try:
+        #     proc = subprocess.run(cmd, text=True, check=True)
+        #     sh_cmd = (" ".join(proc.args))
+        # except subprocess.CalledProcessError as proc_error_noted:
+        #     raise subprocess.CalledProcessError from proc_error_noted
 
-        file_list = list(inpath.glob(file_glob))
-
-        if len(file_list) == 0:
-            raise FileNotFoundError("{}.".format(sh_cmd))
+        # file_list = list(inpath.glob(file_glob))
+        #
+        # if len(file_list) == 0:
+        #     raise FileNotFoundError("{}.".format(sh_cmd))
 
     return file_list[0]
 

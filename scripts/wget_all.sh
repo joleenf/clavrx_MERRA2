@@ -59,6 +59,14 @@ DD=`echo $args | awk -F" " '{print $3}'`
 #set -x
 #export PS4='$BASH_SOURCE:${LINENO} function:${FUNCNAME[0]:+${FUNCNAME[0]}() }cmd: ${BASH_COMMAND} \n result: '
 
+# strip leading zeros (trying to actually get leading zeros,
+# but trying to handle both a case of entry with a leading zero
+# and not a leading zero.
+
+shopt -s extglob
+MM="${MM##*(0)}"
+DD="${DD##*(0)}"
+
 [ -z "${YYYY}" ] && oops || continue
 [ -z "${MM}" ] && oops || MM=`printf "%02d" $MM`
 [ -z "${DD}" ] && oops || DD=`printf "%02d" $DD`
