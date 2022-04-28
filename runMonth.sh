@@ -17,7 +17,7 @@ EndOfMessage
 
 }
 
-#set -x
+set -x
 
 bin_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOG_DIR=$HOME/logs/merra_archive
@@ -26,8 +26,8 @@ mkdir -p $LOG_DIR
 
 YEAR=$1
 MONTH=$2
-test -d $YEAR && usage 
-test -d $MONTH && usage 
+test -z $YEAR && usage 
+test -z $MONTH && usage 
 len_year=`expr length "$YEAR"`
 [[ $len_year -ne 4 ]] && usage
 
@@ -52,5 +52,5 @@ do
 done
 
 echo "/bin/bash $bin_dir/test_merra24clavrx_brett.sh $start_day $end_day"
-sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}_${month}.log
+sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}.log
 exit
