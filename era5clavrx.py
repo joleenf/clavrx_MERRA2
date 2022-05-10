@@ -89,6 +89,19 @@ class ERA5Conversion(ReanalysisConversion):
 
         return data
 
+    def long_name(self):
+        """Return long name from input file unless there is a special case."""
+        if self.out_name == "height":
+            long_name = "Geopotential Height"
+        elif self.out_name in "temperature at sigma=0.995":
+            long_name = "10-meter_air_temperaure"
+        elif self.out_name in "rh at sigma=0.995":
+            long_name = "10-meter_rh"
+        else:
+            long_name = self[self.in_name].long_name
+
+        return long_name
+
 
 def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray:
     """Apply fill to converted data after function."""
@@ -224,7 +237,8 @@ def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
 
         out_data = apply_conversion(units_fn, out_data, var_fill)
 
-        out_vars[out_key].update_output(era5_ds, "ERA-5->{}".format(rsk["in_file"]), out_data)
+        out_vars[out_key].update_output(era5_ds, "ERA-5->{}".format(rsk["in_file"]),
+                                        out_data, var_fill)
 
     write_global_attributes(era5_ds["out"])
 

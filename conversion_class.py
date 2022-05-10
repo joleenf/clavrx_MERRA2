@@ -145,7 +145,8 @@ class ReanalysisConversion:
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
-        return "Input name {} ==> Output Name: {}".format(self.in_name, self.out_name)
+        str_template = "Input name {} ==> Output Name: {}"
+        return str_template.format(self[self.in_name].long_name, self.out_name)
 
     def __getitem__(self, item):
         """Access data in the NetCDF dataset variable by variable key."""
@@ -222,6 +223,11 @@ class ReanalysisConversion:
         raise NotImplementedError
 
     @property
+    def long_name(self):
+        """Update long_name from input name if function changes output."""
+        raise NotImplementedError
+
+    @property
     def _create_output_dtype(self):
         """Convert between string and the equivalent SD.<DTYPE>."""
         nc4_dtype = self.data.dtype
@@ -284,10 +290,8 @@ class ReanalysisConversion:
             unit_desc = ""
         out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
                                self.in_name, unit_desc))
-        if self.out_name == "height":
-            out_sds.long_name = "Geopotential Height"
-        else:
-            out_sds.long_name = self[self.in_name].long_name
+
+        out_sds.long_name = self.long_name()
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):

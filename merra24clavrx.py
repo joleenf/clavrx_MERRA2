@@ -81,6 +81,15 @@ class MerraConversion(ReanalysisConversion):
 
         return data
 
+    def long_name(self):
+        """Return long name from input file unless there is a special case."""
+        if self.out_name == "height":
+            long_name = "Geopotential Height"
+        else:
+            long_name = self[self.in_name].long_name
+
+        return long_name
+
 
 def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
     """Calculate the total saturation pressure.
