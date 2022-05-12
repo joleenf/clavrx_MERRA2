@@ -62,12 +62,14 @@ pressure levels:
   ndims_out: 1
   out_units: hPa
   units_fn: !!python/name:conversions.no_conversion
-rh:
-  in_file: pressureLevels
-  in_varname: r
-  ndims_out: 3
-  out_units: "%"
-  units_fn: !!python/name:conversions.no_conversion
+# relative humidity is available on pressure levels, but we are not using this 3-D version
+# so don't put it in the output file.
+#rh:
+#  in_file: pressureLevels
+#  in_varname: r
+#  ndims_out: 3
+#  out_units: "%"
+#  units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: singleLevel
   in_varname: sp
@@ -103,13 +105,15 @@ total ozone:
   in_varname: tco3
   ndims_out: 2
   out_units: Dobson
+  nan_fill: True
   units_fn: !!python/name:conversions.kg_per_metersq_to_dobson
-o3mr:
-  in_file: pressureLevels
-  in_varname: o3
-  out_units: kg/kg
-  units_fn: !!python/name:conversions.no_conversion
-  ndims_out: 3
+#o3mr:
+#  in_file: pressureLevels
+#  in_varname: o3
+#  out_units: kg/kg
+#  units_fn: !!python/name:conversions.no_conversion
+#  nan_fill: True
+#  ndims_out: 3
 total precipitable water:
   in_file: singleLevel
   in_varname: tcwv
