@@ -96,7 +96,7 @@ class ERA5Conversion(ReanalysisConversion):
         elif self.out_name in "temperature at sigma=0.995":
             long_name = "10-meter_air_temperaure"
         elif self.out_name in "rh at sigma=0.995":
-            long_name = "10-meter_rh"
+            long_name = "10-meter_relative_humidity"
         else:
             long_name = self[self.in_name].long_name
 
@@ -128,7 +128,7 @@ def total_precipitable_water(tcwv):
 def rh_on_sigma(t, td):
     """Temperature and Dewpoint Temperature -> relative humidity [%].
 
-    Uses August-Roche-Magnus approximation
+    Uses August-Roche-Magnus approximation for saturation vapor pressure.
 
     Input:
     t: For ERA-5 this is the 2 meter temperature
@@ -136,6 +136,10 @@ def rh_on_sigma(t, td):
 
     Output:
     rh: Relative Humidity
+
+    Note:  there is a cold bias in the 2-meter temperature and it is recommended to use
+    the 2-m temperature as part of a day long calculation.  (2021-Sept-02)
+    https://confluence.ecmwf.int/display/CKB/ERA5%3A+2+metre+temperature
     """
     rh = 100 * (np.exp((17.625 * td) / (243.04 + td)) / np.exp((17.625 * t) / (243.04 + t)))
     return rh
@@ -232,6 +236,7 @@ def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
         out_data = out_vars[out_key].data
 
         if out_key == "rh at sigma=0.995":
+            # The input field read for rh@sigma is the temperature at 2 meter.
             dpT = out_vars["dewpoint temperature at sigma=0.995"].data
             out_data = rh_on_sigma(out_data, dpT)
 
