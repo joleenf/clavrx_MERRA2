@@ -195,7 +195,7 @@ class ReanalysisConversion:
             data = data.astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
         elif self.in_name in ("lon", "longitude"):
-            data = self._reorder_lon(self.in_name, data)
+            data = self._reorder_lon(data)
         else:
             pass
 
@@ -218,7 +218,7 @@ class ReanalysisConversion:
         return data
 
     @staticmethod
-    def _reorder_lon(in_name, data):
+    def _reorder_lon(data):
         """Reorder longitude as needed for datasets.
 
         Merra2:  Stack halfway to end and then start to halfway.
