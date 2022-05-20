@@ -168,7 +168,7 @@ def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None
     relative_humidity = vapor_pressure / es_tot * 100.0  # relative humidity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
 
-    relative_humidity = np.ma.masked_invalid(relative_humidity)
+    #relative_humidity = np.ma.masked_invalid(relative_humidity)
 
     return relative_humidity
 
@@ -391,7 +391,8 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
                 temp_k = current_var["dependent"]["masked_temp_k"].data
                 out_data = qv_to_rh(out_data, temp_k, pint_unit_levels)
                 var_fill = out_data.fill_value
-                out_data = out_data.filled()
+                #out_data = out_data.filled()
+                out_data[np.isnan(out_data)] = var_fill
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
                 ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
