@@ -63,7 +63,7 @@ LOG = logging.getLogger(__name__)
 # FOCUS_VAR = ["rh"]
 # Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
 
-OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/era5/'
+OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/erai/'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT_DIR, 'yamls', 'ERA5_vars.yaml'), "r") as yml:
@@ -208,7 +208,7 @@ def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
 
     out_time = (check_dataset_times(era5_ds)).pop()
     LOG.info('    working on time: {}'.format(out_time))
-    out_fname = str(out_dir.joinpath(out_time.strftime('era5.%y%m%d%H_F000.hdf')))
+    out_fname = str(out_dir.joinpath(out_time.strftime('era.%y%m%d%H_F000.hdf')))
     LOG.info(out_fname)
     # TRUNC will clobber existing
     era5_ds['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
