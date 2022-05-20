@@ -76,19 +76,6 @@ LEVELS = levels_listings["hPa_levels"]
 class ERA5Conversion(ReanalysisConversion):
     """Convert ERA5 Specific variables."""
 
-    @staticmethod
-    def _reorder_lon(in_name, data):
-        """Reorder longitude as needed for datasets.
-
-        ERA5:  Convert from 0-360 to -180,180.
-        """
-        if in_name == "longitude":
-            data = data - 180.
-        else:
-            raise ValueError("Unexpected ERA5 Longitude Variable name {}".format(in_name))
-
-        return data
-
     def long_name(self):
         """Return long name from input file unless there is a special case."""
         if self.out_name == "height":

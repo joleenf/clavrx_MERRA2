@@ -219,8 +219,18 @@ class ReanalysisConversion:
 
     @staticmethod
     def _reorder_lon(in_name, data):
-        """Reorder longitude as needed for datasets."""
-        raise NotImplementedError
+        """Reorder longitude as needed for datasets.
+
+        Merra2:  Stack halfway to end and then start to halfway.
+        """
+        tmp = np.copy(data)
+        halfway = data.shape[0] // 2
+        data = np.r_[tmp[halfway:], tmp[:halfway]]
+
+        if data.max() > 180.:
+            data = data - 180.
+
+        return data
 
     @property
     def long_name(self):
@@ -290,6 +300,7 @@ class ReanalysisConversion:
             unit_desc = ""
         out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
                                self.in_name, unit_desc))
+        out_sds.units = self[self.in_name].units
 
         out_sds.long_name = self.long_name()
         out_sds.endaccess()

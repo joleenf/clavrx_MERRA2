@@ -66,21 +66,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 class MerraConversion(ReanalysisConversion):
     """Adjust longitude as appropriate for MERRA data."""
 
-    @staticmethod
-    def _reorder_lon(in_name, data):
-        """Reorder longitude as needed for datasets.
-
-        Merra2:  Stack halfway to end and then start to halfway.
-        """
-        if in_name in "lon":
-            tmp = np.copy(data)
-            halfway = data.shape[0] // 2
-            data = np.r_[tmp[halfway:], tmp[:halfway]]
-        else:
-            raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
-
-        return data
-
     def long_name(self):
         """Return long name from input file unless there is a special case."""
         if self.out_name == "height":
