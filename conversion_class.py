@@ -197,7 +197,8 @@ class ReanalysisConversion:
         elif self.in_name in ("lon", "longitude"):
             data = self._reorder_lon(data)
         else:
-            pass
+            if data.dtype == 'float64':
+                data = data.astype(np.float32)
 
         if self.fill is not None:
             data = self.apply_fill(data, self.fill, self.out_name, nan_fill)

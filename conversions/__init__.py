@@ -48,4 +48,6 @@ def pressure_to_altitude(pressure):
 
     altitude = (T_zero/L)*((pressure / P_zero)*np.exp(-L*R/g) - 1)
 
+    altitude = altitude.astype('float32')
+
     return altitude
