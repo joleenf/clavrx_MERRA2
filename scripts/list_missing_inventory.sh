@@ -58,6 +58,7 @@ do
 done
 
 comm -13 $tmpfile01 $tmpfile02
+echo "The list generated represents file patterns not found in given path."
 rm $tmpfile01
 rm $tmpfile02
 
