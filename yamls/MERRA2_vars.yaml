@@ -30,7 +30,7 @@ ice fraction:
   in_file: flx
   in_varname: FRSEAICE
   ndims_out: 2
-  out_units: none
+  out_units: "1"
   nan_fill: False
   units_fn: !!python/name:conversions.no_conversion
 lat:
@@ -141,7 +141,7 @@ total cloud fraction:
   in_file: rad
   in_varname: CLDTOT
   ndims_out: 2
-  out_units: none
+  out_units: "1"
   nan_fill: False
   units_fn: !!python/name:conversions.no_conversion
 total ozone:
@@ -239,13 +239,13 @@ FRACI:
   in_file: mask
   in_varname: FRACI
   ndims_out: 2
-  out_units: None
+  out_units: "1"
   nan_fill: False
   units_fn: !!python/name:conversions.no_conversion
 land ice fraction:
   in_file: mask
   in_varname:  FRLANDICE
-  out_units: None
+  out_units: "1"
   ndims_out: 2
   nan_fill: False
   units_fn: !!python/name:conversions.no_conversion

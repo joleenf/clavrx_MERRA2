@@ -30,7 +30,7 @@ ice fraction:
   in_file: singleLevel
   in_varname: siconc
   ndims_out: 2
-  out_units: None
+  out_units: none
   units_fn: !!python/name:conversions.no_conversion
 lat:
   in_file: pressureLevels
@@ -62,14 +62,12 @@ pressure levels:
   ndims_out: 1
   out_units: hPa
   units_fn: !!python/name:conversions.no_conversion
-# relative humidity is available on pressure levels, but we are not using this 3-D version
-# so don't put it in the output file.
-#rh:
-#  in_file: pressureLevels
-#  in_varname: r
-#  ndims_out: 3
-#  out_units: "%"
-#  units_fn: !!python/name:conversions.no_conversion
+rh:
+  in_file: pressureLevels
+  in_varname: r
+  ndims_out: 3
+  out_units: "%"
+  units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: singleLevel
   in_varname: sp
@@ -77,11 +75,14 @@ surface pressure:
   out_units: hPa
   units_fn: !!python/name:conversions.pa_to_hPa
 height:
-  in_file: singleLevel
-  in_varname: sp
-  ndims_out: 2
+  #in_file: singleLevel
+  #in_varname: sp
+  in_file: pressureLevels
+  in_varname: z
+  ndims_out: 3
   out_units: km
-  units_fn: !!python/name:conversions.pressure_to_altitude
+  #units_fn: !!python/name:conversions.pressure_to_altitude
+  units_fn: !!python/name:conversions.geopotential
 surface temperature:
   in_file: singleLevel
   in_varname: skt   # substitute skin temperature for surface temperature
@@ -98,7 +99,7 @@ total cloud fraction:
   in_file: singleLevel
   in_varname: tcc
   ndims_out: 2
-  out_units: None
+  out_units: none
   units_fn: !!python/name:conversions.no_conversion
 total ozone:
   in_file: singleLevel
@@ -107,13 +108,13 @@ total ozone:
   out_units: Dobson
   nan_fill: True
   units_fn: !!python/name:conversions.kg_per_metersq_to_dobson
-#o3mr:
-#  in_file: pressureLevels
-#  in_varname: o3
-#  out_units: kg/kg
-#  units_fn: !!python/name:conversions.no_conversion
-#  nan_fill: True
-#  ndims_out: 3
+o3mr:
+  in_file: pressureLevels
+  in_varname: o3
+  out_units: kg/kg
+  units_fn: !!python/name:conversions.no_conversion
+  nan_fill: True
+  ndims_out: 3
 total precipitable water:
   in_file: singleLevel
   in_varname: tcwv
@@ -149,4 +150,17 @@ water equivalent snow depth:
   in_varname: sd
   ndims_out: 2
   out_units: m of water equivalent
+  units_fn: !!python/name:conversions.no_conversion
+surface height:  # geopotential height
+  in_file: singleLevel
+  in_varname: z
+  ndims_out: 2
+  out_units: km
+  units_fn: !!python/name:conversions.geopotential
+land mask:
+  in_file: singleLevel
+  in_varname: lsm
+  ndims_out: 2
+  out_units: 1=land, 0=ocean, greenland and antarctica are land
+  nan_fill: False
   units_fn: !!python/name:conversions.no_conversion
