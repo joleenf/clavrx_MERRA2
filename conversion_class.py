@@ -196,12 +196,11 @@ class ReanalysisConversion:
             data = np.flipud(data)  # clavr-x needs toa->surface
         elif self.in_name in ("lon", "longitude"):
             data = self._reorder_lon(data)
-        else:
-            if data.dtype == 'float64':
-                data = data.astype(np.float32)
 
         if self.fill is not None:
             data = self.apply_fill(data, self.fill, self.out_name, nan_fill)
+
+        data = data.astype(np.float32)
 
         return data
 
@@ -294,6 +293,10 @@ class ReanalysisConversion:
             out_sds.setfillvalue(CLAVRX_FILL)
         if self.out_units is not None:
             out_sds.units = self.out_units
+        elif self.out_units in ("none", "None"):
+            out_sds.units = "1"
+        else:
+            out_sds.units = self[self.in_name].units
 
         if "units" in self.nc_dataset.variables[self.in_name].ncattrs():
             unit_desc = " in [{}]".format(self[self.in_name].units)
@@ -301,7 +304,6 @@ class ReanalysisConversion:
             unit_desc = ""
         out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
                                self.in_name, unit_desc))
-        out_sds.units = self[self.in_name].units
 
         out_sds.long_name = self.long_name()
         out_sds.endaccess()

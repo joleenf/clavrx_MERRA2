@@ -42,12 +42,12 @@ def pressure_to_altitude(pressure):
     """Use surface pressure to converted to km rather than surface geopotential for altitude."""
     P_zero = 101325  # Pa (Pressure at altitude 0)
     T_zero = 288.15  # K (Temperature at altitude 0)
-    g = 9.80665      # m/s^2 (gravitational acceleration)
+    g = 9.80665      # m/s^2 (gravitational acceleration)t
     L = -6.50E-03    # K/m (Lapse Rate)
     R = 287.053      # J/(KgK) (Gas constant for air)
 
     altitude = (T_zero/L)*((pressure / P_zero)*np.exp(-L*R/g) - 1)
 
-    altitude = altitude.astype('float32')
+    altitude = altitude.astype(np.float32)
 
     return altitude
