@@ -753,9 +753,12 @@ if __name__ == '__main__':
         exit()
 
     year_str = date_str_arg[0:4]
+    month_str = date_str_arg[4:6]
+    day_str = date_str_arg[6:8]
+    date_str = "{}_{}_{}".format(year_str, month_str, day_str)
     outpath_full = os.path.join(outpath, year_str) + '/'
     #inpath_full = inpath
-    inpath_full = os.path.join(inpath, year_str)
+    inpath_full = os.path.join(inpath, year_str, date_str)
 
     try:
         os.makedirs(outpath_full)

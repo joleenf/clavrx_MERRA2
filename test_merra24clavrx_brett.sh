@@ -28,7 +28,7 @@ YYYY=${INPUT_DATE:0:4}
 MM=${INPUT_DATE:4:2}
 DD=${INPUT_DATE:6:2}
 
-M2_DIR=${M2_DIR}/${YYYY}/
+M2_DIR=${M2_DIR}${YYYY}/${YYYY}_${MM}_${DD}
 mkdir -p $M2_DIR
 
 if [ -d "${TMPDIR}/out" ]
@@ -46,8 +46,8 @@ sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 python ${BIN_DIR}/merra2/merra24clavrx_brett.py ${INPUT_DATE}
 #
 # clean up
-M2_DIR=`dirname $M2_DIR`
+#M2_DIR=`dirname $M2_DIR`
 echo $M2_DIR
-rm -rfv $M2_DIR/
+rm -rfv $M2_DIR
 #
 #echo finished at: `date`

@@ -38,7 +38,7 @@ if [ -s "./2d_slv/${TARGET_FILE}" ] || [ -s "./2d_slv/${REANALYSIS}" ]; then
         exit
 fi
 
-wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}
