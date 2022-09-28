@@ -37,3 +37,6 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
     - downloads merra files
     - creates an inventory log of succes/failure both for data download and final product completion
     - handles input files removal after products are created even when code exits early.
+
+# ERA5 Additions:
+It is necessary to register for the Copernicus Data Store (CDS) to access ERA5 data in the archive.  It may also be necessary to register at ECMWF for access to the `MARS <(https://confluence.ecmwf.int/display/WEBAPI/Access+MARS#AccessMARS-downloadmars>` API.  The tropopause temperature and pressure, as well as the 2PVU potential voriticy level files are only available on MARS.

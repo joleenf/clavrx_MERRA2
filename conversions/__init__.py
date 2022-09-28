@@ -1,6 +1,9 @@
 """Unit conversions for variables used in merra2 and era5 data."""
 import numpy as np
 
+CLAVRX_FILL = 9.999e20
+COMPRESSION_LEVEL = 6
+
 
 def meter_to_km(data):
     """Convert surface height from m to km."""

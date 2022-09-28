@@ -66,12 +66,27 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 class MerraConversion(ReanalysisConversion):
     """Adjust longitude as appropriate for MERRA data."""
 
+    @staticmethod
+    def _reorder_lon(in_name, data):
+        """Reorder longitude as needed for datasets.
+
+        Merra2:  Stack halfway to end and then start to halfway.
+        """
+        if in_name in "lon":
+            tmp = np.copy(data)
+            halfway = data.shape[0] // 2
+            data = np.r_[tmp[halfway:], tmp[:halfway]]
+        else:
+            raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
+
+        return data
+
     def long_name(self):
         """Return long name from input file unless there is a special case."""
         if self.out_name == "height":
             long_name = "Geopotential Height"
         else:
-            long_name = self[self.in_name].long_name
+            long_name = self[self.shortname].long_name
 
         return long_name
 
@@ -167,8 +182,6 @@ def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None
 
     relative_humidity = vapor_pressure / es_tot * 100.0  # relative humidity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
-
-    #relative_humidity = np.ma.masked_invalid(relative_humidity)
 
     return relative_humidity
 
@@ -338,10 +351,10 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
 
     for out_key, rsk in output_vars_dict.items():
 
-        LOG.info("Get data from %s for %s", rsk["in_file"], rsk["in_varname"])
+        LOG.info("Get data from %s for %s", rsk["in_file"], rsk["shortname"])
         out_vars["data_object"] = MerraConversion(
             nc_dataset=merra_ds[rsk["in_file"]],
-            in_name=rsk["in_varname"],
+            in_name=rsk["shortname"],
             out_name=out_key,
             out_units=rsk["out_units"],
             ndims_out=rsk["ndims_out"],
@@ -357,7 +370,7 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
                 sub_field = rsk["dependent"][support_var_name]
                 support_obj = MerraConversion(
                     nc_dataset=merra_ds[sub_field["in_file"]],
-                    in_name=sub_field["in_varname"],
+                    in_name=sub_field["shortname"],
                     out_name=support_var_name,
                     out_units=sub_field["out_units"],
                     ndims_out=sub_field["ndims_out"],
@@ -391,7 +404,6 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
                 temp_k = current_var["dependent"]["masked_temp_k"].data
                 out_data = qv_to_rh(out_data, temp_k, pint_unit_levels)
                 var_fill = out_data.fill_value
-                #out_data = out_data.filled()
                 out_data[np.isnan(out_data)] = var_fill
             elif out_key == "rh at sigma=0.995":
                 temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data

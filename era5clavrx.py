@@ -41,6 +41,8 @@ from typing import Callable
 import yaml
 
 from conversion_class import CommandLineMapping, ReanalysisConversion
+from conversions.tropopause_height import (ERA_TROPO_PRESSURE,
+                                           ERA_TROPO_TEMPERATURE)
 
 try:
     from datetime import datetime
@@ -66,6 +68,8 @@ LOG = logging.getLogger(__name__)
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/erai/'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+# with open(os.path.join(ROOT_DIR, 'yamls', 'ERA5_vars.yaml'), "r") as yml:
+#     OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
 with open(os.path.join(ROOT_DIR, 'yamls', 'ERA5_vars.yaml'), "r") as yml:
     OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
 
@@ -78,14 +82,16 @@ class ERA5Conversion(ReanalysisConversion):
 
     def long_name(self):
         """Return long name from input file unless there is a special case."""
-        if self.out_name == "height":
-            long_name = "Geopotential Height"
-        elif self.out_name in "temperature at sigma=0.995":
-            long_name = "10-meter_air_temperaure"
-        elif self.out_name in "rh at sigma=0.995":
-            long_name = "10-meter_relative_humidity"
+        out_names_lookup = {"height": "Geopotential Height",
+                            "temperature at sigma=0.995": "10-meter_air_temperature",
+                            "rh at sigma=0.995": "10-meter_relative_humidity",
+                            "tropopause temperature": "tropopause temperature",
+                            "tropopause pressure": "tropopause pressure", }
+
+        if self.out_name in out_names_lookup.keys():
+            long_name = out_names_lookup[self.out_name]
         else:
-            long_name = self[self.in_name].long_name
+            long_name = self[self.shortname].long_name
 
         return long_name
 
@@ -93,7 +99,6 @@ class ERA5Conversion(ReanalysisConversion):
 def apply_conversion(scale_func: Callable, data: np.ndarray, fill) -> np.ndarray:
     """Apply fill to converted data after function."""
     converted = data.copy()
-
     converted = scale_func(converted)
 
     if fill is not None:
@@ -155,19 +160,35 @@ def check_dataset_times(data_files):
 
 def get_input_variables(in_ds: Dict[str, Union[Dataset, SD]]) -> Dict[str, ERA5Conversion]:
     """Prepare input data variables."""
-    output_vars = dict()
-    for out_key in OUTPUT_VARS_DICT:
-        rsk = OUTPUT_VARS_DICT[out_key]
+    out_vars = dict()
+    for out_key, rsk in OUTPUT_VARS_DICT.items():
 
-        output_vars[out_key] = ERA5Conversion(
+        out_vars["data_object"] = ERA5Conversion(
             in_ds[rsk['in_file']],
-            rsk['in_varname'],
+            rsk['shortname'],
             out_key,
             rsk['out_units'],
             rsk['ndims_out'],
             0)
+        out_vars["in_file"] = rsk["in_file"]
+        out_vars["units_fn"] = rsk["units_fn"]
+        if "dependent" in rsk:
+            out_vars["dependent"] = dict()
+            for support_var_name in rsk["dependent"]:
+                sub_field = rsk["dependent"][support_var_name]
+                support_obj = ERA5Conversion(
+                    nc_dataset=in_ds[sub_field["in_file"]],
+                    in_name=sub_field["shortname"],
+                    out_name=support_var_name,
+                    out_units=sub_field["out_units"],
+                    ndims_out=sub_field["ndims_out"],
+                    time_ind=0,
+                    not_masked=False,   # load these as masked arrays.
+                    nan_fill=sub_field["nan_fill"]
+                )
+                out_vars["dependent"].update({support_var_name: support_obj})
 
-    return output_vars
+        yield out_vars
 
 
 def write_global_attributes(out_ds: SD) -> None:
@@ -199,6 +220,43 @@ def write_global_attributes(out_ds: SD) -> None:
     out_ds.end()
 
 
+def write_output_variables(era5_ds, out_vars):
+    """Write variables to file."""
+    while True:
+        try:
+            current_var = next(out_vars)
+            out_var = current_var["data_object"]
+            file_tag = current_var["in_file"]
+            units_fn = current_var["units_fn"]
+            out_key = out_var.out_name
+
+            var_fill = out_var.fill
+
+            if out_key == "rh at sigma=0.995":
+                # The input field read for rh@sigma is the temperature at 2 meter.
+                dpT = out_var.data
+                out_var.data = rh_on_sigma(out_var.data, dpT)
+            elif out_key == "tropopause":
+                # is there a better place to handle this nested calculation other
+                # than running update_output outside of the paradigm already established?
+                temp_profile = out_var.data
+                plevels = current_var["dependent"]["plevels"].data
+                tropo_press = ERA_TROPO_PRESSURE(plevels, temp_profile, "ZXY")
+                out_var.out_name = "tropopause pressure"
+                out_var.update_output(era5_ds, "ERA5->{}".format(file_tag), tropo_press, var_fill)
+
+                out_var.out_name = "tropopause temperature"
+                out_var.data = ERA_TROPO_TEMPERATURE(tropo_press, plevels,
+                                                     temp_profile, "ZXY")
+
+            out_var.data = apply_conversion(units_fn, out_var.data, var_fill)
+
+            out_var.update_output(era5_ds, "ERA5->{}".format(file_tag), out_var.data, var_fill)
+
+        except StopIteration:
+            break
+
+
 def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
     """Read input, parse times, and run conversion on one day at a time."""
     era5_ds = dict()
@@ -214,23 +272,7 @@ def make_era5_one_hour(in_files: Dict[str, Path], out_dir: Path):
     era5_ds['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
 
     out_vars = get_input_variables(era5_ds)
-
-    # to insure that all the variables are filled before attempting the data conversions,
-    # read all the output_vars and then convert before setting the hdf variables out.
-    for out_key, rsk in OUTPUT_VARS_DICT.items():
-        units_fn = rsk["units_fn"]
-        var_fill = out_vars[out_key].fill
-        out_data = out_vars[out_key].data
-
-        if out_key == "rh at sigma=0.995":
-            # The input field read for rh@sigma is the temperature at 2 meter.
-            dpT = out_vars["dewpoint temperature at sigma=0.995"].data
-            out_data = rh_on_sigma(out_data, dpT)
-
-        out_data = apply_conversion(units_fn, out_data, var_fill)
-
-        out_vars[out_key].update_output(era5_ds, "ERA-5->{}".format(rsk["in_file"]),
-                                        out_data, var_fill)
+    write_output_variables(era5_ds, out_vars)
 
     write_global_attributes(era5_ds["out"])
 
@@ -263,7 +305,8 @@ def build_input_collection(desired_date: datetime, hour_str: str, in_path: Path)
                     'fraction_of_cloud_cover', 'ozone_mass_mixing_ratio', 'relative_humidity',
                     'specific_cloud_ice_water_content', 'specific_cloud_liquid_water_content',
                     'specific_humidity', 'specific_snow_water_content', 'temperature',
-                    'u_component_of_wind', 'v_component_of_wind', 'geopotential'
+                    'u_component_of_wind', 'v_component_of_wind', 'geopotential',
+                    'potential_vorticity'
                 ],
                 'pressure_level': LEVELS,
                 'month': month,
@@ -295,6 +338,7 @@ def build_input_collection(desired_date: datetime, hour_str: str, in_path: Path)
 
     in_files = {'pressureLevels': pressure_fn,
                 'singleLevel': single_fn}
+    LOG.debug('Input Files {}'.format(repr(in_files)))
     return in_files
 
 

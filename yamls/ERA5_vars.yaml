@@ -4,163 +4,187 @@ defined levels:
 
 MSL pressure:
   in_file: singleLevel
-  in_varname: msl
+  shortname: msl
   ndims_out: 2
   out_units: hPa
   units_fn: !!python/name:conversions.pa_to_hPa
 temperature at sigma=0.995:
   in_file: singleLevel
-  in_varname: t2m
+  shortname: t2m
   ndims_out: 2
   out_units: K
   units_fn: !!python/name:conversions.no_conversion
 dewpoint temperature at sigma=0.995:
   in_file: singleLevel
-  in_varname: d2m
+  shortname: d2m
   ndims_out: 2
   out_units: K
   units_fn: !!python/name:conversions.no_conversion
 rh at sigma=0.995:
   in_file: singleLevel
-  in_varname: t2m
+  shortname: t2m
   ndims_out: 2
   out_units: "%"
   units_fn:  !!python/name:conversions.no_conversion
 ice fraction:
   in_file: singleLevel
-  in_varname: siconc
+  shortname: siconc
   ndims_out: 2
   out_units: none
   units_fn: !!python/name:conversions.no_conversion
 lat:
   in_file: pressureLevels
-  in_varname: latitude
+  shortname: latitude
   ndims_out: 1
   out_units: Null
   units_fn: !!python/name:conversions.no_conversion
 level:
   in_file: pressureLevels
-  in_varname: level
+  shortname: level
   ndims_out: 1
   out_units: hPa
   units_fn: !!python/name:conversions.no_conversion
 lon:
   in_file: pressureLevels
-  in_varname: longitude
+  shortname: longitude
   ndims_out: 1
   out_units: Null
   units_fn: !!python/name:conversions.no_conversion
 planetary boundary layer height:
   in_file: singleLevel
-  in_varname: blh
+  shortname: blh
   ndims_out: 2
   out_units: km
   units_fn: !!python/name:conversions.meter_to_km
 pressure levels:
   in_file: pressureLevels
-  in_varname: level
+  shortname: level
   ndims_out: 1
   out_units: hPa
   units_fn: !!python/name:conversions.no_conversion
 rh:
   in_file: pressureLevels
-  in_varname: r
+  shortname: r
   ndims_out: 3
   out_units: "%"
   units_fn: !!python/name:conversions.no_conversion
 surface pressure:
   in_file: singleLevel
-  in_varname: sp
+  shortname: sp
   ndims_out: 2
   out_units: hPa
   units_fn: !!python/name:conversions.pa_to_hPa
 height:
   #in_file: singleLevel
-  #in_varname: sp
+  #shortname: sp
   in_file: pressureLevels
-  in_varname: z
+  shortname: z
   ndims_out: 3
   out_units: km
   #units_fn: !!python/name:conversions.pressure_to_altitude
   units_fn: !!python/name:conversions.geopotential
 surface temperature:
   in_file: singleLevel
-  in_varname: skt   # substitute skin temperature for surface temperature
+  shortname: skt   # substitute skin temperature for surface temperature
   ndims_out: 2
   out_units: K
   units_fn: !!python/name:conversions.no_conversion
 temperature:
   in_file: pressureLevels
-  in_varname: t
+  shortname: t
   ndims_out: 3
   out_units: K
   units_fn: !!python/name:conversions.no_conversion
 total cloud fraction:
   in_file: singleLevel
-  in_varname: tcc
+  shortname: tcc
   ndims_out: 2
   out_units: none
   units_fn: !!python/name:conversions.no_conversion
 total ozone:
   in_file: singleLevel
-  in_varname: tco3
+  shortname: tco3
   ndims_out: 2
   out_units: Dobson
   nan_fill: True
   units_fn: !!python/name:conversions.kg_per_metersq_to_dobson
 o3mr:
   in_file: pressureLevels
-  in_varname: o3
+  shortname: o3
   out_units: kg/kg
   units_fn: !!python/name:conversions.no_conversion
   nan_fill: True
   ndims_out: 3
 total precipitable water:
   in_file: singleLevel
-  in_varname: tcwv
+  shortname: tcwv
   ndims_out: 2
   out_units: cm
   units_fn: !!python/name:conversions.meter_to_km
 u-wind:
   in_file: pressureLevels
-  in_varname: u
+  shortname: u
   ndims_out: 3
   out_units: m/s
   units_fn: !!python/name:conversions.no_conversion
 u-wind at sigma=0.995:
   in_file: singleLevel
-  in_varname: u10
+  shortname: u10
   ndims_out: 2
   out_units: m/s
   units_fn: !!python/name:conversions.no_conversion
 v-wind at sigma=0.995:
   in_file: singleLevel
-  in_varname: v10
+  shortname: v10
   ndims_out: 2
   out_units: m/s
   units_fn: !!python/name:conversions.no_conversion
 v-wind:
   in_file: pressureLevels
-  in_varname: v
+  shortname: v
   ndims_out: 3
   out_units: m/s
   units_fn: !!python/name:conversions.no_conversion
 water equivalent snow depth:
   in_file: singleLevel
-  in_varname: sd
+  shortname: sd
   ndims_out: 2
   out_units: m of water equivalent
   units_fn: !!python/name:conversions.no_conversion
 surface height:  # geopotential height
   in_file: singleLevel
-  in_varname: z
+  shortname: z
   ndims_out: 2
   out_units: km
   units_fn: !!python/name:conversions.geopotential
 land mask:
   in_file: singleLevel
-  in_varname: lsm
+  shortname: lsm
   ndims_out: 2
   out_units: 1=land, 0=ocean, greenland and antarctica are land
   nan_fill: False
   units_fn: !!python/name:conversions.no_conversion
+potential_vorticity:
+  in_file: pressureLevels
+  shortname: pv
+  ndims_out: 3
+  out_units: K m**2 kg**-1 s**-1
+  nan_fill: False
+  units_fn: !!python/name:conversions.no_conversion
+
+tropopause:
+  # unfortunately this is a break from the previous paradigm.  Did not anticipate this type of nested calculation
+    in_file: pressureLevels
+    shortname: t
+    ndims_out: 2
+    nan_fill: False
+    out_units: K
+    units_fn: !!python/name:conversions.no_conversion
+    dependent: # dependent variables do not apply conversion.
+      plevels:
+        in_file: pressureLevels
+        shortname: level
+        ndims_out: 1
+        out_units: hPa
+        nan_fill: False
+        units_fn: !!python/name:conversions.no_conversion

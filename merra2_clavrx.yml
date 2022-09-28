@@ -14,7 +14,9 @@ dependencies:
   - pip
   - pyyaml
   - pydap
-  - pint
+  - metpy
+  - cfgrib
   - pip:
     - cdsapi
     - lxml
+    - ecmwf-api-client
