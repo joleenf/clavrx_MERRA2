@@ -31,13 +31,10 @@ except ImportError as e:
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 
-from conversion_class import CommandLineMapping, ReanalysisConversion
-from conversions import CLAVRX_FILL
+from conversion_class import CommandLineMapping, output_dtype
+from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
 
 LOG = logging.getLogger(__name__)
-
-# FOCUS_VAR = ["rh"]
-# Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/navgem/'
 
@@ -50,118 +47,105 @@ hPa_LEVELS = levels_listings["hPa_levels"]
 rh_LEVELS = levels_listings["rh_hPa_levels"]
 
 
-class NavgemConversion(ReanalysisConversion):
-    """Builds a class for navgem consistent with old writers."""
+def set_dim_names(data_array, ndims_out, out_name, out_sds):
+    """Set dimension names in hdf file."""
+    if ndims_out in (2, 3):
+        coords_dict = {"z": (2, "level"),
+                       "x": (1, "lon"),
+                       "y": (0, "lat"),
+                       "rh_z": (2, "rh_level")}
+    else:
+        coords_dict = {"z": (0, "level"),
+                       "x": (0, "lon"),
+                       "y": (0, "lat"),
+                       "rh_z": (0, "rh_level")}
 
-    def __init__(self, xr_dataset=None, shortname=None,
-                 out_name=None, out_units=None, ndims_out=None) -> None:
-        """Based on variable, adjust shape, apply fill and determine dtype."""
-        self.nc_dataset = xr_dataset
-        self.shortname = shortname
-        self.out_name = out_name
-        self.out_units = out_units
-        self.ndims_out = ndims_out
+    out_sds.dimensions()
+    for dim in data_array.dims:
+        axis_num, dim_name = coords_dict.get(dim, dim)
+        LOG.debug("{} to axis {}, {}".format(out_name, axis_num, dim_name))
 
-        self.xrarray = xr_dataset[shortname]
+        out_sds.dim(axis_num).setname(dim_name)
 
-    def __repr__(self):
-        """Report the name conversion when creating this object."""
-        str_template = "Input name: {} ==> Output Name: {}"
-        return str_template.format(self.long_name(), self.out_name)
+    msg_str = "Out {} for {} ==> {}."
+    msg_str = msg_str.format(out_sds.dimensions(),
+                             data_array.name,
+                             out_name)
+    LOG.debug(msg_str)
 
-    def get_units(self):
-        """If possible, get units from attrs."""
-        return self.nc_dataset.variables[self.shortname].attrs.get("units", "")
+    return out_sds
 
-    def long_name(self):
-        """Return long name from input file."""
-        return self[self.shortname].attrs.get("long_name", None)
 
-    def set_dim_names(self, out_sds):
-        """Set dimension names in hdf file."""
-        if self.ndims_out in (2, 3):
-            coords_dict = {"z": (2, "pressure"),
-                           "x": (1, "longitude"),
-                           "y": (0, "latitude")}
+def refill(data: xr.DataArray, old_fill: float) -> np.ndarray:
+    """Assumes CLAVRx fill value instead of variable attribute."""
+    if data.dtype in (np.float32, np.float64):
+        data = xr.where(np.isnan(data), CLAVRX_FILL, data)
+        data = xr.where(data == old_fill, CLAVRX_FILL, data)
+    return data
+
+
+def update_output(sd, out_name, rsk, data_array, out_fill):
+    """Finalize output variables."""
+    out_units = rsk["out_units"]
+    ndims_out = rsk["ndims_out"]
+    str_template = f"Writing Input name: {data_array.long_name} ==> Output Name: {out_name}"
+    LOG.info(str_template)
+    data_array = reshape(data_array, out_name, ndims_out)
+
+    out_sds = sd["out"].create(out_name,
+                               output_dtype(out_name, data_array.dtype),
+                               data_array.shape)
+    out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
+    set_dim_names(data_array, ndims_out, out_name, out_sds)
+    if out_name == "lon":
+        out_sds.set(data_array.data)
+    else:
+        out_data = refill(data_array.data, out_fill)
+        out_sds.set(out_data)
+
+    if out_fill is not None:
+        out_sds.setfillvalue(CLAVRX_FILL)
+
+    if out_units is None or out_units in ("none", "None"):
+        out_sds.units = "1"
+    else:
+        out_sds.units = out_units
+
+    unit_desc = " in [{}]".format(out_sds.units)
+
+    out_sds.source_data = ("{}->{}{}".format("NAVGEM->{}".format(data_array.name),
+                                             data_array.name, unit_desc))
+
+    out_sds.long_name = data_array.long_name
+    out_sds.endaccess()
+
+
+def modify_shape(data_array: xr.DataArray, dims_out: int) -> xr.DataArray:
+    """Modify shape from dims (level, lat, lon) to (lat,lon,level)."""
+    if dims_out == 3:
+        # clavr-x needs level to be the last dim (make lat,lon,level)
+        if "rh_z" in data_array.dims:
+            return data_array.transpose("y", "x", "rh_z")
         else:
-            coords_dict = {"z": (0, "level"),
-                           "x": (0, "longitude"),
-                           "y": (0, "latitude")}
-
-        out_sds.dimensions()
-        for dim in self.xrarray.dims:
-            axis_num, dim_name = coords_dict.get(dim, dim)
-            LOG.debug("{} to axis {}, {}".format(self.out_name, axis_num, dim_name))
-
-            out_sds.dim(axis_num).setname(dim_name)
-
-        msg_str = "Out {} for {} ==> {}."
-        msg_str = msg_str.format(out_sds.dimensions(),
-                                 self.shortname,
-                                 self.out_name)
-        LOG.debug(msg_str)
-
-        return out_sds
-
-    @staticmethod
-    def _refill(data: xr.DataArray, old_fill: float) -> np.ndarray:
-        """Assumes CLAVRx fill value instead of variable attribute."""
-        if data.dtype in (np.float32, np.float64):
-            data = xr.where(np.isnan(data), CLAVRX_FILL, data)
-            data = xr.where(data == old_fill, CLAVRX_FILL, data)
-        return data
-
-    @staticmethod
-    def _reorder_lon(xr_data: xr.DataArray) -> xr.DataArray:
-        """Check if lon needs re-ordering to -180 at index 0."""
-        start_lon = xr_data['longitude'].isel(x=0)
-
-        if start_lon >= 359.5 or start_lon == 180.0:
-            return xr_data.reindex(longitude=list(reversed(xr_data.lon)))
-
-        if start_lon == 0.0:
-            xr_data["longitude"] = xr_data["longitude"] - 180.0
-            return xr_data
-        elif start_lon == -180.:
-            return xr_data
-        else:
-            msg = "NAVGEM lon start is {} neither 0 nor -180.".format(start_lon)
-            raise NotImplementedError(msg)
-
-    def _shift_lon(self):
-        """Pass the shift_lon from Reanalysis class and just return data again."""
-        return self.xrarray.data
-
-    def _modify_shape(self):
-        """Modify shape based on output characteristics."""
-        if self.ndims_out == 3:
-            # clavr-x needs level to be the last dim (make lat,lon,level)
-            return self.xrarray.transpose("y", "x", "z").shape
-        if self.ndims_out == 2:
-            return self.xrarray.transpose("y", "x").shape
-        else:
-            return self.xrarray.shape
-
-    @property
-    def data(self):
-        """Wrap get data from xarray using self.data."""
-        data = self.xrarray.data
-        if data.dtype == np.float64:
-            data = data.astype(np.float32)
-        return data
+            return data_array.transpose("y", "x", "z")
+    if dims_out == 2:
+        return data_array.transpose("y", "x")
+    else:
+        return data_array
 
 
-def expand_dataset(data, other, fill=np.nan, dim="z"):
-    """Expand the dataset along the given dimension and fill with fill."""
-    # stack the data
-    stacked = data.stack(new_dim=("x", "y"))
-    new_shape = (other.sizes[dim], stacked.sizes["new_dim"])
-    new_coords = other.coords.update(data.coords["new_dim"])
-    new_array = xr.DataArray(np.full_like(new_shape, fill),
-                             dims=data.dims,
-                             coords=new_coords)
+def reshape(data_array: xr.DataArray,
+            out_name: str, ndims_out: int) -> xr.DataArray:
+    """Reshape data toa->surface and (lat, lon, level)."""
+    if ndims_out == 3:
+        # clavr-x needs toa->surface not surface->toa
+        if all(np.diff(data_array["isobaricInhPa"] < 0)):
+            if out_name in ["rh", "rh_level"]:
+                data_array = data_array.isel(rh_z=slice(None, None, -1))
+            else:
+                data_array = data_array.isel(z=slice(None, None, -1))
 
-    return new_array
+    return modify_shape(data_array, ndims_out)
 
 
 def all_equal(iterable):
@@ -187,70 +171,51 @@ def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> np.ndarr
     if np.isnan(data).any():
         converted = xr.where(np.isnan(data), fill, converted)
 
+    converted = converted.astype(np.float32)
+    # rebuild the converted array with characteristics of original.
+    converted = xr.DataArray(data=converted.data, attrs=data.attrs,
+                             coords=data.coords, dims=data.dims,
+                             name=data.name)
+
     return converted
 
 
-def build_output_variables(in_ds: Dict[str, xr.Dataset],
-                           out_vars_setup: Dict) -> Dict[str, NavgemConversion]:
-    """Prepare output data variables."""
-    out_vars = dict()
-    for out_key, rsk in out_vars_setup.items():
-        file_key = rsk["dataset"] if out_key != "rh" else "rh"
-        out_vars["data_object"] = NavgemConversion(
-            in_ds[file_key],
-            rsk["shortname"],
-            out_key,
-            rsk['out_units'],
-            rsk['ndims_out'],
-        )
-        out_vars["units_fn"] = rsk["units_fn"]
-
-        yield out_vars
-
-
-def write_output_variables(in_datasets, out_vars, levels):
+def write_output_variables(in_datasets, out_vars_setup: Dict):
     """Write variables to file."""
-    while True:
+    for var_key, rsk in out_vars_setup.items():
+        if var_key in ["rh", "rh_level"]:
+            file_key = "rh"
+        else:
+            file_key = rsk["dataset"]
+        shortname = rsk["shortname"]
+        out_var = in_datasets[file_key][shortname]
+        units_fn = rsk["units_fn"]
+
         try:
-            current_var = next(out_vars)
-            navgem = current_var["data_object"]
-            out_var = navgem.xrarray
-            file_tag = navgem.out_name
-            units_fn = current_var["units_fn"]
+            var_fill = out_var.fill_value
+        except AttributeError:
+            var_fill = 1e+20  # match merra2 :/
 
-            try:
-                var_fill = out_var.fill_value
-            except AttributeError:
-                var_fill = 1e+20  # match merra2 :/
+        # return a new xarray with converted data, otherwise, the process
+        # is different for coordinate attributes.
+        out_var = apply_conversion(units_fn, out_var, fill=var_fill)
 
-            # return a new xarray with converted data, otherwise, the process
-            # is different for coordinate attributes.
-            out_var = apply_conversion(units_fn, out_var, fill=var_fill)
-
-            # update levels so that all fields have all levels...(??)
-            # Maybe don't need this?
-            # if "z" in out_var.dims:
-            #     out_var = expand_dataset(levels, fill=var_fill, dim="z")
-
-            # TODO:  Write as xarray Dataset??
-            navgem.update_output(in_datasets, "NAVGEM->{}".format(file_tag),
-                                 out_var.data, var_fill)
-
-        except StopIteration:
-            break
+        update_output(in_datasets, var_key, rsk,
+                      out_var, var_fill)
 
 
 def write_global_attributes(out_ds: SD) -> None:
     """Write global attributes."""
     var = out_ds.select('temperature')
-    nlevel = var.dimensions(full=False)['pressure']
-    nlat = var.dimensions(full=False)['latitude']
-    nlon = var.dimensions(full=False)['longitude']
+    nlevel = var.dimensions(full=False)['level']
+    nlat = var.dimensions(full=False)['lat']
+    nlon = var.dimensions(full=False)['lon']
+    nlevel_rh = (out_ds.select("rh")).dimensions(full=False)['rh_level']
     setattr(out_ds, 'NUMBER OF LATITUDES', nlat)
     setattr(out_ds, 'NUMBER OF LONGITUDES', nlon)
     setattr(out_ds, 'NUMBER OF PRESSURE LEVELS', nlevel)
     setattr(out_ds, 'NUMBER OF O3MR LEVELS', nlevel)
-    setattr(out_ds, 'NUMBER OF RH LEVELS', nlevel)
+    setattr(out_ds, 'NUMBER OF RH LEVELS', nlevel_rh)
     setattr(out_ds, 'NUMBER OF CLWMR LEVELS', nlevel)
     lat = out_ds.select('lat')
     lon = out_ds.select('lon')
@@ -269,7 +234,7 @@ def write_global_attributes(out_ds: SD) -> None:
     out_ds.end()
 
 
-def reorder_dimensions(datasets):
+def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
     """Reorder and rename dimensions."""
     for key, ds in datasets.items():
         # rename_dims
@@ -279,14 +244,13 @@ def reorder_dimensions(datasets):
             elif ds[dim_key].long_name.lower() == "latitude":
                 ds = ds.rename_dims({ds[dim_key].name: "y"})
             elif ds[dim_key].long_name.lower() == "pressure":
-                ds = ds.rename_dims({ds[dim_key].name: "z"})
+                if key == "rh":
+                    ds = ds.rename_dims({ds[dim_key].name: "rh_z"})
+                else:
+                    ds = ds.rename_dims({ds[dim_key].name: "z"})
+        datasets[key] = ds
 
-        if len(ds.dims) == 3:
-            datasets[key] = ds.transpose("z", "y", "x")
-        else:
-            datasets[key] = ds.transpose("y", "x")
-
-    return datasets
+    return ds
 
 
 def read_one_hour_navgem(in_files: List[str],
@@ -296,6 +260,7 @@ def read_one_hour_navgem(in_files: List[str],
     datasets = dict()
     cfgrib_kwargs = OUTPUT_VARS_DICT["datasets"]
     timestamps = list()
+    out_fname = None
 
     # build time selection based on forecast hour and model date.
     tdelta = (pd.Timedelta("{} hours".format(forecast_hr))).to_timedelta64()
@@ -326,7 +291,7 @@ def read_one_hour_navgem(in_files: List[str],
         datasets["isobaricInhPa"], datasets['rh'] = xr.broadcast(datasets['isobaricInhPa'],
                                                                  datasets["rh"])
 
-        datasets = reorder_dimensions(datasets)
+        reorder_dimensions(datasets)
 
         if all_equal(timestamps):
             LOG.info('    working on time: {}'.format(timestamps[0]))
@@ -335,9 +300,7 @@ def read_one_hour_navgem(in_files: List[str],
             # TRUNC will clobber existing
             datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
 
-            out_obj = build_output_variables(datasets, OUTPUT_VARS_DICT["data_arrays"])
-
-            write_output_variables(datasets, out_obj, levels)
+            write_output_variables(datasets, OUTPUT_VARS_DICT["data_arrays"])
         else:
             ts_str = ' '.join(timestamps)
             msg = "Timestamps are not equal: {}".join(ts_str)
@@ -357,15 +320,15 @@ def get_model_run_string(model_date_dt, model_run):
     return model_run_str
 
 
-def create_full_outpath(base_path, dt, model_run):
+def build_filepath(base_path, dt, model_run):
     """Create output path from in put model run information."""
     model_run_str = get_model_run_string(dt, model_run)
     year = dt.strftime("%Y")
 
-    out_path = os.path.join(base_path, year, model_run_str)
-    os.makedirs(out_path, exist_ok=True)
+    out_filepath = os.path.join(base_path, year, model_run_str)
+    os.makedirs(out_filepath, exist_ok=True)
 
-    return out_path
+    return out_filepath
 
 
 def process_navgem(base_path=None, input_path=None, start_date=None,
@@ -386,19 +349,18 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
 
     model_run_str = get_model_run_string(dt, run_hour)
     model_run = datetime.strptime(model_run_str, "%Y%m%d%H")
-    out_path = create_full_outpath(base_path, dt, run_hour)
+    out_fp = build_filepath(base_path, dt, run_hour)
 
     # source_site is ncep (filename format: f'navgem_{navgem_run}f{forecast}.grib2')
     if "nomads" in url:
-        in_files = navgem_get.search_date(soup, url, run_hour, forecast_hours, out_path)
+        in_files = navgem_get.search_date(soup, url, run_hour, forecast_hours, out_fp)
     else:
         navgem_get.url_search_nrl(soup, url, model_run,
                                   forecast_hours, out_path=input_path)
         in_files = [navgem_get.concat_gribs_in_one(input_path, model_run_str)]
 
     for forecast_hr in forecast_hours:
-        out_list = read_one_hour_navgem(in_files, out_path, forecast_hr)
-    # in_data, out_path_full)
+        out_list = read_one_hour_navgem(in_files, out_fp, forecast_hr)
     LOG.info(out_list)
 
 
@@ -465,9 +427,9 @@ if __name__ == '__main__':
         else:
             fn = parser_args["local"]
 
-        out_path = create_full_outpath(parser_args['base_path'],
-                                       parser_args["start_date"],
-                                       parser_args["run_hour"])
+        out_path = build_filepath(parser_args['base_path'],
+                                  parser_args["start_date"],
+                                  parser_args["run_hour"])
         fn_paths = (os.path.join(inp, x) for x in fn)
         fn_paths = list(fn_paths)
         out_fnames = []
