@@ -178,7 +178,7 @@ def get_input_variables(in_ds: Dict[str, Union[Dataset, SD]]) -> Dict[str, ERA5C
                 sub_field = rsk["dependent"][support_var_name]
                 support_obj = ERA5Conversion(
                     nc_dataset=in_ds[sub_field["in_file"]],
-                    in_name=sub_field["shortname"],
+                    shortname=sub_field["shortname"],
                     out_name=support_var_name,
                     out_units=sub_field["out_units"],
                     ndims_out=sub_field["ndims_out"],
