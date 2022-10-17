@@ -2,7 +2,12 @@
 # -*- coding: utf-8 -*-
 #  This code produces CLAVRx compatible files from navgem global model data.
 #
-#  Some of the conversion_class code from MERRA2 and ERA5 is retained.
+#  filter_by_keys is used to select data from the grib into xarray open_dataset
+#  however, it is easier to see the data using cfgrib directly.  cfgrib will
+#  create a list of loaded xarray Datasets:
+#  `import cfgrib
+#   cfgrib.open_datasets(<grib_file>)`
+#
 """Convert navgem model data into CLAVRx compatible input."""
 from __future__ import annotations
 
@@ -17,8 +22,10 @@ import yaml
 import navgem_nomads_get as navgem_get
 
 try:
-    from datetime import datetime, timedelta
-    from typing import Callable, Dict, List
+    import argparse
+    import datetime
+    from datetime import timedelta
+    from typing import Callable, Dict, List, Optional, TypedDict
 
     import numpy as np
     import pandas as pd
@@ -29,9 +36,9 @@ except ImportError as e:
     print("Type:  conda activate merra2_clavrx")
     sys.exit(1)
 
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from dateutil.parser import parse
 
-from conversion_class import CommandLineMapping, output_dtype
+from conversion_class import output_dtype
 from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
 
 LOG = logging.getLogger(__name__)
@@ -43,8 +50,26 @@ with open(os.path.join(ROOT_DIR, 'yamls', 'NAVGEM_nrl_usgodae_vars.yaml'), "r") 
     OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
 
 levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
-hPa_LEVELS = levels_listings["hPa_levels"]
-rh_LEVELS = levels_listings["rh_hPa_levels"]
+
+
+class NavgemCommandLineMapping(TypedDict):
+    """Type hints for result of the argparse parsing."""
+
+    start_date: datetime.date
+    end_date: Optional[str]
+    base_path: str
+    input_path: str
+    forecast_hours: List[int]
+    local: List[str]
+    model_run: str
+
+
+class DateParser(argparse.Action):
+    """Parse a date from argparse to a datetime."""
+
+    def __call__(self, parser, namespace, values, option_strings=None):
+        """Parse a date from argparse to a datetime."""
+        setattr(namespace, self.dest, parse(values).date())
 
 
 def set_dim_names(data_array, ndims_out, out_name, out_sds):
@@ -71,7 +96,7 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
     msg_str = msg_str.format(out_sds.dimensions(),
                              data_array.name,
                              out_name)
-    LOG.debug(msg_str)
+    LOG.info(msg_str)
 
     return out_sds
 
@@ -120,15 +145,16 @@ def update_output(sd, out_name, rsk, data_array, out_fill):
     out_sds.endaccess()
 
 
-def modify_shape(data_array: xr.DataArray, dims_out: int) -> xr.DataArray:
+def modify_shape(data_array: xr.DataArray) -> xr.DataArray:
     """Modify shape from dims (level, lat, lon) to (lat,lon,level)."""
-    if dims_out == 3:
+    ndim = len(data_array.dims)
+    if ndim == 3:
         # clavr-x needs level to be the last dim (make lat,lon,level)
         if "rh_z" in data_array.dims:
             return data_array.transpose("y", "x", "rh_z")
         else:
             return data_array.transpose("y", "x", "z")
-    if dims_out == 2:
+    if ndim == 2:
         return data_array.transpose("y", "x")
     else:
         return data_array
@@ -145,7 +171,7 @@ def reshape(data_array: xr.DataArray,
             else:
                 data_array = data_array.isel(z=slice(None, None, -1))
 
-    return modify_shape(data_array, ndims_out)
+    return modify_shape(data_array)
 
 
 def all_equal(iterable):
@@ -161,21 +187,25 @@ def starmap(function, iterable):
         yield function(*args)
 
 
-def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> np.ndarray:
+def apply_conversion(scale_func: Callable, data: xr.DataArray,
+                     long_name: str, fill) -> xr.DataArray:
     """Apply fill to converted data after function."""
     converted = data.copy(deep=True)
     converted = scale_func(converted)
 
-    if fill is not None:
-        converted = xr.where(data == fill, fill, converted)
-    if np.isnan(data).any():
-        converted = xr.where(np.isnan(data), fill, converted)
+    # When the dims are reduced, using the old indices is not valid,
+    # don't use xr.where for those cases.
+    if data.dims == converted.dims:
+        if fill is not None:
+            converted = xr.where(data == fill, fill, converted)
+        if np.isnan(data).any():
+            converted = xr.where(np.isnan(data), fill, converted)
 
     converted = converted.astype(np.float32)
-    # rebuild the converted array with characteristics of original.
-    converted = xr.DataArray(data=converted.data, attrs=data.attrs,
-                             coords=data.coords, dims=data.dims,
-                             name=data.name)
+    # rebuild the converted array attributes of original (not sure why
+    # this does not carry though the converted data after where is performed).
+
+    converted.attrs["long_name"] = long_name
 
     return converted
 
@@ -190,6 +220,7 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         shortname = rsk["shortname"]
         out_var = in_datasets[file_key][shortname]
         units_fn = rsk["units_fn"]
+        long_name = rsk["long_name"] if "long_name" in rsk else out_var.long_name
 
         try:
             var_fill = out_var.fill_value
@@ -198,10 +229,27 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
 
         # return a new xarray with converted data, otherwise, the process
         # is different for coordinate attributes.
-        out_var = apply_conversion(units_fn, out_var, fill=var_fill)
+        out_var = apply_conversion(units_fn, out_var, long_name, fill=var_fill)
 
         update_output(in_datasets, var_key, rsk,
                       out_var, var_fill)
+
+
+def get_dim_list_string(param: Dict[str]) -> str:
+    """Create an attribute string from the dims."""
+    dim_list = []
+    for dim_name in param.keys():
+        if dim_name.lower() in ["lat", "latitude"]:
+            out_dim = 'Y'
+        elif dim_name.lower() in ["lon", "longitude"]:
+            out_dim = 'X'
+        elif dim_name.lower() in ["level", "pressure", "rh_level",
+                                  "press", "gph", "height"]:
+            out_dim = 'Z'
+        else:
+            out_dim = dim_name
+        dim_list.append(out_dim)
+    return "".join(dim_list)
 
 
 def write_global_attributes(out_ds: SD) -> None:
@@ -227,8 +275,9 @@ def write_global_attributes(out_ds: SD) -> None:
     attr.set(SDC.FLOAT32, (lat.get()[0]).item())
     attr = out_ds.attr('FIRST LONGITUDE')
     attr.set(SDC.FLOAT32, (lon.get()[0]).item())
-    setattr(out_ds, 'GRIB TYPE', 'not applicable')  # XXX better to just not write this attr?
-    setattr(out_ds, '3D ARRAY ORDER', 'YXZ')  # XXX is this true here?
+
+    dim_description = get_dim_list_string(var.dimensions())
+    setattr(out_ds, '3D ARRAY ORDER', dim_description)  # XXX is this true here?
     [a.endaccess() for a in [var, lat, lon]]
 
     out_ds.end()
@@ -250,7 +299,7 @@ def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
                     ds = ds.rename_dims({ds[dim_key].name: "z"})
         datasets[key] = ds
 
-    return ds
+    return datasets
 
 
 def read_one_hour_navgem(in_files: List[str],
@@ -266,10 +315,11 @@ def read_one_hour_navgem(in_files: List[str],
     tdelta = (pd.Timedelta("{} hours".format(forecast_hr))).to_timedelta64()
 
     levels = None
-    for model_run in in_files:
+    for model_file in in_files:
         for ds_key, filter_dict in cfgrib_kwargs.items():
-            ds = xr.open_dataset(model_run, engine="cfgrib",
-                                 backend_kwargs={'filter_by_keys': filter_dict})
+            ds = xr.open_dataset(model_file, engine="cfgrib",
+                                 backend_kwargs={'filter_by'
+                                                 '_keys': filter_dict})
 
             # select the forecast time from the steps and squeeze the steps if necessary
             if "step" in ds.dims:
@@ -282,7 +332,7 @@ def read_one_hour_navgem(in_files: List[str],
                         levels = coord_da
                     else:
                         levels = np.concatenate((levels, coord_da))
-
+            print(filter_dict)
             ts = (pd.to_datetime(ds.valid_time.data).strftime('navgem.%y%m%d%H_F000.hdf'))
             timestamps.append(ts)
             # after all work on initial dataset, assign to dictionary.
@@ -311,34 +361,47 @@ def read_one_hour_navgem(in_files: List[str],
     return out_fname
 
 
-def get_model_run_string(model_date_dt, model_run):
+def get_model_run_string(model_date_dt, run_hour):
     """Given a model date and model run hour, create a model run string."""
     model_date = model_date_dt.strftime("%Y%m%d")
-    dt_model_run = datetime.strptime("{} {}".format(model_date, model_run), "%Y%m%d %H")
+
+    msg = "Model Date {}: {}".format(type(model_date), model_date)
+    LOG.debug(msg)
+    msg = "Run Hour (model run) {}: {}".format(type(run_hour), run_hour)
+    LOG.debug(msg)
+
+    dt_model_run = datetime.datetime.strptime("{} {}".format(model_date, run_hour), "%Y%m%d %H")
     model_run_str = dt_model_run.strftime("%Y%m%d%H")
 
     return model_run_str
 
 
-def build_filepath(base_path, dt, model_run):
+def build_filepath(data_dir, dt: datetime, dir_type="output") -> str:
     """Create output path from in put model run information."""
-    model_run_str = get_model_run_string(dt, model_run)
     year = dt.strftime("%Y")
+    year_month_day = dt.strftime("%Y_%m_%d")
+    if dir_type == "output":
+        this_filepath = os.path.join(data_dir, year)
+        os.makedirs(this_filepath, exist_ok=True)
+    elif dir_type == "input":
+        this_filepath = os.path.join(data_dir, year, year_month_day)
+    else:
+        raise RuntimeError('dir_type options are either ["input", "output"]')
 
-    out_filepath = os.path.join(base_path, year, model_run_str)
-    os.makedirs(out_filepath, exist_ok=True)
-
-    return out_filepath
+    return this_filepath
 
 
 def process_navgem(base_path=None, input_path=None, start_date=None,
-                   url=None, model_run=None, forecast_hours=None) -> None:
+                   url=None, model_run=None, forecast_hours=None,
+                   local=None) -> None:
     """Read input, parse times, and run conversion."""
-    dt = start_date
-    year = dt.strftime("%Y")
-    year_month_day = dt.strftime("%Y_%m_%d")
+    if local is not None:
+        raise RuntimeError("Local is defined, process_navgem subroutine pulls data.")
 
-    input_path = os.path.join(input_path, year, year_month_day)
+    out_list = None
+    dt = start_date
+
+    input_path = build_filepath(input_path, dt, dir_type="input")
     os.makedirs(input_path, exist_ok=True)
 
     # start_time is needed for url string.
@@ -347,15 +410,15 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     url = eval(url)
     soup = navgem_get.create_soup(url)
 
+    out_fp = build_filepath(base_path, dt)
     model_run_str = get_model_run_string(dt, model_run)
-    model_run = datetime.strptime(model_run_str, "%Y%m%d%H")
-    out_fp = build_filepath(base_path, dt, model_run)
 
     # source_site is ncep (filename format: f'navgem_{navgem_run}f{forecast}.grib2')
     if "nomads" in url:
         in_files = navgem_get.search_date(soup, url, model_run, forecast_hours, out_fp)
     else:
-        navgem_get.url_search_nrl(soup, url, model_run,
+        model_run_dt = datetime.datetime.strptime(model_run_str, "%Y%m%d%H")
+        navgem_get.url_search_nrl(soup, url, model_run_dt,
                                   forecast_hours, out_path=input_path)
         in_files = [navgem_get.concat_gribs_in_one(input_path, model_run_str)]
 
@@ -364,20 +427,19 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     LOG.info(out_list)
 
 
-def argument_parser() -> CommandLineMapping:
+def argument_parser() -> NavgemCommandLineMapping:
     """Parse command line for navgem_clavrx.py."""
     parse_desc = (
         """\nProcess navgem data previously downloaded from NCEP nomads or NRL ftp.""")
 
-    formatter = ArgumentDefaultsHelpFormatter
-    parser = ArgumentParser(description=parse_desc,
-                            formatter_class=formatter)
+    formatter = argparse.ArgumentDefaultsHelpFormatter
+    parser = argparse.ArgumentParser(description=parse_desc,
+                                     formatter_class=formatter)
     group = parser.add_mutually_exclusive_group()
 
-    parser.add_argument('start_date', type=str,
-                        default="datetime.now().strftime('%Y%m%d')",
-                        help="Desired processing date as YYYYMMDD")
-    parser.add_argument('model_run', default='00',
+    parser.add_argument('start_date', action=DateParser,
+                        default=datetime.datetime.now(), help="Processing date")
+    parser.add_argument('-m', '--model_run', default='00',
                         help="Model run hour; i.e. 00, 03, 06, 09, 12...")
     parser.add_argument('-f', '--forecast_hours', nargs='+',
                         default=[3, 6, 9, 12],
@@ -406,10 +468,6 @@ def argument_parser() -> CommandLineMapping:
     logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s',
                         level=levels[min(3, verbosity)])
 
-    args["start_date"] = datetime.strptime(args["start_date"], "%Y%m%d")
-
-    # TODO:  Check for valid input path (maybe even output path)?
-
     return args
 
 
@@ -418,18 +476,18 @@ if __name__ == '__main__':
     parser_args = argument_parser()
 
     if parser_args["local"] is None:
-        del parser_args["local"]
         process_navgem(**parser_args)
     else:
         inp = parser_args["input_path"]
+        inp = build_filepath(inp, parser_args["start_date"], dir_type="input")
         if len(parser_args["local"]) == 0:
             fn = glob.glob(os.path.join(inp, "*.grib"))
         else:
             fn = parser_args["local"]
 
+        dt_in = parser_args["start_date"]
         out_path = build_filepath(parser_args['base_path'],
-                                  parser_args["start_date"],
-                                  parser_args["model_run"])
+                                  dt_in)
         fn_paths = (os.path.join(inp, x) for x in fn)
         fn_paths = list(fn_paths)
         out_fnames = []

@@ -24,7 +24,9 @@ MODEL_KEYS = {"NOGAPS": "058"}
 
 PRODUCTS_LIST = ["pres_msl", "grnd_sea_temp", "pres", "rltv_hum", "air_temp", "snw_dpth",
                  "prcp_h20", "grnd_wet", "wnd_ucmp", "wnd_vcmp", "geop_ht",
-                 "ttl_snow", "air_temp", "height"]
+                 "ttl_snow", "air_temp", "height", "aero"]
+
+# removed ["ttl_prcp","aero_concen_du" ]
 
 
 def download_file(url, filename, destination="data/joleenf/navgem/data/"):
@@ -86,35 +88,39 @@ def url_search_by_filenames(url_soup, url, get_these_files, out_path):
 
 def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, out_path=None):
     """Get NRL data using regex."""
-    list_of_files = []
+    full_list = []
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
     if forecast_times is None:
         forecast_times = [3, 6, 9, 12]
     for forecast in forecast_times:
         forecast_time = str(forecast).zfill(3)
         # dataset ID table:  https://www.usgodae.org/docs/layout/pn_dataset_tbl.pns.html
-        dataset = "F0RL"  # forecast(now time) field of a given product (RL Stands for Realtime
-        for product_name in PRODUCTS_LIST:
-            pattern = f"US058G[A-Z][A-Z][A-Z]-GR[12]mdl.0018_0056_" \
-                      f"{forecast_time}00{dataset}{navgem_run}_[0-9].*-[0-9].*{product_name}"
-            for link in url_soup.findAll("a", {"href": re.compile(pattern)}, href=True):
-                a = re.match(pattern, link.text)
-                if a is not None:
-                    url_fn = url + "/" + link.text
-                    list_of_files.append(url_fn)
-    if list_of_files:
+        dataset = "F0RL"  # forecast(now time) field of a given product (F0 Stands for Realtime
+        # for product_name in PRODUCTS_LIST:
+        pattern = f"US058G[A-Z][A-Z][A-Z]-GR[12]mdl.0018_0056_" \
+                  f"{forecast_time}00{dataset}{navgem_run}_[0-9].*-[0-9].*"
+        # pattern =  f"US058G[A-Z][A-Z][A-Z]-GR[12]mdl.0018_0056_" \
+        #            f"{forecast_time}00{dataset}{navgem_run}_[0-9].*-[0-9].*{product_name}"
+        list_of_files = []
+        # This might be tidier if refine soup to body of html (url_soup.body.findAll("a...
+        for link in url_soup.findAll("a", {"href": re.compile(pattern)}, href=True):
+            a = re.search(pattern, link.text)
+            if a is not None:
+                url_fn = url + "/" + link.text
+                list_of_files.append(url_fn)
+        if list_of_files:
+            LOG.debug(len(list_of_files))
+            file_list = ' '.join(list_of_files)
 
-        LOG.debug(len(list_of_files))
-        file_list = ' '.join(list_of_files)
+            args = shlex.split("curl --output-dir {} --progress-bar "
+                               "--insecure --remote-name-all {}".format(out_path, file_list))
 
-        args = shlex.split("curl --output-dir {} --progress-bar "
-                           "--insecure --remote-name-all {}".format(out_path, file_list))
-
-        ip = Popen(args, stdin=PIPE, stdout=PIPE)
-        LOG.debug(ip.communicate())
-        return list_of_files
-    else:
-        raise RuntimeError(f"No NAVGEM files loaded with {url}")
+            ip = Popen(args, stdin=PIPE, stdout=PIPE)
+            LOG.debug(ip.communicate())
+            full_list.append(list_of_files)
+        else:
+            raise RuntimeError(f"No NAVGEM files loaded with {url}")
+    return full_list
 
 
 def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
@@ -204,10 +210,11 @@ if __name__ == '__main__':
         search_date(soup, URL, model_run, forecast_hour)
     else:
         model_run_str = model_run.strftime("%Y%m%d%H")
+        model_run_dir = model_run.strftime("%Y_%m_%d")
         url = "https://www.usgodae.org/ftp/outgoing/fnmoc/models/navgem_0.5/"
         URL = f"{url}{input_year}/{model_run_str}"
         soup = create_soup(URL)
-        out_path = os.path.join(parser_args["base_path"], input_year, model_run_str)
+        out_path = os.path.join(parser_args["base_path"], input_year, model_run_dir)
         os.makedirs(out_path, exist_ok=True)
         files = url_search_nrl(soup, URL, model_run, out_path=out_path)
         concat_to_new = concat_gribs_in_one(out_path, model_run_str, files)
