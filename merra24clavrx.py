@@ -354,7 +354,7 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["shortname"])
         out_vars["data_object"] = MerraConversion(
             nc_dataset=merra_ds[rsk["in_file"]],
-            in_name=rsk["shortname"],
+            shortname=rsk["shortname"],
             out_name=out_key,
             out_units=rsk["out_units"],
             ndims_out=rsk["ndims_out"],
@@ -370,7 +370,7 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
                 sub_field = rsk["dependent"][support_var_name]
                 support_obj = MerraConversion(
                     nc_dataset=merra_ds[sub_field["in_file"]],
-                    in_name=sub_field["shortname"],
+                    shortname=sub_field["shortname"],
                     out_name=support_var_name,
                     out_units=sub_field["out_units"],
                     ndims_out=sub_field["ndims_out"],
