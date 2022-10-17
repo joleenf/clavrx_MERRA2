@@ -30,6 +30,33 @@ from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
 LOG = logging.getLogger(__name__)
 
 
+def output_dtype(out_name, nc4_dtype):
+    """Convert between string and the equivalent SD.<DTYPE>."""
+    if (nc4_dtype == "single") | (nc4_dtype == "float32"):
+        sd_dtype = SDC.FLOAT32
+    elif (nc4_dtype == "double") | (nc4_dtype == "float64"):
+        sd_dtype = SDC.FLOAT64
+    elif nc4_dtype == "uint32":
+        sd_dtype = SDC.UINT32
+    elif nc4_dtype == "int32":
+        sd_dtype = SDC.INT32
+    elif nc4_dtype == "uint16":
+        sd_dtype = SDC.UINT16
+    elif nc4_dtype == "int16":
+        sd_dtype = SDC.INT16
+    elif nc4_dtype == "int8":
+        sd_dtype = SDC.INT8
+    elif nc4_dtype == "char":
+        sd_dtype = SDC.CHAR
+    else:
+        raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
+
+    if out_name in ["pressure levels", "level"] and sd_dtype == SDC.FLOAT64:
+        sd_dtype = SDC.FLOAT32  # don't want double
+
+    return sd_dtype
+
+
 class CommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
 
@@ -39,7 +66,7 @@ class CommandLineMapping(TypedDict):
     base_path: str
     input_path: str
     files: List[str]
-    local: Optional[bool]
+    local: List[str]
 
 
 class ReanalysisConversion:
@@ -150,34 +177,6 @@ class ReanalysisConversion:
         """Update long_name from input name if function changes output."""
         raise NotImplementedError
 
-    @property
-    def _create_output_dtype(self):
-        """Convert between string and the equivalent SD.<DTYPE>."""
-        nc4_dtype = self.data.dtype
-        if (nc4_dtype == "single") | (nc4_dtype == "float32"):
-            sd_dtype = SDC.FLOAT32
-        elif (nc4_dtype == "double") | (nc4_dtype == "float64"):
-            sd_dtype = SDC.FLOAT64
-        elif nc4_dtype == "uint32":
-            sd_dtype = SDC.UINT32
-        elif nc4_dtype == "int32":
-            sd_dtype = SDC.INT32
-        elif nc4_dtype == "uint16":
-            sd_dtype = SDC.UINT16
-        elif nc4_dtype == "int16":
-            sd_dtype = SDC.INT16
-        elif nc4_dtype == "int8":
-            sd_dtype = SDC.INT8
-        elif nc4_dtype == "char":
-            sd_dtype = SDC.CHAR
-        else:
-            raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
-
-        if self.out_name in ["pressure levels", "level"] and sd_dtype == SDC.FLOAT64:
-            sd_dtype = SDC.FLOAT32  # don't want double
-
-        return sd_dtype
-
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
         if self.out_name == 'total ozone' and len(self.data.shape) == 3:
@@ -218,12 +217,6 @@ class ReanalysisConversion:
         if data.dtype in (np.float32, np.float64):
             data[np.isnan(data)] = CLAVRX_FILL
             data[data == old_fill] = CLAVRX_FILL
-
-        # this should be equivalent but needs testing
-        # if data.dtype in (np.float32, np.float64):
-        # data = xr.where(np.isnan(data), CLAVRX_FILL, data)
-        # data = xr.where(data == old_fill, CLAVRX_FILL, data)
-
         return data
 
     @staticmethod
@@ -281,22 +274,27 @@ class ReanalysisConversion:
 
         return t
 
+    @property
     def get_units(self):
         """If possible, get units from ncattrs."""
-        return self.nc_dataset.variables[self.shortname].ncattrs.get("units", "")
+        units = self.nc_dataset.variables[self.shortname].ncattrs().get("units", "")
+        print(type(units))
+        print(self, units)
+        return units
 
     def update_output(self, sd, in_file_short_value, data_array, out_fill):
         """Finalize output variables."""
         LOG.info("Writing %s", self)
         out_sds = sd["out"].create(self.out_name,
-                                   self._create_output_dtype,
+                                   output_dtype(self.out_name, self.data.dtype),
                                    self._modify_shape())
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)
         if self.out_name == "lon":
-            out_sds.set(self._reshape(fill=None))  # TODO:  check _reshape and tag early
+            out_sds.set(self._reshape(fill=None))
         else:
-            out_sds.set(self._refill(self._reshape(fill=out_fill), out_fill))
+            out_data = self._refill(self._reshape(fill=out_fill), out_fill)
+            out_sds.set(out_data)
 
         if out_fill is not None:
             out_sds.setfillvalue(CLAVRX_FILL)

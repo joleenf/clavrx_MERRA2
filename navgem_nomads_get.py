@@ -89,7 +89,7 @@ def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, out_path=None):
     list_of_files = []
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
     if forecast_times is None:
-        forecast_times = [3, 6, 12]
+        forecast_times = [3, 6, 9, 12]
     for forecast in forecast_times:
         forecast_time = str(forecast).zfill(3)
         # dataset ID table:  https://www.usgodae.org/docs/layout/pn_dataset_tbl.pns.html

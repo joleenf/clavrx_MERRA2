@@ -288,8 +288,8 @@ def read_one_hour_navgem(in_files: List[str],
             # after all work on initial dataset, assign to dictionary.
             datasets.update({ds_key: ds})
         # broadcast the 3D data to one cube (and replace in the key for isobaricInhPa and rh)
-        datasets["isobaricInhPa"], datasets['rh'] = xr.broadcast(datasets['isobaricInhPa'],
-                                                                 datasets["rh"])
+        # datasets["isobaricInhPa"], datasets['rh'] = xr.broadcast(datasets['isobaricInhPa'],
+        #                                                          datasets["rh"])
 
         reorder_dimensions(datasets)
 
@@ -332,7 +332,7 @@ def build_filepath(base_path, dt, model_run):
 
 
 def process_navgem(base_path=None, input_path=None, start_date=None,
-                   url=None, run_hour=None, forecast_hours=None) -> None:
+                   url=None, model_run=None, forecast_hours=None) -> None:
     """Read input, parse times, and run conversion."""
     dt = start_date
     year = dt.strftime("%Y")
@@ -342,18 +342,18 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     os.makedirs(input_path, exist_ok=True)
 
     # start_time is needed for url string.
-    start_time = dt + timedelta(hours=int(run_hour))
+    start_time = dt + timedelta(hours=int(model_run))
     LOG.debug("Running for {}".format(start_time.strftime("%Y%m%d%H")))
     url = eval(url)
     soup = navgem_get.create_soup(url)
 
-    model_run_str = get_model_run_string(dt, run_hour)
+    model_run_str = get_model_run_string(dt, model_run)
     model_run = datetime.strptime(model_run_str, "%Y%m%d%H")
-    out_fp = build_filepath(base_path, dt, run_hour)
+    out_fp = build_filepath(base_path, dt, model_run)
 
     # source_site is ncep (filename format: f'navgem_{navgem_run}f{forecast}.grib2')
     if "nomads" in url:
-        in_files = navgem_get.search_date(soup, url, run_hour, forecast_hours, out_fp)
+        in_files = navgem_get.search_date(soup, url, model_run, forecast_hours, out_fp)
     else:
         navgem_get.url_search_nrl(soup, url, model_run,
                                   forecast_hours, out_path=input_path)
@@ -377,10 +377,10 @@ def argument_parser() -> CommandLineMapping:
     parser.add_argument('start_date', type=str,
                         default="datetime.now().strftime('%Y%m%d')",
                         help="Desired processing date as YYYYMMDD")
-    parser.add_argument('run_hour', default='00',
+    parser.add_argument('model_run', default='00',
                         help="Model run hour; i.e. 00, 03, 06, 09, 12...")
     parser.add_argument('-f', '--forecast_hours', nargs='+',
-                        default=[3, 6, 12],
+                        default=[3, 6, 9, 12],
                         help="The forecast hours from this model run.")
 
     group.add_argument('-u', '--url', default=OUTPUT_VARS_DICT["url"],
@@ -429,7 +429,7 @@ if __name__ == '__main__':
 
         out_path = build_filepath(parser_args['base_path'],
                                   parser_args["start_date"],
-                                  parser_args["run_hour"])
+                                  parser_args["model_run"])
         fn_paths = (os.path.join(inp, x) for x in fn)
         fn_paths = list(fn_paths)
         out_fnames = []
