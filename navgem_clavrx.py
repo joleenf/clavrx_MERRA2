@@ -111,7 +111,7 @@ def refill(data: xr.DataArray, old_fill: float) -> np.ndarray:
     return data
 
 
-def update_output(sd, out_name, rsk, data_array, out_fill):
+def update_output(sd, out_name, rsk, data_array, out_fill, data_source):
     """Finalize output variables."""
     out_units = rsk["out_units"]
     ndims_out = rsk["ndims_out"]
@@ -140,7 +140,7 @@ def update_output(sd, out_name, rsk, data_array, out_fill):
 
     unit_desc = " in [{}]".format(out_sds.units)
 
-    out_sds.source_data = ("{}->{}{}".format("NAVGEM->{}".format(data_array.name),
+    out_sds.source_data = ("{}->{}{}".format("{}->{}".format(data_source, data_array.name),
                                              data_array.name, unit_desc))
 
     out_sds.long_name = data_array.long_name
@@ -314,6 +314,10 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         out_var = in_datasets[file_key][var_name]
         units_fn = rsk["units_fn"]
         long_name = rsk["long_name"] if "long_name" in rsk else out_var.long_name
+        if "data_source_format" in rsk.keys():
+            source_model = rsk["data_source_format"]
+        else:
+            source_model = "NAVGEM"
 
         try:
             var_fill = out_var.fill_value
@@ -325,7 +329,7 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         out_var = apply_conversion(units_fn, out_var, long_name, fill=var_fill)
 
         update_output(in_datasets, var_key, rsk,
-                      out_var, var_fill)
+                      out_var, var_fill, source_model)
 
 
 def get_dim_list_string(param: Dict[str]) -> str:
