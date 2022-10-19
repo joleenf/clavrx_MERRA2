@@ -488,6 +488,7 @@ def build_filepath(data_dir, dt: datetime, dir_type="output") -> str:
     year_month_day = dt.strftime("%Y_%m_%d")
     if dir_type == "output":
         this_filepath = os.path.join(data_dir, year)
+        LOG.info(f"Making {this_filepath}")
         os.makedirs(this_filepath, exist_ok=True)
     elif dir_type == "input":
         this_filepath = os.path.join(data_dir, year, year_month_day)
