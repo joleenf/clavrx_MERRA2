@@ -49,8 +49,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT_DIR, 'yamls', 'NAVGEM_nrl_usgodae_vars.yaml'), "r") as yml:
     OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
 
-levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
-
 
 class NavgemCommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
@@ -78,12 +76,16 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
         coords_dict = {"z": (2, "level"),
                        "x": (1, "lon"),
                        "y": (0, "lat"),
-                       "rh_z": (2, "rh_level")}
+                       "rh_z": (2, "rh_level"),
+                       "o3mr_z": (2, "o3_level"),
+                       }
     else:
         coords_dict = {"z": (0, "level"),
                        "x": (0, "lon"),
                        "y": (0, "lat"),
-                       "rh_z": (0, "rh_level")}
+                       "rh_z": (0, "rh_level"),
+                       "o3mr_z": (0, "o3_level"),
+                       }
 
     out_sds.dimensions()
     for dim in data_array.dims:
@@ -152,6 +154,8 @@ def modify_shape(data_array: xr.DataArray) -> xr.DataArray:
         # clavr-x needs level to be the last dim (make lat,lon,level)
         if "rh_z" in data_array.dims:
             return data_array.transpose("y", "x", "rh_z")
+        elif "o3mr_z" in data_array.dims:
+            return data_array.transpose("y", "x", "o3mr_z")
         else:
             return data_array.transpose("y", "x", "z")
     if ndim == 2:
@@ -187,6 +191,94 @@ def starmap(function, iterable):
         yield function(*args)
 
 
+def build_supplemental_ozone_fn(start_time, model_init_hour, forecast_hour,
+                                o3mr_data_crc, o3mr_load_grib_crc):
+    """Use information from ozone mixing ratio yaml setup to build filepath.
+
+    :param start_time: start_time is part of the filename format string and must match yaml
+        (so if this variable changes here, it should change in the yaml as well.)
+    :param model_init_hour: model_init_hour is part of a filename format string and must match yaml
+        (so if this variable changes here, it should change in the yaml as well.)
+    :param forecast_hour: forecast_hour is part of a filename format string and must match yaml
+        (so if this variable changes here, it should change in the yaml as well.)
+    :param o3mr_data_crc: In the yaml, the data_arrays section describe the type of variable
+         loaded.  For ozone, there is a special descriptor for the source file type.
+         Currently only gfs_hdf has been tested.
+    :param o3mr_load_grib_crc: This is the datasets section of the yaml and will contain
+         the appropriate filepath and filename pattern for the source files.
+    :return: The full filepath based on these input of the ozone mixing ratio supplement file.
+    """
+    o3mr_format_key = o3mr_data_crc["data_source_format"]
+    o3mr_fp = o3mr_load_grib_crc[o3mr_format_key]
+
+    # both had an eval next two lines
+    base_dir = eval(o3mr_fp["directory"])
+    base_fn = eval(o3mr_fp["file_pattern"])
+
+    # read complementary GFS 03MR here
+    full_filepath = os.path.join(base_dir, base_fn)
+
+    msg = f"{start_time}, {model_init_hour}, F{forecast_hour}, {o3mr_format_key} => {full_filepath}"
+    LOG.info(msg)
+
+    return full_filepath
+
+
+def read_gfs(o3mr_fn):
+    """Use the GFS ozone mixing ratio.
+
+    :param o3mr_fn: filepath of the gfs file.
+    :return: ozone mixing ratio in kg/kg
+    """
+    gfs_ds = xr.open_dataset(o3mr_fn, engine="netcdf4")
+
+    gfs_ds = gfs_ds.sortby(gfs_ds["pressure levels"], ascending=False)
+
+    # after sorting, get individual data arrays.
+    ozone_mixing_ratio = gfs_ds["o3mr"]
+    pressure_levels = gfs_ds["pressure levels"]
+    pressure_attrs = pressure_levels.attrs
+    # Note:  Some of these require a sortby with ascending=False (should be in code above)
+    pressure_attrs.update({"long_name": "pressure",
+                           "stored_direction": "decreasing",
+                           "positive": "down"})
+
+    # Build coordinate arrays based on global attributes
+    new_dims = {"x":  gfs_ds.attrs["NUMBER OF LONGITUDES"],
+                "y": gfs_ds.attrs["NUMBER OF LATITUDES"],
+                "o3mr_z": gfs_ds.attrs["NUMBER OF PRESSURE LEVELS"]}
+
+    # try to make sense of dimensions
+    for dim_name, dim_size in ozone_mixing_ratio.sizes.items():
+        key = next(key for key, value in new_dims.items() if value == dim_size)
+        ozone_mixing_ratio = ozone_mixing_ratio.rename({dim_name: key})
+
+    # for predictability, put dims in the CLAVRx order
+    ozone_mixing_ratio = ozone_mixing_ratio.transpose("y", "x", "o3mr_z")
+
+    xdims = np.arange(new_dims["x"])
+    ydims = np.arange(0, new_dims["y"])
+
+    lons = 0.5 * xdims
+    lats = 0.5 * ydims - 90.0
+
+    # create an ozone mixing ratio dataset
+    ds = xr.Dataset(data_vars=dict(
+                    o3mr=(["y", "x", "o3mr_z"], ozone_mixing_ratio.data,
+                          ozone_mixing_ratio.attrs,
+                          )
+                    ),
+                    coords=dict(
+                        longitude=(["x"], lons, {"long_name": "longitude"}),
+                        latitude=(["y"], lats, {"long_name": "latitude"}),
+                        isobaricInhPa=(["o3mr_z"], pressure_levels.data, pressure_attrs)
+                    ),
+                    attrs={"description": "GFS Ozone Mixing Ratio",
+                           "Latitude Resolution": gfs_ds.attrs["LATITUDE RESOLUTION"],
+                           "Longitude Resolution": gfs_ds.attrs["LONGITUDE RESOLUTION"]})
+    return ds
+
+
 def apply_conversion(scale_func: Callable, data: xr.DataArray,
                      long_name: str, fill) -> xr.DataArray:
     """Apply fill to converted data after function."""
@@ -216,9 +308,10 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         if var_key in ["rh", "rh_level"]:
             file_key = "rh"
         else:
+            print(var_key, rsk)
             file_key = rsk["dataset"]
-        shortname = rsk["shortname"]
-        out_var = in_datasets[file_key][shortname]
+        var_name = rsk["cfVarName"]
+        out_var = in_datasets[file_key][var_name]
         units_fn = rsk["units_fn"]
         long_name = rsk["long_name"] if "long_name" in rsk else out_var.long_name
 
@@ -288,15 +381,16 @@ def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
     for key, ds in datasets.items():
         # rename_dims
         for dim_key in ds.dims:
-            if ds[dim_key].long_name.lower() == "longitude":
-                ds = ds.rename_dims({ds[dim_key].name: "x"})
-            elif ds[dim_key].long_name.lower() == "latitude":
-                ds = ds.rename_dims({ds[dim_key].name: "y"})
-            elif ds[dim_key].long_name.lower() == "pressure":
+            dim = ds[dim_key]
+            if dim.long_name.lower() == "longitude":
+                ds = ds.rename_dims({dim.name: "x"})
+            elif dim.long_name.lower() == "latitude":
+                ds = ds.rename_dims({dim.name: "y"})
+            elif dim.long_name.lower() == "pressure":
                 if key == "rh":
-                    ds = ds.rename_dims({ds[dim_key].name: "rh_z"})
+                    ds = ds.rename_dims({dim.name: "rh_z"})
                 else:
-                    ds = ds.rename_dims({ds[dim_key].name: "z"})
+                    ds = ds.rename_dims({dim.name: "z"})
         datasets[key] = ds
 
     return datasets
@@ -304,49 +398,61 @@ def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
 
 def read_one_hour_navgem(in_files: List[str],
                          out_dir: str,
-                         forecast_hr: int):
+                         forecast_hour: int):
     """Read input, parse times, and run conversion on one day at a time."""
     datasets = dict()
-    cfgrib_kwargs = OUTPUT_VARS_DICT["datasets"]
     timestamps = list()
+    model_runs = list()
     out_fname = None
 
     # build time selection based on forecast hour and model date.
-    tdelta = (pd.Timedelta("{} hours".format(forecast_hr))).to_timedelta64()
+    tdelta = (pd.Timedelta("{} hours".format(forecast_hour))).to_timedelta64()
 
     levels = None
     for model_file in in_files:
-        for ds_key, filter_dict in cfgrib_kwargs.items():
-            ds = xr.open_dataset(model_file, engine="cfgrib",
-                                 backend_kwargs={'filter_by'
-                                                 '_keys': filter_dict})
+        for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
+            if ds_key in ["o3mr"]:
+                pass
+            else:
+                ds = xr.open_dataset(model_file, engine="cfgrib",
+                                     backend_kwargs={'filter_by_keys': filter_dict})
 
-            # select the forecast time from the steps and squeeze the steps if necessary
-            if "step" in ds.dims:
-                ds = ds.sel(step=tdelta)
+                # select the forecast time from the steps and squeeze the steps if necessary
+                if "step" in ds.dims:
+                    model_runs.append(pd.to_datetime(ds.time.data))
+                    ds = ds.sel(step=tdelta)
 
-            for coord_key in ds.coords:
-                coord_da = ds.coords[coord_key]
-                if coord_da.long_name.lower() == "pressure":
-                    if levels is None:
-                        levels = coord_da
-                    else:
-                        levels = np.concatenate((levels, coord_da))
-            print(filter_dict)
-            ts = (pd.to_datetime(ds.valid_time.data).strftime('navgem.%y%m%d%H_F000.hdf'))
-            timestamps.append(ts)
-            # after all work on initial dataset, assign to dictionary.
-            datasets.update({ds_key: ds})
-        # broadcast the 3D data to one cube (and replace in the key for isobaricInhPa and rh)
-        # datasets["isobaricInhPa"], datasets['rh'] = xr.broadcast(datasets['isobaricInhPa'],
-        #                                                          datasets["rh"])
+                for coord_key in ds.coords:
+                    coord_da = ds.coords[coord_key]
+                    if coord_da.long_name.lower() == "pressure":
+                        if levels is None:
+                            levels = coord_da
+                        else:
+                            levels = np.concatenate((levels, coord_da))
+                LOG.info(filter_dict)
+                timestamps.append(pd.to_datetime(ds.valid_time.data))
+                # after all work on initial dataset, assign to dictionary.
+                datasets.update({ds_key: ds})
 
         reorder_dimensions(datasets)
 
-        if all_equal(timestamps):
-            LOG.info('    working on time: {}'.format(timestamps[0]))
-            out_fname = os.path.join(out_dir, (timestamps[0]))
-            LOG.info(out_fname)
+        if all_equal(timestamps) and all_equal(model_runs):
+            model_init_hour = model_runs[0].strftime("%H")
+            navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{forecast_hour:03}.hdf"
+            out_fname = timestamps[0].strftime(navgem_fn_pattern)
+            out_fname = os.path.join(out_dir, out_fname)
+            LOG.info('    working on {}'.format(out_fname))
+
+            o3mr_fn = build_supplemental_ozone_fn(timestamps[0], model_init_hour,
+                                                  forecast_hour,
+                                                  OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
+                                                  OUTPUT_VARS_DICT["datasets"]["o3mr"])
+            gfs_o3mr = read_gfs(o3mr_fn)
+
+            datasets.update({"o3mr": gfs_o3mr})
+
+            # broadcast the 3D data to one cube (and replace in the key for isobaricInhPa and rh)
+            # datasets_arr = xr.broadcast(**datasets)  # how to iterate through dict????
             # TRUNC will clobber existing
             datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
 
@@ -422,8 +528,8 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
                                   forecast_hours, out_path=input_path)
         in_files = [navgem_get.concat_gribs_in_one(input_path, model_run_str)]
 
-    for forecast_hr in forecast_hours:
-        out_list = read_one_hour_navgem(in_files, out_fp, forecast_hr)
+    for forecast_hour in forecast_hours:
+        out_list = read_one_hour_navgem(in_files, out_fp, forecast_hour)
     LOG.info(out_list)
 
 
@@ -447,7 +553,6 @@ def argument_parser() -> NavgemCommandLineMapping:
 
     group.add_argument('-u', '--url', default=OUTPUT_VARS_DICT["url"],
                        help='alternative url string.')
-    # TODO:  Add source type again.  Using url is not a good idea.
     parser.add_argument('-i', '--input', dest='input_path', action='store',
                         type=str, required=False, default=None, const=None,
                         help="Input path for the data download.")

@@ -1,4 +1,4 @@
 tmp/
-conversions/__pycache__/
+conversions/__pycache__/*
 __pycache__/
 JMF_NOTES.txt

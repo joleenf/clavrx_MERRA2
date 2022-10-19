@@ -1,26 +1,54 @@
 # source is nrl.
 url:
   f"https://www.usgodae.org/ftp/outgoing/fnmoc/models/navgem_0.5/{start_time:%Y}/{start_time:%Y%m%d%H}"
-defined levels:
-  hPa_levels: [1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100, 70]
-  rh_hPa_levels: [1000, 950, 900, 850, 800, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300]
-  total_ozone_levels: [1013, 1000,  975,  950,  925,  900,  850,  800,  750, 650,  600,  550,
-                       500,  450,  400,  350,  300,  250, 200,  150,  100]
 
 # a list of dataset keys, either type of level, shortname or some other searchable parameter,
 # These are extracted using cfgrib "filter_by_key" parameter
 # done here so that code reads file only once per filter key (dataset), which is replicated for various data arrays.
 datasets:
    isobaricInhPa:
-      typeOfLevel: isobaricInhPa
+     typeOfLevel: isobaricInhPa
+     shortName: t
+   u-wind:
+     typeOfLevel: isobaricInhPa
+     shortName: u
+   v-wind:
+     typeOfLevel: isobaricInhPa
+     shortName: v
+   gh:
+     typeOfLevel: isobaricInhPa
+     shortName: gh
    tropopause:
       typeOfLevel: tropopause
-   surface:
+   msl:
+      stepType: instant
+      typeOfLevel: meanSea
+      shortName: msl
+   snow_depth:
       stepType: instant
       typeOfLevel: surface
+      shortName: sde
+   surfaceTemperature:
+     stepType: instant
+     typeOfLevel: surface
+     shortName: unknown
+   surfacePressure:
+     stepType: instant
+     typeOfLevel: surface
+     shortName: sp
+   tpw:
+     stepType: instant
+     typeOfLevel: surface
+     shortName: pwat
    rh:
       typeOfLevel: isobaricInhPa
       shortName: r
+   o3mr:
+      # format keys, then the directory where the data from that format is stored, followed by file_pattern
+      gfs_hdf:
+         #directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_ait/{start_time:%Y}"
+         directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
+         file_pattern: f"gfs.{start_time:%y%m%d}{model_init_hour}_F{forecast_hour:03}.hdf"
 
 # dataset key for data_array should match the appropriate 'datasets' key matching
 # the filter_by_key={'type_of_level': something, 'shortName': something}
@@ -30,116 +58,114 @@ datasets:
 # has a long_name of 'unknown' and that is not super helpful information.
 data_arrays:
   MSL pressure:
-    dataset: surface
-    shortname: sp
+    dataset: msl
+    cfVarName: msl
     ndims_out: 2
     out_units: hPa
     units_fn: !!python/name:conversions.pa_to_hPa
   lat:
     dataset: isobaricInhPa
-    shortname: latitude
+    cfVarName: latitude
     ndims_out: 1
     out_units: Null
     units_fn: !!python/name:conversions.no_conversion
   level:
     dataset: isobaricInhPa
-    shortname: isobaricInhPa
+    cfVarName: isobaricInhPa
     ndims_out: 1
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
+  o3mr:
+    dataset: o3mr
+    # has an extra format key to facilitate substitution of various o3mr sources if desired.
+    data_source_format: gfs_hdf
+    cfVarName: o3mr
+    ndims_out: 3
+    out_units: kg/kg
+    nan_fill: False
+    long_name: ozone_mixing_ratio
+    units_fn: !!python/name:conversions.no_conversion
   rh_level:
     dataset: rh
-    filter_by_keys:
-      shortName: r
-    shortname: isobaricInhPa
+    cfVarName: isobaricInhPa
     ndims_out: 1
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
   lon:
     dataset: isobaricInhPa
-    shortname: longitude
+    cfVarName: longitude
     ndims_out: 1
     out_units: Null
     units_fn: !!python/name:conversions.no_conversion
   pressure levels:
     dataset: isobaricInhPa
-    shortname: isobaricInhPa
+    cfVarName: isobaricInhPa
     ndims_out: 1
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
   rh:
     dataset: rh
-    filter_by_keys:
-        shortName: r
-    shortname: r
+    cfVarName: r
     ndims_out: 3
     out_units: "%"
     units_fn: !!python/name:conversions.no_conversion
   surface temperature:
-    dataset: surface
-    shortname: unknown
+    dataset: surfaceTemperature
+    cfVarName: unknown
     ndims_out: 2
     out_units: K
     units_fn: !!python/name:conversions.no_conversion
   height:
-    dataset: isobaricInhPa
-    shortname: gh
+    dataset: gh
+    cfVarName: gh
     ndims_out: 3
     out_units: gpm
     units_fn: !!python/name:conversions.no_conversion
   surface pressure:
-    dataset: surface
-    shortname: sp
+    dataset: surfacePressure
+    cfVarName: sp
     ndims_out: 2
     out_units: hPa
     units_fn: !!python/name:conversions.pa_to_hPa
   temperature:
     dataset: isobaricInhPa
-    shortname: t
+    cfVarName: t
     ndims_out: 3
     out_units: K
     units_fn: !!python/name:conversions.no_conversion
-# Can't find variable in gribs
-#  total ozone:
-#     dataset: total_ozone
-#     shortname: unknown
-#     ndims_out: 2
-#     out_units: Dobson
-#     long_name: Total Ozone
-#     units_fn: !!python/name:conversions.sum_column
   total precipitable water:
-    dataset: surface
-    shortname: p3054
+    dataset: tpw
+    cfVarName: p3054
     ndims_out: 2
-    out_units: cm   # n33d to convert from kg m**-2
+    out_units: cm
     units_fn: !!python/name:conversions.km_per_square_meter_to_cm
   u-wind:
-    dataset: isobaricInhPa
-    shortname: u
+    dataset: u-wind
+    cfVarName: u
     ndims_out: 3
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   v-wind:
-    dataset: isobaricInhPa
-    shortname: v
+    dataset: v-wind
+    cfVarName: v
     ndims_out: 3
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   water equivalent snow depth:
-    dataset: surface
-    shortname: sde
+    dataset: snow_depth
+    cfVarName: sde
     ndims_out: 2
     out_units: m of water equivalent
     units_fn: !!python/name:conversions.no_conversion
   tropopause pressure:
     dataset: tropopause
-    shortname: pres
+    cfVarName: pres
     ndims_out: 2
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
   tropopause temperature:
     dataset: tropopause
-    shortname: t
+    cfVarName: t
     ndims_out: 2
     out_units: K
     units_fn: !!python/name:conversions.no_conversion
