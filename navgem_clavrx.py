@@ -76,21 +76,16 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
         coords_dict = {"z": (2, "level"),
                        "x": (1, "lon"),
                        "y": (0, "lat"),
-                       "rh_z": (2, "rh_level"),
-                       "o3mr_z": (2, "o3_level"),
                        }
     else:
         coords_dict = {"z": (0, "level"),
                        "x": (0, "lon"),
                        "y": (0, "lat"),
-                       "rh_z": (0, "rh_level"),
-                       "o3mr_z": (0, "o3_level"),
                        }
 
     out_sds.dimensions()
     for dim in data_array.dims:
         axis_num, dim_name = coords_dict.get(dim, dim)
-        LOG.debug("{} to axis {}, {}".format(out_name, axis_num, dim_name))
 
         out_sds.dim(axis_num).setname(dim_name)
 
@@ -134,7 +129,10 @@ def update_output(sd, out_name, rsk, data_array, out_fill, data_source):
         out_sds.setfillvalue(CLAVRX_FILL)
 
     if out_units is None or out_units in ("none", "None"):
-        out_sds.units = "1"
+        try:
+            out_sds.units = data_array.units
+        except AttributeError:
+            out_sds.units = "1"
     else:
         out_sds.units = out_units
 
@@ -151,13 +149,7 @@ def modify_shape(data_array: xr.DataArray) -> xr.DataArray:
     """Modify shape from dims (level, lat, lon) to (lat,lon,level)."""
     ndim = len(data_array.dims)
     if ndim == 3:
-        # clavr-x needs level to be the last dim (make lat,lon,level)
-        if "rh_z" in data_array.dims:
-            return data_array.transpose("y", "x", "rh_z")
-        elif "o3mr_z" in data_array.dims:
-            return data_array.transpose("y", "x", "o3mr_z")
-        else:
-            return data_array.transpose("y", "x", "z")
+        return data_array.transpose("y", "x", "z")
     if ndim == 2:
         return data_array.transpose("y", "x")
     else:
@@ -170,10 +162,7 @@ def reshape(data_array: xr.DataArray,
     if ndims_out == 3:
         # clavr-x needs toa->surface not surface->toa
         if all(np.diff(data_array["isobaricInhPa"] < 0)):
-            if out_name in ["rh", "rh_level"]:
-                data_array = data_array.isel(rh_z=slice(None, None, -1))
-            else:
-                data_array = data_array.isel(z=slice(None, None, -1))
+            data_array = data_array.isel(z=slice(None, None, -1))
 
     return modify_shape(data_array)
 
@@ -191,8 +180,9 @@ def starmap(function, iterable):
         yield function(*args)
 
 
-def build_supplemental_ozone_fn(start_time, model_init_hour, forecast_hour,
-                                o3mr_data_crc, o3mr_load_grib_crc):
+def build_supplemental_ozone_fn(start_time: datetime.datetime,
+                                model_init_hour: str, forecast_hour: str,
+                                o3mr_data_crc, o3mr_load_grib_crc) -> str:
     """Use information from ozone mixing ratio yaml setup to build filepath.
 
     :param start_time: start_time is part of the filename format string and must match yaml
@@ -224,69 +214,45 @@ def build_supplemental_ozone_fn(start_time, model_init_hour, forecast_hour,
     return full_filepath
 
 
-def read_gfs(o3mr_fn):
+def read_gfs(o3mr_fn: str) -> xr.Dataset:
     """Use the GFS ozone mixing ratio.
 
     :param o3mr_fn: filepath of the gfs file.
     :return: ozone mixing ratio in kg/kg
     """
-    gfs_ds = xr.open_dataset(o3mr_fn, engine="netcdf4")
-
-    gfs_ds = gfs_ds.sortby(gfs_ds["pressure levels"], ascending=False)
-
-    # after sorting, get individual data arrays.
-    ozone_mixing_ratio = gfs_ds["o3mr"]
-    pressure_levels = gfs_ds["pressure levels"]
-    pressure_attrs = pressure_levels.attrs
-    # Note:  Some of these require a sortby with ascending=False (should be in code above)
-    pressure_attrs.update({"long_name": "pressure",
-                           "stored_direction": "decreasing",
-                           "positive": "down"})
-
-    # Build coordinate arrays based on global attributes
-    new_dims = {"x":  gfs_ds.attrs["NUMBER OF LONGITUDES"],
-                "y": gfs_ds.attrs["NUMBER OF LATITUDES"],
-                "o3mr_z": gfs_ds.attrs["NUMBER OF PRESSURE LEVELS"]}
-
-    # try to make sense of dimensions
-    for dim_name, dim_size in ozone_mixing_ratio.sizes.items():
-        key = next(key for key, value in new_dims.items() if value == dim_size)
-        ozone_mixing_ratio = ozone_mixing_ratio.rename({dim_name: key})
+    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib",
+                             filter_by_keys={'typeOfLevel': 'isobaricInhPa',
+                                             'shortName': "o3mr"})
 
     # for predictability, put dims in the CLAVRx order
-    ozone_mixing_ratio = ozone_mixing_ratio.transpose("y", "x", "o3mr_z")
-
-    xdims = np.arange(new_dims["x"])
-    ydims = np.arange(0, new_dims["y"])
-
-    lons = 0.5 * xdims
-    lats = 0.5 * ydims - 90.0
-
-    # create an ozone mixing ratio dataset
-    ds = xr.Dataset(data_vars=dict(
-                    o3mr=(["y", "x", "o3mr_z"], ozone_mixing_ratio.data,
-                          ozone_mixing_ratio.attrs,
-                          )
-                    ),
-                    coords=dict(
-                        longitude=(["x"], lons, {"long_name": "longitude"}),
-                        latitude=(["y"], lats, {"long_name": "latitude"}),
-                        isobaricInhPa=(["o3mr_z"], pressure_levels.data, pressure_attrs)
-                    ),
-                    attrs={"description": "GFS Ozone Mixing Ratio",
-                           "Latitude Resolution": gfs_ds.attrs["LATITUDE RESOLUTION"],
-                           "Longitude Resolution": gfs_ds.attrs["LONGITUDE RESOLUTION"]})
-    return ds
+    gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
+    gfs_ds = gfs_ds.sortby(gfs_ds["latitude"], ascending=True)
+    return gfs_ds
 
 
-def apply_conversion(scale_func: Callable, data: xr.DataArray,
-                     long_name: str, fill) -> xr.DataArray:
+def reformat_levels(datasets_dict):
+    """Verify output levels of dataset are on CLAVRx levels."""
+    hPa_levels = [1000.0, 975.0, 950.0, 925.0, 900.0, 850.0,
+                  800.0, 750.0, 700.0, 650.0, 600.0, 550.0,
+                  500.0, 450.0, 400.0, 350.0, 300.0, 250.0,
+                  200.0, 150.0, 100.0, 70.0, 50.0, 30.0, 20.0, 10.0]
+
+    for key, ds in datasets_dict.items():
+        try:
+            new_data = ds.sel(isobaricInhPa=hPa_levels)
+            datasets_dict.update({key: new_data})
+        except KeyError as kerr:
+            msg = "{} for {} in coords {}".format(kerr, key, ds.coords)
+            LOG.warning(msg)
+    return datasets_dict
+
+
+def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> xr.DataArray:
     """Apply fill to converted data after function."""
+    data_attrs = data.attrs
     converted = data.copy(deep=True)
     converted = scale_func(converted)
 
-    # When the dims are reduced, using the old indices is not valid,
-    # don't use xr.where for those cases.
     if data.dims == converted.dims:
         if fill is not None:
             converted = xr.where(data == fill, fill, converted)
@@ -294,10 +260,7 @@ def apply_conversion(scale_func: Callable, data: xr.DataArray,
             converted = xr.where(np.isnan(data), fill, converted)
 
     converted = converted.astype(np.float32)
-    # rebuild the converted array attributes of original (not sure why
-    # this does not carry though the converted data after where is performed).
-
-    converted.attrs["long_name"] = long_name
+    converted = converted.assign_attrs(data_attrs)
 
     return converted
 
@@ -308,12 +271,11 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         if var_key in ["rh", "rh_level"]:
             file_key = "rh"
         else:
-            print(var_key, rsk)
             file_key = rsk["dataset"]
+        print(var_key, rsk)
         var_name = rsk["cfVarName"]
         out_var = in_datasets[file_key][var_name]
         units_fn = rsk["units_fn"]
-        long_name = rsk["long_name"] if "long_name" in rsk else out_var.long_name
         if "data_source_format" in rsk.keys():
             source_model = rsk["data_source_format"]
         else:
@@ -326,7 +288,7 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
 
         # return a new xarray with converted data, otherwise, the process
         # is different for coordinate attributes.
-        out_var = apply_conversion(units_fn, out_var, long_name, fill=var_fill)
+        out_var = apply_conversion(units_fn, out_var, fill=var_fill)
 
         update_output(in_datasets, var_key, rsk,
                       out_var, var_fill, source_model)
@@ -380,7 +342,7 @@ def write_global_attributes(out_ds: SD) -> None:
     out_ds.end()
 
 
-def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
+def reorder_dimensions(datasets):
     """Reorder and rename dimensions."""
     for key, ds in datasets.items():
         # rename_dims
@@ -391,10 +353,7 @@ def reorder_dimensions(datasets: Dict[str, xr.Dataset]):
             elif dim.long_name.lower() == "latitude":
                 ds = ds.rename_dims({dim.name: "y"})
             elif dim.long_name.lower() == "pressure":
-                if key == "rh":
-                    ds = ds.rename_dims({dim.name: "rh_z"})
-                else:
-                    ds = ds.rename_dims({dim.name: "z"})
+                ds = ds.rename_dims({dim.name: "z"})
         datasets[key] = ds
 
     return datasets
@@ -438,11 +397,10 @@ def read_one_hour_navgem(in_files: List[str],
                 # after all work on initial dataset, assign to dictionary.
                 datasets.update({ds_key: ds})
 
-        reorder_dimensions(datasets)
-
         if all_equal(timestamps) and all_equal(model_runs):
             model_init_hour = model_runs[0].strftime("%H")
-            navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{forecast_hour:03}.hdf"
+            forecast_hour = forecast_hour.zfill(3)
+            navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{forecast_hour}.hdf"
             out_fname = timestamps[0].strftime(navgem_fn_pattern)
             out_fname = os.path.join(out_dir, out_fname)
             LOG.info('    working on {}'.format(out_fname))
@@ -454,9 +412,9 @@ def read_one_hour_navgem(in_files: List[str],
             gfs_o3mr = read_gfs(o3mr_fn)
 
             datasets.update({"o3mr": gfs_o3mr})
+            datasets = reformat_levels(datasets)
+            datasets = reorder_dimensions(datasets)
 
-            # broadcast the 3D data to one cube (and replace in the key for isobaricInhPa and rh)
-            # datasets_arr = xr.broadcast(**datasets)  # how to iterate through dict????
             # TRUNC will clobber existing
             datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
 
@@ -465,8 +423,6 @@ def read_one_hour_navgem(in_files: List[str],
             ts_str = ' '.join(timestamps)
             msg = "Timestamps are not equal: {}".join(ts_str)
             raise ValueError(msg)
-
-        write_global_attributes(datasets["out"])
 
     return out_fname
 

@@ -1,7 +1,6 @@
 # source is nrl.
 url:
   f"https://www.usgodae.org/ftp/outgoing/fnmoc/models/navgem_0.5/{start_time:%Y}/{start_time:%Y%m%d%H}"
-
 # a list of dataset keys, either type of level, shortname or some other searchable parameter,
 # These are extracted using cfgrib "filter_by_key" parameter
 # done here so that code reads file only once per filter key (dataset), which is replicated for various data arrays.
@@ -45,10 +44,10 @@ datasets:
       shortName: r
    o3mr:
       # format keys, then the directory where the data from that format is stored, followed by file_pattern
-      gfs_hdf:
-         directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_ait/{start_time:%Y}"
-         #directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
-         file_pattern: f"gfs.{start_time:%y%m%d}{model_init_hour}_F{forecast_hour:03}.hdf"
+      gfs_grib:
+         # directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_grib"
+         directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
+         file_pattern: f"gfs.{start_time:%Y%m%d}.t{model_init_hour}z.pgrb2f12"
 
 # dataset key for data_array should match the appropriate 'datasets' key matching
 # the filter_by_key={'type_of_level': something, 'shortName': something}
@@ -75,33 +74,28 @@ data_arrays:
     ndims_out: 1
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
-  o3mr:
-    dataset: o3mr
-    # has an extra format key to facilitate substitution of various o3mr sources if desired.
-    data_source_format: gfs_hdf
-    cfVarName: o3mr
-    ndims_out: 3
-    out_units: kg/kg
-    nan_fill: False
-    long_name: ozone_mixing_ratio
-    units_fn: !!python/name:conversions.no_conversion
-  rh_level:
-    dataset: rh
-    cfVarName: isobaricInhPa
-    ndims_out: 1
-    out_units: hPa
-    units_fn: !!python/name:conversions.no_conversion
   lon:
     dataset: isobaricInhPa
     cfVarName: longitude
     ndims_out: 1
     out_units: Null
+    long_name: longitude
     units_fn: !!python/name:conversions.no_conversion
   pressure levels:
     dataset: isobaricInhPa
     cfVarName: isobaricInhPa
     ndims_out: 1
     out_units: hPa
+    units_fn: !!python/name:conversions.no_conversion
+  o3mr:
+    dataset: o3mr
+    # has an extra format key to facilitate substitution of various o3mr sources if desired.
+    data_source_format: gfs_grib
+    cfVarName: o3mr
+    ndims_out: 3
+    out_units: kg/kg
+    nan_fill: False
+    long_name: ozone_mixing_ratio
     units_fn: !!python/name:conversions.no_conversion
   rh:
     dataset: rh
