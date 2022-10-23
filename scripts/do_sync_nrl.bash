@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #datecmd=`which date`
-datecmd=gdate
+datecmd=date
 
 # command line, can input number of days ago to retrieve old data as first argument
 # goes_sync.sh 1
@@ -58,7 +58,7 @@ TODAY=$(${datecmd} +"%Y_%m_%d" -d "${days_ago} day ago")
 
 LOCK=$DIR/.${THISDATE}.lock
 LOG=$DIR/logs/${THISDATE}_sync.log
-DEST=/Users/joleenf/data/clavrx/navgem/$YEAR/${TODAY}/
+DEST=/data/Personal/joleenf/data/navgem/$YEAR/${TODAY}/
 
 mkdir -p $DEST
 

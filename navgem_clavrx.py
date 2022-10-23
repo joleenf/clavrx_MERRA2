@@ -16,6 +16,7 @@ import itertools
 import logging
 import os
 import sys
+import shutil
 
 import yaml
 
@@ -32,9 +33,8 @@ try:
     import xarray as xr
     from pyhdf.SD import SD, SDC
 except ImportError as e:
-    print("Import Error {}".format(e))
-    print("Type:  conda activate merra2_clavrx")
-    sys.exit(1)
+    msg = "{}.  Try 'conda activate merra2_clavrx'".format(e)
+    raise ImportError(msg)
 
 from dateutil.parser import parse
 
@@ -182,6 +182,7 @@ def starmap(function, iterable):
 
 def build_supplemental_ozone_fn(start_time: datetime.datetime,
                                 model_init_hour: str, forecast_hour: str,
+                                output_dir: str,
                                 o3mr_data_crc, o3mr_load_grib_crc) -> str:
     """Use information from ozone mixing ratio yaml setup to build filepath.
 
@@ -220,13 +221,16 @@ def read_gfs(o3mr_fn: str) -> xr.Dataset:
     :param o3mr_fn: filepath of the gfs file.
     :return: ozone mixing ratio in kg/kg
     """
-    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib",
+    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib", 
                              filter_by_keys={'typeOfLevel': 'isobaricInhPa',
-                                             'shortName': "o3mr"})
+                                             'shortName': "o3mr"}, 
+                             )
 
     # for predictability, put dims in the CLAVRx order
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
-    gfs_ds = gfs_ds.sortby(gfs_ds["latitude"], ascending=True)
+    gfs_ds = gfs_ds.isel(latitude=slice(None, None, -1))
+
+
     return gfs_ds
 
 
@@ -249,8 +253,7 @@ def reformat_levels(datasets_dict):
 
 def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> xr.DataArray:
     """Apply fill to converted data after function."""
-    data_attrs = data.attrs
-    converted = data.copy(deep=True)
+    converted = data.load().copy()
     converted = scale_func(converted)
 
     if data.dims == converted.dims:
@@ -260,7 +263,7 @@ def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> xr.DataA
             converted = xr.where(np.isnan(data), fill, converted)
 
     converted = converted.astype(np.float32)
-    converted = converted.assign_attrs(data_attrs)
+    converted = converted.assign_attrs(data.attrs)
 
     return converted
 
@@ -272,7 +275,6 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
             file_key = "rh"
         else:
             file_key = rsk["dataset"]
-        print(var_key, rsk)
         var_name = rsk["cfVarName"]
         out_var = in_datasets[file_key][var_name]
         units_fn = rsk["units_fn"]
@@ -288,6 +290,7 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
 
         # return a new xarray with converted data, otherwise, the process
         # is different for coordinate attributes.
+        print(var_key, rsk)
         out_var = apply_conversion(units_fn, out_var, fill=var_fill)
 
         update_output(in_datasets, var_key, rsk,
@@ -381,8 +384,8 @@ def read_one_hour_navgem(in_files: List[str],
                                      backend_kwargs={'filter_by_keys': filter_dict})
 
                 # select the forecast time from the steps and squeeze the steps if necessary
+                model_runs.append(pd.to_datetime(ds.time.data))
                 if "step" in ds.dims:
-                    model_runs.append(pd.to_datetime(ds.time.data))
                     ds = ds.sel(step=tdelta)
 
                 for coord_key in ds.coords:
@@ -399,16 +402,17 @@ def read_one_hour_navgem(in_files: List[str],
 
         if all_equal(timestamps) and all_equal(model_runs):
             model_init_hour = model_runs[0].strftime("%H")
-            forecast_hour = forecast_hour.zfill(3)
+            forecast_hour = f"{timestamps[0].hour:03d}"
             navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{forecast_hour}.hdf"
             out_fname = timestamps[0].strftime(navgem_fn_pattern)
             out_fname = os.path.join(out_dir, out_fname)
             LOG.info('    working on {}'.format(out_fname))
 
             o3mr_fn = build_supplemental_ozone_fn(timestamps[0], model_init_hour,
-                                                  forecast_hour,
+                                                  forecast_hour, out_dir,
                                                   OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
                                                   OUTPUT_VARS_DICT["datasets"]["o3mr"])
+
             gfs_o3mr = read_gfs(o3mr_fn)
 
             datasets.update({"o3mr": gfs_o3mr})
@@ -530,7 +534,7 @@ def argument_parser() -> NavgemCommandLineMapping:
     args = vars(parser.parse_args())
     verbosity = args.pop('verbosity', None)
 
-    levels = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
+    levels = [logging.ERROR, logging.WARN, logging.DEBUG, logging.INFO]
     logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s',
                         level=levels[min(3, verbosity)])
 
@@ -547,7 +551,7 @@ if __name__ == '__main__':
         inp = parser_args["input_path"]
         inp = build_filepath(inp, parser_args["start_date"], dir_type="input")
         if len(parser_args["local"]) == 0:
-            fn = glob.glob(os.path.join(inp, "*.grib"))
+            fn = glob.glob(os.path.join(inp, "*{}.grib".format(parser_args["model_run"])))
         else:
             fn = parser_args["local"]
 
