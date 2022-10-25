@@ -19,15 +19,6 @@ except ImportError as ie:
 
 LOG = logging.getLogger(__name__)
 
-# Product name model table:  OLD INFO: https://www.usgodae.org/docs/layout/pn_model_tbl.pns.html
-MODEL_KEYS = {"NOGAPS": "058"}
-
-PRODUCTS_LIST = ["pres_msl", "grnd_sea_temp", "pres", "rltv_hum", "air_temp", "snw_dpth",
-                 "prcp_h20", "grnd_wet", "wnd_ucmp", "wnd_vcmp", "geop_ht",
-                 "ttl_snow", "air_temp", "height", "aero"]
-
-# removed ["ttl_prcp","aero_concen_du" ]
-
 
 def download_file(url, filename, destination="data/joleenf/navgem/data/"):
     """Download filename from url to destination."""
@@ -86,41 +77,48 @@ def url_search_by_filenames(url_soup, url, get_these_files, out_path):
         raise RuntimeError(f"No NAVGEM files loaded with {url}")
 
 
-def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, out_path=None):
+def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None):
     """Get NRL data using regex."""
-    full_list = []
+
+    # Product name model table:  OLD INFO: https://www.usgodae.org/docs/layout/pn_model_tbl.pns.html
+    products_list = ["pres_msl", "pres", "rltv_hum", "air_temp", "snw_dpth",
+                     "prcp_h20", "wnd_ucmp", "wnd_vcmp", "geop_ht",
+                     "air_temp", "height", "vpr_pres"]
+
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
+    regex_string=r"US058GMET-GR1mdl.0018_0056_{}00{}{}_(\d+)_(\d+)-(\d+){}"
+    regex_minimal=r"US.*?{}.*?{}_(\d+)_(\d+)-(\d+){}"
+    # dataset ID table:  https://www.usgodae.org/docs/layout/pn_dataset_tbl.pns.html
+    dataset = "F0{(\D{2})"  # forecast(now time) field of a given product (F0 Stands for Realtime
+
     if forecast_times is None:
         forecast_times = [3, 6, 9, 12]
+    list_of_files = []
+    # Add the Precipitable water if this is not a 00 model run, that field only seems to run at 00
+    # url_fn_00 = url[:-2] + "00/" + 
     for forecast in forecast_times:
         forecast_time = str(forecast).zfill(3)
-        # dataset ID table:  https://www.usgodae.org/docs/layout/pn_dataset_tbl.pns.html
-        dataset = "F0RL"  # forecast(now time) field of a given product (F0 Stands for Realtime
-        # for product_name in PRODUCTS_LIST:
-        pattern = f"US058G[A-Z][A-Z][A-Z]-GR[12]mdl.0018_0056_" \
-                  f"{forecast_time}00{dataset}{navgem_run}_[0-9].*-[0-9].*"
-        # pattern =  f"US058G[A-Z][A-Z][A-Z]-GR[12]mdl.0018_0056_" \
-        #            f"{forecast_time}00{dataset}{navgem_run}_[0-9].*-[0-9].*{product_name}"
-        list_of_files = []
-        # This might be tidier if refine soup to body of html (url_soup.body.findAll("a...
-        for link in url_soup.findAll("a", {"href": re.compile(pattern)}, href=True):
-            a = re.search(pattern, link.text)
-            if a is not None:
-                url_fn = url + "/" + link.text
-                list_of_files.append(url_fn)
-        if list_of_files:
-            LOG.debug(len(list_of_files))
-            file_list = ' '.join(list_of_files)
+        for product_name in products_list:
+           #pattern = regex_string.format(forecast_time, dataset, navgem_run, product_name)
+            pattern = regex_minimal.format(forecast_time, navgem_run, product_name)
 
-            args = shlex.split("curl --output-dir {} --progress-bar "
-                               "--insecure --remote-name-all {}".format(out_path, file_list))
+            # need to get precipitable water which is not in every model run?
+            for link in url_soup.find_all(href=re.compile(pattern)):
+               url_fn = url + "/" + link.text
+               list_of_files.append(url_fn)
+    if list_of_files:
+       LOG.debug(len(list_of_files))
+       file_list = ' '.join(list_of_files)
+   
+       args = shlex.split("curl --output-dir {} --progress-bar "
+                          "--insecure --remote-name-all {}".format(dest_path, file_list))
 
-            ip = Popen(args, stdin=PIPE, stdout=PIPE)
-            LOG.debug(ip.communicate())
-            full_list.append(list_of_files)
-        else:
-            raise RuntimeError(f"No NAVGEM files loaded with {url}")
-    return full_list
+       ip = Popen(args, stdin=PIPE, stdout=PIPE)
+       LOG.debug(ip.communicate())
+    else:
+       runtime_msg=f"No NAVGEM files loaded with {url}"
+       raise RuntimeError(runtime_msg)
+    return list_of_files
 
 
 def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
@@ -144,8 +142,15 @@ def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
 def concat_gribs_in_one(data_path, model_run):
     """Concat all files in data_path, using model_run to name output file."""
     grib_name = os.path.join(data_path, f'navgem_{model_run}.grib')
-    data_path_glob = os.path.join(data_path, "US*")
-    os.system(f'cat {data_path_glob} >> {grib_name}')
+    model_run_glob=f"US*{model_run}*"
+    model_run0z = model_run[:-2] + "00"
+    data_path_glob = os.path.join(data_path, model_run_glob)
+    os.system(f'cat {data_path_glob} > {grib_name}')
+
+    # Need to cat the TPW file into this grib set
+    tpw_run_glob=f"US*{model_run0z}*prcp_h20"
+    data_path_glob_tpw = os.path.join(data_path, tpw_run_glob)
+    os.system(f'cat {data_path_glob_tpw} >> {grib_name}')
     return grib_name
 
 
@@ -210,12 +215,14 @@ if __name__ == '__main__':
         search_date(soup, URL, model_run, forecast_hour)
     else:
         model_run_str = model_run.strftime("%Y%m%d%H")
+        model_run_str00 = model_run.strftime("%Y%m%d00")
         model_run_dir = model_run.strftime("%Y_%m_%d")
         url = "https://www.usgodae.org/ftp/outgoing/fnmoc/models/navgem_0.5/"
         URL = f"{url}{input_year}/{model_run_str}"
         soup = create_soup(URL)
-        out_path = os.path.join(parser_args["base_path"], input_year, model_run_dir)
-        os.makedirs(out_path, exist_ok=True)
-        files = url_search_nrl(soup, URL, model_run, out_path=out_path)
-        concat_to_new = concat_gribs_in_one(out_path, model_run_str, files)
+        grib_path = os.path.join(parser_args["base_path"], input_year, model_run_dir)
+        os.makedirs(grib_path, exist_ok=True)
+        files = url_search_nrl(soup, URL, model_run, dest_path=grib_path)
+        concat_to_new = concat_gribs_in_one(grib_path, model_run_str)
         LOG.info(concat_to_new)
+

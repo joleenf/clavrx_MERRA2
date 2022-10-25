@@ -29,8 +29,8 @@ datasets:
       shortName: sde
    surfaceTemperature:
      stepType: instant
-     typeOfLevel: surface
-     shortName: unknown
+     typeOfLevel: heightAboveGround
+     shortName: 2t
    surfacePressure:
      stepType: instant
      typeOfLevel: surface
@@ -105,7 +105,7 @@ data_arrays:
     units_fn: !!python/name:conversions.no_conversion
   surface temperature:
     dataset: surfaceTemperature
-    cfVarName: unknown
+    cfVarName: t2m
     ndims_out: 2
     out_units: K
     units_fn: !!python/name:conversions.no_conversion

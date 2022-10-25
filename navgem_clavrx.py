@@ -25,7 +25,6 @@ import navgem_nomads_get as navgem_get
 try:
     import argparse
     import datetime
-    from datetime import timedelta
     from typing import Callable, Dict, List, Optional, TypedDict
 
     import numpy as np
@@ -362,7 +361,7 @@ def reorder_dimensions(datasets):
     return datasets
 
 
-def read_one_hour_navgem(in_files: List[str],
+def read_one_hour_navgem(model_file: str,
                          out_dir: str,
                          forecast_hour: int):
     """Read input, parse times, and run conversion on one day at a time."""
@@ -375,58 +374,76 @@ def read_one_hour_navgem(in_files: List[str],
     tdelta = (pd.Timedelta("{} hours".format(forecast_hour))).to_timedelta64()
 
     levels = None
-    for model_file in in_files:
-        for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
-            if ds_key in ["o3mr"]:
+    for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
+        if ds_key in ["o3mr"]:
+            pass
+        else:
+            LOG.debug("Read {}".format(model_file))
+            LOG.info(filter_dict)
+            # if the variable is TPW, the data only seems to be run for 00Z
+            # model run?
+            #if filter_dict["shortName"] != "pwat":
+            #    filter_dict.update({"P1": forecast_hour})
+            ds = xr.open_dataset(model_file, engine="cfgrib",
+                                 backend_kwargs={'filter_by_keys': filter_dict})
+
+            print(ds)
+            # check if empty
+            if len(ds.sizes) < 1:
+                err_msg = "{} empty with backend_kwargs={}'filter_by_keys': {}{}"
+                err_msg = err_msg.format(model_file, "{",filter_dict, "}")
+                raise ValueError(err_msg)
+
+            # select the forecast time from the steps and squeeze the steps if necessary
+            if "step" in ds.dims:
+                ds = ds.sel(step=tdelta)
+
+            if "shortName" in filter_dict and filter_dict["shortName"] == "pwat":
                 pass
             else:
-                ds = xr.open_dataset(model_file, engine="cfgrib",
-                                     backend_kwargs={'filter_by_keys': filter_dict})
-
-                # select the forecast time from the steps and squeeze the steps if necessary
                 model_runs.append(pd.to_datetime(ds.time.data))
-                if "step" in ds.dims:
-                    ds = ds.sel(step=tdelta)
+                ts = pd.to_datetime(ds.valid_time.data)
+                timestamps.append(ts)
 
-                for coord_key in ds.coords:
-                    coord_da = ds.coords[coord_key]
-                    if coord_da.long_name.lower() == "pressure":
-                        if levels is None:
-                            levels = coord_da
-                        else:
-                            levels = np.concatenate((levels, coord_da))
-                LOG.info(filter_dict)
-                timestamps.append(pd.to_datetime(ds.valid_time.data))
-                # after all work on initial dataset, assign to dictionary.
-                datasets.update({ds_key: ds})
 
-        if all_equal(timestamps) and all_equal(model_runs):
-            model_init_hour = model_runs[0].strftime("%H")
-            forecast_hour = f"{timestamps[0].hour:03d}"
-            navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{forecast_hour}.hdf"
-            out_fname = timestamps[0].strftime(navgem_fn_pattern)
-            out_fname = os.path.join(out_dir, out_fname)
-            LOG.info('    working on {}'.format(out_fname))
+            for coord_key in ds.coords:
+                coord_da = ds.coords[coord_key]
+                if coord_da.long_name.lower() == "pressure":
+                    if levels is None:
+                        levels = coord_da
+                    else:
+                        levels = np.concatenate((levels, coord_da))
 
-            o3mr_fn = build_supplemental_ozone_fn(timestamps[0], model_init_hour,
-                                                  forecast_hour, out_dir,
-                                                  OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
-                                                  OUTPUT_VARS_DICT["datasets"]["o3mr"])
+            # after all work on initial dataset, assign to dictionary.
+            datasets.update({ds_key: ds})
 
-            gfs_o3mr = read_gfs(o3mr_fn)
+    if all_equal(timestamps):
+        model_init_hour = model_runs[0].strftime("%H")
+        fh = forecast_hour.zfill(3)
+        navgem_fn_pattern = f"navgem.%y%m%d{model_init_hour}_F{fh}.hdf"
+        out_fname = timestamps[0].strftime(navgem_fn_pattern)
+        out_fname = os.path.join(out_dir, out_fname)
+        LOG.info('    working on {}'.format(out_fname))
 
-            datasets.update({"o3mr": gfs_o3mr})
-            datasets = reformat_levels(datasets)
-            datasets = reorder_dimensions(datasets)
+        o3mr_fn = build_supplemental_ozone_fn(timestamps[0], model_init_hour,
+                                              forecast_hour, out_dir,
+                                              OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
+                                              OUTPUT_VARS_DICT["datasets"]["o3mr"])
 
-            # TRUNC will clobber existing
-            datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
+        gfs_o3mr = read_gfs(o3mr_fn)
 
-            write_output_variables(datasets, OUTPUT_VARS_DICT["data_arrays"])
-        else:
-            ts_str = ' '.join(timestamps)
-            msg = "Timestamps are not equal: {}".join(ts_str)
-            raise ValueError(msg)
+        datasets.update({"o3mr": gfs_o3mr})
+        datasets = reformat_levels(datasets)
+        datasets = reorder_dimensions(datasets)
+
+        # TRUNC will clobber existing
+        datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
+
+        write_output_variables(datasets, OUTPUT_VARS_DICT["data_arrays"])
+    else:
+        ts_str = ' '.join(timestamps)
+        msg = "Timestamps are not equal: {}".join(ts_str)
+        raise ValueError(msg)
 
     return out_fname
 
@@ -446,16 +463,17 @@ def get_model_run_string(model_date_dt, run_hour):
     return model_run_str
 
 
-def build_filepath(data_dir, dt: datetime, dir_type="output") -> str:
+def build_filepath(data_dir, dt: datetime, model_run: str, dir_type="output") -> str:
     """Create output path from in put model run information."""
     year = dt.strftime("%Y")
     year_month_day = dt.strftime("%Y_%m_%d")
     if dir_type == "output":
-        this_filepath = os.path.join(data_dir, year)
+        this_filepath = os.path.join(data_dir, year, year_month_day)
         LOG.info(f"Making {this_filepath}")
         os.makedirs(this_filepath, exist_ok=True)
     elif dir_type == "input":
-        this_filepath = os.path.join(data_dir, year, year_month_day)
+        this_filepath = os.path.join(data_dir, year, year_month_day, "nrl_orig")
+        os.makedirs(this_filepath, exist_ok=True)
     else:
         raise RuntimeError('dir_type options are either ["input", "output"]')
 
@@ -470,31 +488,27 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
         raise RuntimeError("Local is defined, process_navgem subroutine pulls data.")
 
     out_list = None
-    dt = start_date
 
-    input_path = build_filepath(input_path, dt, dir_type="input")
-    os.makedirs(input_path, exist_ok=True)
+    grib_path = build_filepath(input_path, start_date, model_run, dir_type="input")
+    os.makedirs(grib_path, exist_ok=True)
 
     # start_time is needed for url string.
-    start_time = dt + timedelta(hours=int(model_run))
-    LOG.debug("Running for {}".format(start_time.strftime("%Y%m%d%H")))
+    start_time = datetime.datetime.combine(start_date, datetime.time(int(model_run)))
+    LOG.debug("model run {}".format(start_time.strftime("%Y%m%d%H")))
     url = eval(url)
     soup = navgem_get.create_soup(url)
 
-    out_fp = build_filepath(base_path, dt)
-    model_run_str = get_model_run_string(dt, model_run)
+    out_fp = build_filepath(base_path, start_date, model_run)
+    model_run_str = get_model_run_string(start_date, model_run)
+    model_run_str00 = get_model_run_string(start_date, "00")
 
-    # source_site is ncep (filename format: f'navgem_{navgem_run}f{forecast}.grib2')
-    if "nomads" in url:
-        in_files = navgem_get.search_date(soup, url, model_run, forecast_hours, out_fp)
-    else:
-        model_run_dt = datetime.datetime.strptime(model_run_str, "%Y%m%d%H")
-        navgem_get.url_search_nrl(soup, url, model_run_dt,
-                                  forecast_hours, out_path=input_path)
-        in_files = [navgem_get.concat_gribs_in_one(input_path, model_run_str)]
+    model_run_dt = datetime.datetime.strptime(model_run_str, "%Y%m%d%H")
+    navgem_get.url_search_nrl(soup, url, model_run_dt,
+                              forecast_hours, dest_path=grib_path)
+    in_file = navgem_get.concat_gribs_in_one(grib_path, model_run_str)
 
     for forecast_hour in forecast_hours:
-        out_list = read_one_hour_navgem(in_files, out_fp, forecast_hour)
+        out_list = read_one_hour_navgem(in_file, out_fp, forecast_hour)
     LOG.info(out_list)
 
 
@@ -534,7 +548,7 @@ def argument_parser() -> NavgemCommandLineMapping:
     args = vars(parser.parse_args())
     verbosity = args.pop('verbosity', None)
 
-    levels = [logging.ERROR, logging.WARN, logging.DEBUG, logging.INFO]
+    levels = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
     logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s',
                         level=levels[min(3, verbosity)])
 
@@ -549,18 +563,23 @@ if __name__ == '__main__':
         process_navgem(**parser_args)
     else:
         inp = parser_args["input_path"]
-        inp = build_filepath(inp, parser_args["start_date"], dir_type="input")
+        inp = build_filepath(inp, parser_args["start_date"],
+                             parser_args["model_run"], dir_type="input")
         if len(parser_args["local"]) == 0:
-            fn = glob.glob(os.path.join(inp, "*{}.grib".format(parser_args["model_run"])))
+            full_glob=os.path.join(inp, "*{}.grib".format(parser_args["model_run"]))
+            LOG.debug("Process glob: {}".format(full_glob))
+            fn = glob.glob(full_glob)
+            LOG.debug("Found: {}".format(fn))
         else:
             fn = parser_args["local"]
 
         dt_in = parser_args["start_date"]
-        out_path = build_filepath(parser_args['base_path'],
-                                  dt_in)
+        out_path = build_filepath(parser_args['base_path'], dt_in,
+                                  parser_args["model_run"])
         fn_paths = (os.path.join(inp, x) for x in fn)
         fn_paths = list(fn_paths)
         out_fnames = []
-        for forecast in parser_args["forecast_hours"]:
-            out_fnames.append(read_one_hour_navgem(fn_paths, out_path, forecast))
-        LOG.info(out_fnames)
+        for process_fn in fn_paths:
+            for forecast in parser_args["forecast_hours"]:
+                out_fnames.append(read_one_hour_navgem(process_fn, out_path, forecast))
+            LOG.info(out_fnames)
