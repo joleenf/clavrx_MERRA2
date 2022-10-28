@@ -48,8 +48,8 @@ datasets:
    o3mr:
       # format keys, then the directory where the data from that format is stored, followed by file_pattern
       gfs_grib:
-         #directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_grib"
-         directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
+         directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_grib"
+         # directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
          file_pattern: f"gfs.{start_time:%Y%m%d}.t{model_init_hour}z.pgrb2f12"
 
 # dataset key for data_array should match the appropriate 'datasets' key matching

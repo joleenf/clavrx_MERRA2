@@ -381,8 +381,7 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
             # select 12 hour forecast for 0 and 12 Z runs
             filters.update({"P1": 12})
         elif model_run_hour in ["06", "18"] and dataset_key == "PWAT":
-            get_forecast = 12 + int(model_run_hour)
-            filters.update({"P1": get_forecast})
+            filters.update({"P1": 18})
 
         ds = xr.open_dataset(model_file, engine="cfgrib",
                              backend_kwargs={'filter_by_keys': filters})
