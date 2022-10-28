@@ -15,6 +15,8 @@ import glob
 import itertools
 import logging
 import os
+import shutil
+import tempfile
 
 import yaml
 
@@ -223,10 +225,12 @@ def read_gfs(o3mr_fn: str) -> xr.Dataset:
     :param o3mr_fn: filepath of the gfs file.
     :return: ozone mixing ratio in kg/kg
     """
-    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib",
-                             filter_by_keys={'typeOfLevel': 'isobaricInhPa',
-                                             'shortName': "o3mr"},
-                             )
+    dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
+    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib", backend_kwargs={
+                             'filter_by_keys':{'typeOfLevel': 'isobaricInhPa',
+                                               'shortName': "o3mr"},
+                                               "indexpath": dirpath + "/gfs.{short_hash}.idx"})
+    shutil.rmtree(dirpath)
 
     # for predictability, put dims in the CLAVRx order
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
@@ -248,7 +252,7 @@ def reformat_levels(datasets_dict):
         try:
             ds = ds.sel(isobaricInhPa=hPa_levels)
         except KeyError as kerr:
-            ke_msg = "{} for {} in coords {}".format(kerr, key, ds.coords)
+            ke_msg = "{} for {} in coords".format(kerr, key)
             LOG.warning(ke_msg)
         datasets_dict.update({key: ds})
     return datasets_dict
@@ -368,6 +372,8 @@ def reorder_dimensions(datasets):
 
 def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
     """Use cfgrib to load NAVGEM model data."""
+
+    # make a temp directory for the cfgrib idx file
     if dataset_key in ["o3mr"]:
         return
     else:
@@ -383,8 +389,11 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
         elif model_run_hour in ["06", "18"] and dataset_key == "PWAT":
             filters.update({"P1": 18})
 
+        dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
         ds = xr.open_dataset(model_file, engine="cfgrib",
-                             backend_kwargs={'filter_by_keys': filters})
+                             backend_kwargs={'filter_by_keys': filters, 
+                                             "indexpath": dirpath + "/input.{short_hash}.idx"})
+        shutil.rmtree(dirpath)
 
         # check if empty
         if len(ds.sizes) < 1:
