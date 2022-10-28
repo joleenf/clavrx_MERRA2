@@ -77,48 +77,72 @@ def url_search_by_filenames(url_soup, url, get_these_files, out_path):
         raise RuntimeError(f"No NAVGEM files loaded with {url}")
 
 
+def build_curl_file_list(bs4_soup, url, regex_pattern, destination):
+    """Create the curl file list matching regex."""
+    # need to get precipitable water which is not in every model run?
+    list_of_files = []
+    for link in bs4_soup.find_all(href=re.compile(regex_pattern)):
+        url_fn = url + "/" + link.text
+        list_of_files.append(url_fn)
+
+    if list_of_files:
+        LOG.debug(len(list_of_files))
+        file_list = ' '.join(list_of_files)
+
+        args = shlex.split("curl --output-dir {} --progress-bar "
+                           "--insecure --remote-name-all {}".format(destination, file_list))
+
+        ip = Popen(args, stdin=PIPE, stdout=PIPE)
+        LOG.debug(ip.communicate())
+
+    return list_of_files
+
+
 def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None):
     """Get NRL data using regex."""
-
     # Product name model table:  OLD INFO: https://www.usgodae.org/docs/layout/pn_model_tbl.pns.html
     products_list = ["pres_msl", "pres", "rltv_hum", "air_temp", "snw_dpth",
-                     "prcp_h20", "wnd_ucmp", "wnd_vcmp", "geop_ht",
-                     "air_temp", "height", "vpr_pres"]
+                     "wnd_ucmp", "wnd_vcmp", "geop_ht",
+                     "air_temp", "vpr_pres", "prcp_h20"]
 
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
-    regex_string=r"US058GMET-GR1mdl.0018_0056_{}00{}{}_(\d+)_(\d+)-(\d+){}"
-    regex_minimal=r"US.*?{}.*?{}_(\d+)_(\d+)-(\d+){}"
+    regex_minimal = r"US.*?{}.*?{}_(\d+)_(\d+)-(\d+){}"
     # dataset ID table:  https://www.usgodae.org/docs/layout/pn_dataset_tbl.pns.html
-    dataset = "F0{(\D{2})"  # forecast(now time) field of a given product (F0 Stands for Realtime
 
     if forecast_times is None:
-        forecast_times = [3, 6, 9, 12]
-    list_of_files = []
-    # Add the Precipitable water if this is not a 00 model run, that field only seems to run at 00
-    # url_fn_00 = url[:-2] + "00/" + 
+        forecast_times = [3, 6, 12, 18]
+    full_list = []
+
     for forecast in forecast_times:
+        url_base = os.path.dirname(os.path.dirname(url))
+        # date transitions at 18Z run + 12 hours.
+        if navgem_run_dt.strftime("%H") == "06":
+            tpw_run = navgem_run_dt.strftime("%Y%m%d00")
+            url_tpw = os.path.join(url_base, navgem_run_dt.strftime("%Y"), tpw_run)
+        elif navgem_run_dt.strftime("%H") == "18":
+            tpw_run = navgem_run_dt.strftime("%Y%m%d12")
+            url_tpw = os.path.join(url_base, navgem_run_dt.strftime("%Y"), tpw_run)
+        else:
+            url_tpw = url
+            tpw_run = navgem_run
+
         forecast_time = str(forecast).zfill(3)
         for product_name in products_list:
-           #pattern = regex_string.format(forecast_time, dataset, navgem_run, product_name)
-            pattern = regex_minimal.format(forecast_time, navgem_run, product_name)
+            this_soup = url_soup
+            this_url = url
+            if product_name == "prcp_h20":
+                if url != url_tpw:
+                    this_soup = create_soup(url_tpw)
+                    this_url = url_tpw
+                pattern = regex_minimal.format(r"(\d+)", tpw_run, product_name)
+            else:
+                pattern = regex_minimal.format(forecast_time, navgem_run, product_name)
 
-            # need to get precipitable water which is not in every model run?
-            for link in url_soup.find_all(href=re.compile(pattern)):
-               url_fn = url + "/" + link.text
-               list_of_files.append(url_fn)
-    if list_of_files:
-       LOG.debug(len(list_of_files))
-       file_list = ' '.join(list_of_files)
-   
-       args = shlex.split("curl --output-dir {} --progress-bar "
-                          "--insecure --remote-name-all {}".format(dest_path, file_list))
-
-       ip = Popen(args, stdin=PIPE, stdout=PIPE)
-       LOG.debug(ip.communicate())
-    else:
-       runtime_msg=f"No NAVGEM files loaded with {url}"
-       raise RuntimeError(runtime_msg)
-    return list_of_files
+            full_list.extend(build_curl_file_list(this_soup, this_url, pattern, dest_path))
+    if len(full_list) == 0:
+        runtime_msg = f"No NAVGEM files loaded with {url}"
+        raise RuntimeError(runtime_msg)
+    return full_list
 
 
 def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
@@ -142,15 +166,24 @@ def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
 def concat_gribs_in_one(data_path, model_run):
     """Concat all files in data_path, using model_run to name output file."""
     grib_name = os.path.join(data_path, f'navgem_{model_run}.grib')
-    model_run_glob=f"US*{model_run}*"
-    model_run0z = model_run[:-2] + "00"
+    model_run_glob = f"US*{model_run}*"
     data_path_glob = os.path.join(data_path, model_run_glob)
     os.system(f'cat {data_path_glob} > {grib_name}')
 
     # Need to cat the TPW file into this grib set
-    tpw_run_glob=f"US*{model_run0z}*prcp_h20"
+    model_run_hour = model_run[-2:]
+    model_run_date = model_run[:-2]
+    if model_run_hour == "06":
+        model_run_tpw = model_run_date + "00"
+    elif model_run_hour == "18":
+        model_run_tpw = model_run_date + "12"
+    else:
+        return grib_name
+
+    tpw_run_glob = f"US*{model_run_tpw}*prcp_h20"
     data_path_glob_tpw = os.path.join(data_path, tpw_run_glob)
     os.system(f'cat {data_path_glob_tpw} >> {grib_name}')
+
     return grib_name
 
 
@@ -225,4 +258,3 @@ if __name__ == '__main__':
         files = url_search_nrl(soup, URL, model_run, dest_path=grib_path)
         concat_to_new = concat_gribs_in_one(grib_path, model_run_str)
         LOG.info(concat_to_new)
-
