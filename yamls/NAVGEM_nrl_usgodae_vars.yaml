@@ -27,7 +27,7 @@ datasets:
       stepType: instant
       typeOfLevel: surface
       shortName: sde
-   surfaceTemperature:
+   temperatureAt2m:
      stepType: instant
      typeOfLevel: heightAboveGround
      shortName: 2t
@@ -103,9 +103,15 @@ data_arrays:
     ndims_out: 3
     out_units: "%"
     units_fn: !!python/name:conversions.no_conversion
-  surface temperature:
-    dataset: surfaceTemperature
+  temperatureAt2m:
+    dataset: temperatureAt2m
     cfVarName: t2m
+    ndims_out: 2
+    out_units: K
+    units_fn: !!python/name:conversions.no_conversion
+  surface temperature:
+    dataset: isobaricInhPa
+    cfVarName: t
     ndims_out: 2
     out_units: K
     units_fn: !!python/name:conversions.no_conversion
