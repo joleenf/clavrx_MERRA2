@@ -291,6 +291,9 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         # is different for coordinate attributes.
         print(var_key, rsk)
         out_var = apply_conversion(units_fn, out_var, fill=var_fill)
+        if file_key == "surfaceTemperature":
+            out_var = out_var.sel(isobaricInhPa=1013)
+            print(out_var)
 
         update_output(in_datasets, var_key, rsk,
                       out_var, var_fill, source_model)
