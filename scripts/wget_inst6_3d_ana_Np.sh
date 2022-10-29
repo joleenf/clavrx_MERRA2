@@ -30,6 +30,7 @@ scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 echo $(pwd)
 
 source ${scripts_home}/get_stream.sh
+source ${scripts_home}/wget_exec.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
@@ -41,7 +42,8 @@ if [ -s "3d_ana/${TARGET_FILE}" ] || [ -s "3d_ana/${REANALYSIS}" ]; then
         exit
 fi
 
-wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+#wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+${WGET_CMD} ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
         any_stream ${TARGET_FILE} ${BASEURL}

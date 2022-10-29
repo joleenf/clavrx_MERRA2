@@ -26,6 +26,7 @@ let YMD=${YYYY}${MM}${DD}
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 source ${scripts_home}/get_stream.sh
+source ${scripts_home}/wget_exec.sh
 get_stream ${YMD}
 
 TARGET_FILE=MERRA2_${STREAM}.inst1_2d_asm_Nx.${YYYY}${MM}${DD}.nc4
@@ -37,7 +38,8 @@ if [ -s "2d_asm/${TARGET_FILE}" ] || [ -s "2d_asm/${REANALYSIS}" ]; then
 	exit
 fi
 
-wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+#wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
+${WGET_CMD} ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
 	any_stream ${TARGET_FILE} ${BASEURL}
