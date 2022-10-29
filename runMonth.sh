@@ -31,7 +31,12 @@ test -z $MONTH && usage
 len_year=`expr length "$YEAR"`
 [[ $len_year -ne 4 ]] && usage
 
-month=`printf "%02d" $MONTH`
+str_size=`echo $MONTH | awk '{print length}'`
+if [ ${str_size} ==  2 ]; then
+        month=$MONTH
+else
+        month=`printf "%02d" $MONTH`
+fi
 
 screen_name=`date -d ${YEAR}-${month}-01 +"%B_%Y"`
 
