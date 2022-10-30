@@ -49,13 +49,13 @@ end_day=${YEAR}${month}${ndays}
 start_date=$(date -d $start_day +%Y%m%d)
 end_date=$(date -d $end_day +%Y%m%d)
 
-#screen -dm -S $screen_name /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
+#screen -dm -S $screen_name /bin/bash $bin_dir/run_merra2_4clavrx.sh $start_day $end_day
 while [[ $start_date -le $end_date ]];
 do
-    /bin/bash $bin_dir/run_merra24clavrx_brett.sh $start_date 
+    /bin/bash $bin_dir/run_merra2_4clavrx.sh $start_date 
     start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 done
 
-echo "/bin/bash $bin_dir/run_merra24clavrx_brett.sh $start_day $end_day"
+echo "/bin/bash $bin_dir/run_merra2_4clavrx.sh $start_day $end_day"
 sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}.log
 exit
