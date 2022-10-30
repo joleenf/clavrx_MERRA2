@@ -57,8 +57,13 @@ do
         start_day=$(date -d"$start_day + 1 day" +"%Y%m%d")
 done
 
-comm -13 $tmpfile01 $tmpfile02
-echo "The list generated represents file patterns not found in given path."
+count=`comm -13 $tmpfile01 $tmpfile02 | wc -l`
+if [ $count == 0 ]; then
+	echo "No files missing $YEAR/${month}"
+else
+    comm -13 $tmpfile01 $tmpfile02
+    echo "The list generated represents file patterns not found in given path."
+fi
 rm $tmpfile01
 rm $tmpfile02
 
