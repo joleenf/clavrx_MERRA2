@@ -3,6 +3,7 @@
 YYYY=${1}
 MM=${2}
 DD=${3}
+download_dir=${4}
 
 # MERRA-2 files are identified by their assimilation stream, of which there are 4 (100, 200, 300, and 400).
 # The stream a file comes from depends on its date, as referenced on page 13 of:
@@ -33,6 +34,11 @@ TARGET_FILE=MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 FALSE_DATE_TARGET_NAME=MERRA2_101.const_2d_ctm_Nx.${YMD}.nc4
 HOLD_FILE=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 
+mkdir -p 2d_ctm
+# Put the constant file in a permanent location (one up from the download_dir) and this makes it very confusing...  
+# was thinking that permanent parent_download_dir location would be something like /apollo/.../merra/{YEAR} and the current working dir would be 
+# /apollo/.../merra/{YEAR}/{YEAR}_{MONTH}_{DATE}
+parent_download_dir=$(dirname $download_dir)
 # check if file already exists on disk
 if [ -s ${HOLD_FILE} ]; then
 	cp ${HOLD_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 

@@ -1,0 +1,144 @@
+defined levels:
+  pressure levels: [1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 225, 200, 175, 150, 125, 100, 70, 50, 30, 20, 10, 7, 5, 3, 2, 1]
+  potential temperature: [265, 275, 285, 300, 315, 320, 330, 350, 370, 395, 430, 475, 530, 600, 700, 850]
+
+MSL pressure:
+  in_file: singleLevel
+  in_varname: msl
+  ndims_out: 2
+  out_units: hPa
+  units_fn: 0.01
+dewpoint temperature at sigma=0.995:
+  in_file: singleLevel
+  in_varname: d2m
+  ndims_out: 2
+  out_units: K
+  units_fn: no_conversion
+ice fraction:
+  in_file: singleLevel
+  in_varname: siconc
+  ndims_out: 2
+  out_units: None
+  units_fn: no_conversion
+lat:
+  in_file: pressureLevels
+  in_varname: latitude
+  ndims_out: 1
+  out_units: None
+  units_fn: no_conversion
+level:
+  in_file: pressureLevels
+  in_varname: level
+  ndims_out: 1
+  out_units: hPa
+  units_fn: no_conversion
+lon:
+  in_file: pressureLevels
+  in_varname: longitude
+  ndims_out: 1
+  out_units: None
+  units_fn: no_conversion
+planetary boundary layer height:
+  in_file: singleLevel
+  in_varname: blh
+  ndims_out: 2
+  out_units: km
+  units_fn: 0.001
+pressure levels:
+  in_file: pressureLevels
+  in_varname: level
+  ndims_out: 1
+  out_units: hPa
+  units_fn: no_conversion
+rh:
+  in_file: pressureLevels
+  in_varname: r
+  ndims_out: 3
+  out_units: '%'
+  units_fn: no_conversion
+surface pressure:
+  in_file: singleLevel
+  in_varname: sp
+  ndims_out: 2
+  out_units: hPa
+  units_fn: 0.01
+height:
+  in_file: singleLevel
+  in_varname: sp
+  ndims_out: 2
+  out_units: km
+  units_fn: convert_to_altitude  # see excel spread
+surface temperature:
+  in_file: singleLevel
+  in_varname: skt   # substitute skin temperature for surface temperature
+  ndims_out: 2
+  out_units: K
+  units_fn: no_conversion
+temperature:
+  in_file: pressureLevels
+  in_varname: t
+  ndims_out: 3
+  out_units: K
+  units_fn: no_conversion
+temperature at sigma=0.995:
+  in_file: singleLevel
+  in_varname: t2m
+  ndims_out: 2
+  out_units: K
+  units_fn: no_conversion
+total cloud fraction:
+  in_file: singleLevel
+  in_varname: tcc
+  ndims_out: 2
+  out_units: None
+  units_fn: no_conversion
+total ozone:
+  in_file: singleLevel
+  in_varname: tco3
+  ndims_out: 2
+  out_units: Dobson
+  units_fn: 46696.241
+o3mr:
+  in_file: pressureLevels
+  in_varname: o3
+  out_units: kg/kg
+  units_fn: no_conversion
+  ndims_out: 3
+total precipitable water:
+  in_file: singleLevel
+  in_varname: tcwv
+  ndims_out: 2
+  out_units: cm
+  units_fn: 0.001
+u-wind:
+  in_file: pressureLevels
+  in_varname: u
+  ndims_out: 3
+  out_units: m/s
+  units_fn: no_conversion
+u-wind at sigma=0.995:
+  in_file: singleLevel
+  in_varname: u10
+  ndims_out: 2
+  out_units: m/s
+  units_fn: no_conversion
+v-wind:
+  in_file: pressureLevels
+  in_varname: v
+  ndims_out: 3
+  out_units: m/s
+  units_fn: no_conversion
+v-wind at sigma=0.995:
+  in_file: singleLevel
+  in_varname: v10
+  ndims_out: 2
+  out_units: m/s
+  units_fn: no_conversion
+water equivalent snow depth:
+  in_file: singleLevel
+  in_varname: sd
+  ndims_out: 2
+  out_units: m of water equivalent
+  units_fn: no_conversion
+
+

@@ -10,6 +10,11 @@ dependencies:
   - netCDF4
   - matplotlib
   - jupyter
-  - pip
   - wget
   - typing
+  - pip
+  - pyyaml
+  - pydap
+  - pip:
+    - cdsapi
+    - lxml

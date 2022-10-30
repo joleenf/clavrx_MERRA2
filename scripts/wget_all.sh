@@ -4,16 +4,12 @@
 
 function usage() {
 cat << EndOfMessage
-
     Usage: sh $0 [options] YYYY MM DD"
-
     Download data from GES DISC based on date and key"
-
     Options:
     	-w download directory (default is pwd).
     	-k key (valid keys: all ${!FILETYPES[@]})
    	-h Display this usage information
-
 EndOfMessage
     echo $VAR
     exit
