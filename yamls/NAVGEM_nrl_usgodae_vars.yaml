@@ -34,6 +34,7 @@ datasets:
    surfaceTemperature:
      typeOfLevel: isobaricInhPa
      shortName: t
+     level: 1013
    surfacePressure:
      stepType: instant
      typeOfLevel: surface
@@ -113,7 +114,7 @@ data_arrays:
     out_units: K
     units_fn: !!python/name:conversions.no_conversion
   surface temperature:
-    dataset: isobaricInhPa
+    dataset: surfaceTemperature
     cfVarName: t
     ndims_out: 2
     out_units: K

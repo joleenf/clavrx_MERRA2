@@ -21,6 +21,7 @@ import tempfile
 import yaml
 
 import navgem_nomads_get as navgem_get
+from testing import printValue
 
 try:
     import argparse
@@ -87,7 +88,7 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
     msg_str = msg_str.format(out_sds.dimensions(),
                              data_array.name,
                              out_name)
-    LOG.info(msg_str)
+    LOG.debug(msg_str)
     for dim in data_array.dims:
         axis_num, dim_name = coords_dict.get(dim, dim)
 
@@ -97,7 +98,7 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
     msg_str = msg_str.format(out_sds.dimensions(),
                              data_array.name,
                              out_name)
-    LOG.info(msg_str)
+    LOG.debug(msg_str)
 
     return out_sds
 
@@ -163,7 +164,7 @@ def modify_shape(data_array: xr.DataArray) -> xr.DataArray:
 def reshape(data_array: xr.DataArray,
             out_name: str, ndims_out: int) -> xr.DataArray:
     """Reshape data toa->surface and (lat, lon, level)."""
-    if ndims_out == 3:
+    if "isobaricInhPa" in data_array.dims:
         # clavr-x needs toa->surface not surface->toa
         data_array = data_array.sortby(data_array["isobaricInhPa"], ascending=True)
 
@@ -234,28 +235,25 @@ def read_gfs(o3mr_fn: str) -> xr.Dataset:
 
     # for predictability, put dims in the CLAVRx order
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
-    gfs_ds = gfs_ds.sortby(gfs_ds["latitude"], ascending=False)
+    gfs_ds = gfs_ds.sortby("latitude", ascending=True)
+    printValue(gfs_ds["o3mr"])
 
     return gfs_ds
 
 
-def reformat_levels(datasets_dict):
+def reformat_levels(in_ds, key_name):
     """Verify output levels of dataset are on CLAVRx levels."""
     hPa_levels = [1000.0, 975.0, 950.0, 925.0, 900.0, 850.0,
                   800.0, 750.0, 700.0, 650.0, 600.0, 550.0,
                   500.0, 450.0, 400.0, 350.0, 300.0, 250.0,
                   200.0, 150.0, 100.0, 70.0, 50.0, 30.0, 20.0, 10.0]
 
-    for key, ds in datasets_dict.items():
-        if key == "surfaceTemperature":
-            ds = ds.sel(isobaricInhPa=[1013.0])
-        try:
-            ds = ds.sel(isobaricInhPa=hPa_levels)
-        except KeyError as kerr:
-            ke_msg = "{} for {} in coords".format(kerr, key)
-            LOG.warning(ke_msg)
-        datasets_dict.update({key: ds})
-    return datasets_dict
+    try:
+        in_ds = in_ds.sel(isobaricInhPa=hPa_levels)
+    except KeyError as kerr:
+        ke_msg = "{} for {} in coords".format(kerr, key_name)
+        LOG.warning(ke_msg)
+    return in_ds
 
 
 def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> xr.DataArray:
@@ -298,8 +296,6 @@ def write_output_variables(in_datasets, out_vars_setup: Dict):
         # return a new xarray with converted data, otherwise, the process
         # is different for coordinate attributes.
         out_var = apply_conversion(units_fn, out_var, fill=var_fill)
-        if file_key == "surfaceTemperature":
-            out_var = out_var.sel(isobaricInhPa=1013)
 
         update_output(in_datasets, var_key, rsk,
                       out_var, var_fill, source_model)
@@ -382,11 +378,11 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
 
         # in general, need to select 12 hour forecast, except
         # in cases when PWAT is being pulled from a previous
-        # model run.
-        if model_run_hour in ["00", "12"] or dataset_key != "PWAT":
+        # model run
+        if model_run_hour in ["00", "12"] or dataset_key != "tpw":
             # select 12 hour forecast for 0 and 12 Z runs
             filters.update({"P1": 12})
-        elif model_run_hour in ["06", "18"] and dataset_key == "PWAT":
+        elif model_run_hour in ["06", "18"] and dataset_key == "tpw":
             filters.update({"P1": 18})
 
         dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
@@ -419,8 +415,6 @@ def read_one_hour_navgem(model_file: str,
     navgem_fn_pattern = f"navgem.%y%m%d{model_hour}_F{fh}.hdf"
     out_fname = model_initialization.strftime(navgem_fn_pattern)
 
-    levels = None
-
     for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
         ds = load_dataset(model_file, model_hour, ds_key, filter_dict)
 
@@ -436,26 +430,15 @@ def read_one_hour_navgem(model_file: str,
                                                   OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
                                                   OUTPUT_VARS_DICT["datasets"]["o3mr"])
 
-            gfs_o3mr = read_gfs(o3mr_fn)
-
-            datasets.update({"o3mr": gfs_o3mr})
-        else:
-            for coord_key in ds.coords:
-                coord_da = ds.coords[coord_key]
-                if coord_da.long_name.lower() == "pressure":
-                    if levels is None:
-                        levels = coord_da
-                    else:
-                        levels = np.concatenate((levels, coord_da))
-
-            # after all work on initial dataset, assign to dictionary.
-            datasets.update({ds_key: ds})
+            ds = read_gfs(o3mr_fn)
+            
+        ds = reformat_levels(ds, ds_key)
+        datasets.update({ds_key: ds})
 
     if all_equal(timestamps) and timestamps[0] == valid_time:
         out_fname = os.path.join(out_dir, out_fname)
         LOG.info('    working on {}'.format(out_fname))
 
-        datasets = reformat_levels(datasets)
         datasets = reorder_dimensions(datasets)
 
         # TRUNC will clobber existing
@@ -573,7 +556,7 @@ def argument_parser() -> NavgemCommandLineMapping:
     verbosity = args.pop('verbosity', None)
 
     levels = [logging.ERROR, logging.WARN, logging.INFO, logging.DEBUG]
-    logging.basicConfig(format='%(module)s:%(lineno)d:%(levelname)s:%(message)s',
+    logging.basicConfig(format='%(module)s:%(funcName)s:%(lineno)d:%(levelname)s:%(message)s',
                         level=levels[min(3, verbosity)])
 
     return args
