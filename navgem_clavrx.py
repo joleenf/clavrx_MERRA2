@@ -236,7 +236,7 @@ def read_gfs(o3mr_fn: str) -> xr.Dataset:
     # for predictability, put dims in the CLAVRx order
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
     gfs_ds = gfs_ds.sortby("latitude", ascending=True)
-    printValue(gfs_ds["o3mr"])
+    # printValue(gfs_ds["o3mr"])
 
     return gfs_ds
 
@@ -318,7 +318,7 @@ def get_dim_list_string(param: Dict[str]) -> str:
     return "".join(dim_list)
 
 
-def write_global_attributes(out_ds: SD, model_run, valid_time) -> None:
+def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, forecast) -> None:
     """Write global attributes."""
     var = out_ds.select('temperature')
     nlevel = var.dimensions(full=False)['level']
@@ -330,6 +330,8 @@ def write_global_attributes(out_ds: SD, model_run, valid_time) -> None:
     setattr(out_ds, 'NUMBER OF O3MR LEVELS', nlevel)
     setattr(out_ds, 'NUMBER OF CLWMR LEVELS', nlevel)
     setattr(out_ds, 'MODEL INITIALIZATION TIME', model_run.strftime("%Y-%m-%d %HZ"))
+    setattr(out_ds, 'FORECAST', forecast)
+    setattr(out_ds, 'TPW FORECAST', tpw_time)
     setattr(out_ds, 'VALID TIME', valid_time.strftime("%Y-%m-%d %HZ"))
     lat = out_ds.select('lat')
     lon = out_ds.select('lon')
@@ -349,21 +351,19 @@ def write_global_attributes(out_ds: SD, model_run, valid_time) -> None:
     out_ds.end()
 
 
-def reorder_dimensions(datasets):
+def reorder_dimensions(ds):
     """Reorder and rename dimensions."""
-    for key, ds in datasets.items():
         # rename_dims
-        for dim_key in ds.dims:
-            dim = ds[dim_key]
-            if dim.long_name.lower() == "longitude":
-                ds = ds.rename_dims({dim.name: "x"})
-            elif dim.long_name.lower() == "latitude":
-                ds = ds.rename_dims({dim.name: "y"})
-            elif dim.long_name.lower() == "pressure":
-                ds = ds.rename_dims({dim.name: "z"})
-        datasets[key] = ds
+    for dim_key in ds.dims:
+        dim = ds[dim_key]
+        if dim.long_name.lower() == "longitude":
+            ds = ds.rename_dims({dim.name: "x"})
+        elif dim.long_name.lower() == "latitude":
+            ds = ds.rename_dims({dim.name: "y"})
+        elif dim.long_name.lower() == "pressure":
+            ds = ds.rename_dims({dim.name: "z"})
 
-    return datasets
+    return ds
 
 
 def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
@@ -418,11 +418,19 @@ def read_one_hour_navgem(model_file: str,
     for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
         ds = load_dataset(model_file, model_hour, ds_key, filter_dict)
 
-        if ds_key in ["o3mr", "tpw"]:
+        if ds_key == "o3mr":
             pass
+        elif ds_key == "tpw":
+            tpw_ts = pd.to_datetime(ds.time.data)
+            delta = ds.step.data
+            step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
+            tpw_str= "{} {}Z forecast".format(tpw_ts.strftime("%Y-%m-%d %HZ"), step)
         else:
             ts = pd.to_datetime(ds.valid_time.data)
             timestamps.append(ts)
+            delta = ds.step.data
+            step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
+            forecast_str= "{}Z".format(step)
 
         if ds_key == "o3mr":
             o3mr_fn = build_supplemental_ozone_fn(model_initialization, model_hour,
@@ -433,13 +441,12 @@ def read_one_hour_navgem(model_file: str,
             ds = read_gfs(o3mr_fn)
             
         ds = reformat_levels(ds, ds_key)
+        ds = reorder_dimensions(ds)
         datasets.update({ds_key: ds})
 
     if all_equal(timestamps) and timestamps[0] == valid_time:
         out_fname = os.path.join(out_dir, out_fname)
         LOG.info('    working on {}'.format(out_fname))
-
-        datasets = reorder_dimensions(datasets)
 
         # TRUNC will clobber existing
         datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
@@ -451,7 +458,8 @@ def read_one_hour_navgem(model_file: str,
                                                                              valid_time)
         raise ValueError(ts_msg)
 
-    write_global_attributes(datasets['out'], model_initialization, valid_time)
+    write_global_attributes(datasets['out'], model_initialization,
+                            valid_time, tpw_str, forecast_str)
 
     return out_fname
 

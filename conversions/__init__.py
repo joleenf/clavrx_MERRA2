@@ -58,4 +58,4 @@ def pressure_to_altitude(pressure):
 
 def km_per_square_meter_to_cm(data):
     """Convert kg/m2 of water to cm."""
-    return data*10.
+    return data*0.1
