@@ -46,12 +46,17 @@ datasets:
    rh:
       typeOfLevel: isobaricInhPa
       shortName: r
-   o3mr:
+   gfs_grib:
       # format keys, then the directory where the data from that format is stored, followed by file_pattern
-      gfs_grib:
-         directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_grib"
-         # directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
-         file_pattern: f"gfs.{start_time:%Y%m%d}.t{model_init_hour}z.pgrb2f12"
+      directory: f"/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/gfs_grib"
+      # directory: f"/Users/joleenf/data/clavrx/ozone/gfs/{start_time:%Y}"
+      file_pattern: f"gfs.{start_time:%Y%m%d}.t{model_init_hour}z.pgrb2f12"
+      o3mr:
+         typeOfLevel: isobaricInhPa
+         shortName: o3mr
+      sdwe:
+         typeOfLevel: surface
+         shortName: sdwe
 
 # dataset key for data_array should match the appropriate 'datasets' key matching
 # the filter_by_key={'type_of_level': something, 'shortName': something}
@@ -92,9 +97,7 @@ data_arrays:
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
   o3mr:
-    dataset: o3mr
-    # has an extra format key to facilitate substitution of various o3mr sources if desired.
-    data_source_format: gfs_grib
+    dataset: gfs_grib
     cfVarName: o3mr
     ndims_out: 3
     out_units: kg/kg
@@ -156,8 +159,8 @@ data_arrays:
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   water equivalent snow depth:
-    dataset: snow_depth
-    cfVarName: sde
+    dataset: gfs_grib
+    cfVarName: sdwe
     ndims_out: 2
     out_units: m of water equivalent
     units_fn: !!python/name:conversions.no_conversion
@@ -166,7 +169,7 @@ data_arrays:
     cfVarName: pres
     ndims_out: 2
     out_units: hPa
-    units_fn: !!python/name:conversions.no_conversion
+    units_fn: !!python/name:conversions.pa_to_hPa
   tropopause temperature:
     dataset: tropopause
     cfVarName: t

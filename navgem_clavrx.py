@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import glob
+import json
 import itertools
 import logging
 import os
@@ -184,10 +185,8 @@ def starmap(function, iterable):
         yield function(*args)
 
 
-def build_supplemental_ozone_fn(start_time: datetime.datetime,
-                                model_init_hour: str,
-                                forecast_hour: str,
-                                o3mr_data_crc, o3mr_load_grib_crc) -> str:
+def obtain_gfs_fn(start_time: datetime.datetime, model_init_hour: str,
+                  forecast_hour: str, gfs_load_crc) -> str:
     """Use information from ozone mixing ratio yaml setup to build filepath.
 
     :param start_time: start_time is part of the filename format string and must match yaml
@@ -196,47 +195,49 @@ def build_supplemental_ozone_fn(start_time: datetime.datetime,
         (so if this variable changes here, it should change in the yaml as well.)
     :param forecast_hour: forecast_hour is part of a filename format string and must match yaml
         (so if this variable changes here, it should change in the yaml as well.)
-    :param o3mr_data_crc: In the yaml, the data_arrays section describe the type of variable
-         loaded.  For ozone, there is a special descriptor for the source file type.
-         Currently only gfs_hdf has been tested.
-    :param o3mr_load_grib_crc: This is the datasets section of the yaml and will contain
+    :param gfs_load_crc: This is the datasets section of the yaml and will contain
          the appropriate filepath and filename pattern for the source files.
     :return: The full filepath based on these input of the ozone mixing ratio supplement file.
     """
-    o3mr_format_key = o3mr_data_crc["data_source_format"]
-    o3mr_fp = o3mr_load_grib_crc[o3mr_format_key]
-
+    
+    gfs_dir = gfs_load_crc.pop("directory")
+    gfs_pattern = gfs_load_crc.pop("file_pattern")
     # both had an eval next two lines
-    base_dir = eval(o3mr_fp["directory"])
-    base_fn = eval(o3mr_fp["file_pattern"])
+    base_dir = eval(gfs_dir)
+    base_fn = eval(gfs_pattern)
 
     # read complementary GFS 03MR here
     full_filepath = os.path.join(base_dir, base_fn)
 
-    imsg = f"{start_time}, {model_init_hour}, F{forecast_hour}," \
-           f"{o3mr_format_key} => {full_filepath}"
+    imsg = f"{start_time}, {model_init_hour}, F{forecast_hour} => {full_filepath}"
     LOG.info(imsg)
 
-    return full_filepath
+    return full_filepath, gfs_load_crc
 
 
-def read_gfs(o3mr_fn: str) -> xr.Dataset:
+def read_gfs(gfs_dict, model_init, model_run_hour, forecast) -> xr.Dataset:
     """Use the GFS ozone mixing ratio.
 
     :param o3mr_fn: filepath of the gfs file.
     :return: ozone mixing ratio in kg/kg
     """
-    dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
-    gfs_ds = xr.open_dataset(o3mr_fn, engine="cfgrib", backend_kwargs={
-                             'filter_by_keys':{'typeOfLevel': 'isobaricInhPa',
-                                               'shortName': "o3mr"},
-                                               "indexpath": dirpath + "/gfs.{short_hash}.idx"})
-    shutil.rmtree(dirpath)
 
-    # for predictability, put dims in the CLAVRx order
+    gfs_fn, ds_var_dict = obtain_gfs_fn(model_init, model_run_hour,
+                                        str(forecast), gfs_dict) 
+     
+
+    dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
+
+    gfs_datasets_arr = []
+    for da_key, new_filters in ds_var_dict.items():
+        gfs_datasets_arr.append(load_dataset(gfs_fn, model_run_hour, 'gfs_grib', new_filters))
+                                              
+    gfs_ds = xr.merge(gfs_datasets_arr)
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
     gfs_ds = gfs_ds.sortby("latitude", ascending=True)
     # printValue(gfs_ds["o3mr"])
+
+    shutil.rmtree(dirpath)
 
     return gfs_ds
 
@@ -370,32 +371,36 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
     """Use cfgrib to load NAVGEM model data."""
 
     # make a temp directory for the cfgrib idx file
-    if dataset_key in ["o3mr"]:
-        return
-    else:
-        LOG.debug("Read {}".format(model_file))
-        LOG.info(filters)
+    LOG.debug("Read {}".format(model_file))
+    LOG.info(filters)
 
-        # in general, need to select 12 hour forecast, except
-        # in cases when PWAT is being pulled from a previous
-        # model run
+    # in general, need to select 12 hour forecast, except
+    # in cases when PWAT is being pulled from a previous
+    # model run
+    if dataset_key in ["gfs_grib"]:
+        pass
+    else:
         if model_run_hour in ["00", "12"] or dataset_key != "tpw":
             # select 12 hour forecast for 0 and 12 Z runs
             filters.update({"P1": 12})
         elif model_run_hour in ["06", "18"] and dataset_key == "tpw":
             filters.update({"P1": 18})
 
-        dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
-        ds = xr.open_dataset(model_file, engine="cfgrib",
-                             backend_kwargs={'filter_by_keys': filters, 
-                                             "indexpath": dirpath + "/input.{short_hash}.idx"})
-        shutil.rmtree(dirpath)
+    dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
+    cmd = " xr.open_dataset('{}', engine='cfgrib', backend_kwargs={{'filter_by_keys': {}}})"
+    cmd = cmd.format(model_file, json.dumps(filters))
+    LOG.debug(cmd)
+    ds = xr.open_dataset(model_file, engine="cfgrib",
+                         backend_kwargs={'filter_by_keys': filters, 
+                                         "indexpath": dirpath + "/input.{short_hash}.idx"})
 
-        # check if empty
-        if len(ds.sizes) < 1:
-            err_msg = "{} empty with backend_kwargs={}'filter_by_keys': {}{}"
-            err_msg = err_msg.format(model_file, "{", filters, "}")
-            raise ValueError(err_msg)
+    shutil.rmtree(dirpath)
+
+    # check if empty
+    if len(ds.sizes) < 1:
+        err_msg = "{} empty with backend_kwargs={}'filter_by_keys': {}{}"
+        err_msg = err_msg.format(model_file, "{", filters, "}")
+        raise ValueError(err_msg)
     return ds
 
 
@@ -416,13 +421,15 @@ def read_one_hour_navgem(model_file: str,
     out_fname = model_initialization.strftime(navgem_fn_pattern)
 
     for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
-        ds = load_dataset(model_file, model_hour, ds_key, filter_dict)
+        if ds_key == "gfs_grib":
+            ds = read_gfs(filter_dict, model_initialization, model_hour, fh)
+        else:
+            ds = load_dataset(model_file, model_hour, ds_key, filter_dict)
 
-        if ds_key == "o3mr":
-            pass
-        elif ds_key == "tpw":
+        if ds_key == "tpw":
             tpw_ts = pd.to_datetime(ds.time.data)
             delta = ds.step.data
+            print(ds.step.data)
             step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
             tpw_str= "{} {}Z forecast".format(tpw_ts.strftime("%Y-%m-%d %HZ"), step)
         else:
@@ -432,14 +439,7 @@ def read_one_hour_navgem(model_file: str,
             step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
             forecast_str= "{}Z".format(step)
 
-        if ds_key == "o3mr":
-            o3mr_fn = build_supplemental_ozone_fn(model_initialization, model_hour,
-                                                  str(forecast_hour),
-                                                  OUTPUT_VARS_DICT["data_arrays"]["o3mr"],
-                                                  OUTPUT_VARS_DICT["datasets"]["o3mr"])
 
-            ds = read_gfs(o3mr_fn)
-            
         ds = reformat_levels(ds, ds_key)
         ds = reorder_dimensions(ds)
         datasets.update({ds_key: ds})
