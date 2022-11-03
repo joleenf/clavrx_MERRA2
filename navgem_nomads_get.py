@@ -102,8 +102,8 @@ def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None)
     """Get NRL data using regex."""
     # Product name model table:  OLD INFO: https://www.usgodae.org/docs/layout/pn_model_tbl.pns.html
     products_list = ["pres_msl", "pres", "rltv_hum", "air_temp", "snw_dpth",
-                     "wnd_ucmp", "wnd_vcmp", "geop_ht",
-                     "air_temp", "vpr_pres", "prcp_h20"]
+                     "wnd_ucmp", "wnd_vcmp", "geop_ht", "terr_hgt", "cape",
+                     "air_temp", "vpr_pres", "prcp_h20", "ice_cvrg"]
 
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
     regex_minimal = r"US.*?{}.*?{}_(\d+)_(\d+)-(\d+){}"
@@ -163,7 +163,7 @@ def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
     return downloaded_files
 
 
-def concat_gribs_in_one(data_path, model_run):
+def concat_gribs_in_one(data_path, model_run, file_ending=None):
     """Concat all files in data_path, using model_run to name output file."""
     grib_name = os.path.join(data_path, f'navgem_{model_run}.grib')
     model_run_glob = f"US*{model_run}*"

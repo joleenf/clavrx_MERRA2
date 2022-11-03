@@ -6,7 +6,7 @@ COMPRESSION_LEVEL = 6
 
 
 def meter_to_km(data):
-    """Convert surface height from m to km."""
+    """Convert height from m to km."""
     return data / 1000.0
 
 

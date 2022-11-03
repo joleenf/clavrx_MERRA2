@@ -106,9 +106,10 @@ def set_dim_names(data_array, ndims_out, out_name, out_sds):
 
 def refill(data: xr.DataArray, old_fill: float) -> np.ndarray:
     """Assumes CLAVRx fill value instead of variable attribute."""
+    data = data.fillna(CLAVRX_FILL)
     if data.dtype in (np.float32, np.float64):
-        data = xr.where(np.isnan(data), CLAVRX_FILL, data)
-        data = xr.where(data == old_fill, CLAVRX_FILL, data)
+        if old_fill != CLAVRX_FILL:
+            data = xr.where(data == old_fill, CLAVRX_FILL, data)
     return data
 
 
@@ -128,7 +129,7 @@ def update_output(sd, out_name, rsk, data_array, out_fill, data_source):
     if out_name == "lon":
         out_sds.set(data_array.data)
     else:
-        out_data = refill(data_array.data, out_fill)
+        out_data = refill(data_array, out_fill)
         out_sds.set(out_data)
 
     if out_fill is not None:

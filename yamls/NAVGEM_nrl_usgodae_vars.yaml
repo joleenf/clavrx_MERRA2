@@ -8,25 +8,36 @@ datasets:
    isobaricInhPa:
      typeOfLevel: isobaricInhPa
      shortName: t
+   cape:
+     typeOfLevel: surface
+     shortName: unknown
+     stepType: instant
    u-wind:
      typeOfLevel: isobaricInhPa
      shortName: u
+   maxWind:
+     typeOfLevel: maxWind
+     stepType: instant
    v-wind:
      typeOfLevel: isobaricInhPa
      shortName: v
    gh:
      typeOfLevel: isobaricInhPa
      shortName: gh
+   surfaceHeight:
+     typeOfLevel: isobaricInhPa
+     shortName: gh
+     level: 1013
    tropopause:
-      typeOfLevel: tropopause
+     typeOfLevel: tropopause
    msl:
-      stepType: instant
-      typeOfLevel: meanSea
-      shortName: msl
+     stepType: instant
+     typeOfLevel: meanSea
+     shortName: msl
    snow_depth:
-      stepType: instant
-      typeOfLevel: surface
-      shortName: sde
+     stepType: instant
+     typeOfLevel: surface
+     shortName: sde
    temperatureAt2m:
      stepType: instant
      typeOfLevel: heightAboveGround
@@ -96,6 +107,11 @@ data_arrays:
     ndims_out: 1
     out_units: hPa
     units_fn: !!python/name:conversions.no_conversion
+  cape:
+    dataset: cape
+    cfVarName: unknown
+    ndims_out: 2
+    units_fn: !!python/name:conversions.no_conversion
   o3mr:
     dataset: gfs_grib
     cfVarName: o3mr
@@ -110,7 +126,7 @@ data_arrays:
     ndims_out: 3
     out_units: "%"
     units_fn: !!python/name:conversions.no_conversion
-  temperatureAt2m:
+  temperature at sigma=0.995:
     dataset: temperatureAt2m
     cfVarName: t2m
     ndims_out: 2
@@ -126,7 +142,19 @@ data_arrays:
     dataset: gh
     cfVarName: gh
     ndims_out: 3
-    out_units: gpm
+    out_units: km
+    units_fn: !!python/name:conversions.meter_to_km
+  surface height:
+    dataset: surfaceHeight
+    cfVarName: gh
+    ndims_out: 2
+    out_units: km
+    units_fn: !!python/name:conversions.meter_to_km
+  cape:
+    dataset: cape
+    cfVarName: unknown 
+    ndims_out: 2
+    out_units: J/kg 
     units_fn: !!python/name:conversions.no_conversion
   surface pressure:
     dataset: surfacePressure
@@ -156,6 +184,18 @@ data_arrays:
     dataset: v-wind
     cfVarName: v
     ndims_out: 3
+    out_units: m/s
+    units_fn: !!python/name:conversions.no_conversion
+  u-wind at sigma=0.995:
+    dataset: maxWind
+    cfVarName: u
+    ndims_out: 2
+    out_units: m/s
+    units_fn: !!python/name:conversions.no_conversion
+  v-wind at sigma=0.995:
+    dataset: maxWind
+    cfVarName: v
+    ndims_out: 2
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   water equivalent snow depth:
