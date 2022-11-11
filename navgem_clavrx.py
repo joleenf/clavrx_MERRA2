@@ -16,6 +16,7 @@ import json
 import itertools
 import logging
 import os
+import parse
 import shutil
 import tempfile
 
@@ -27,6 +28,7 @@ from testing import printValue
 try:
     import argparse
     import datetime
+    import dateutil
     from typing import Callable, Dict, List, Optional, TypedDict
 
     import numpy as np
@@ -37,19 +39,12 @@ except ImportError as e:
     msg = "{}.  Try 'conda activate merra2_clavrx'".format(e)
     raise ImportError(msg)
 
-from dateutil.parser import parse
-
 from conversion_class import output_dtype
 from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
 
 LOG = logging.getLogger(__name__)
 
 OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/navgem/'
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-with open(os.path.join(ROOT_DIR, 'yamls', 'NAVGEM_nrl_usgodae_vars.yaml'), "r") as yml:
-    OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
-
 
 class NavgemCommandLineMapping(TypedDict):
     """Type hints for result of the argparse parsing."""
@@ -59,7 +54,7 @@ class NavgemCommandLineMapping(TypedDict):
     base_path: str
     input_path: str
     forecast_hours: List[int]
-    local: List[str]
+    local: bool
     model_run: str
 
 
@@ -68,7 +63,16 @@ class DateParser(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_strings=None):
         """Parse a date from argparse to a datetime."""
-        setattr(namespace, self.dest, parse(values).date())
+        setattr(namespace, self.dest, dateutil.parser.parse(values).date())
+
+
+def read_yaml():
+    """Read the yaml file with setup variables."""
+    ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(ROOT_DIR, 'yamls', 'NAVGEM_nrl_usgodae_vars.yaml'), "r") as yml:
+        OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
+
+    return OUTPUT_VARS_DICT
 
 
 def set_dim_names(data_array, ndims_out, out_name, out_sds):
@@ -278,10 +282,10 @@ def apply_conversion(scale_func: Callable, data: xr.DataArray, fill) -> xr.DataA
 def write_output_variables(in_datasets, out_vars_setup: Dict):
     """Write variables to file."""
     for var_key, rsk in out_vars_setup.items():
-        if var_key in ["rh", "rh_level"]:
-            file_key = "rh"
-        else:
-            file_key = rsk["dataset"]
+        #if var_key in ["rh", "rh_level"]:
+        #    file_key = "rltv_hum"
+        #else:
+        file_key = rsk["dataset"]
         var_name = rsk["cfVarName"]
         out_var = in_datasets[file_key][var_name]
         units_fn = rsk["units_fn"]
@@ -322,6 +326,7 @@ def get_dim_list_string(param: Dict[str]) -> str:
 
 def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, forecast) -> None:
     """Write global attributes."""
+
     var = out_ds.select('temperature')
     nlevel = var.dimensions(full=False)['level']
     nlat = var.dimensions(full=False)['lat']
@@ -333,7 +338,7 @@ def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, forecas
     setattr(out_ds, 'NUMBER OF CLWMR LEVELS', nlevel)
     setattr(out_ds, 'MODEL INITIALIZATION TIME', model_run.strftime("%Y-%m-%d %HZ"))
     setattr(out_ds, 'FORECAST', forecast)
-    setattr(out_ds, 'TPW FORECAST', tpw_time)
+    #setattr(out_ds, 'TPW FORECAST', tpw_time)
     setattr(out_ds, 'VALID TIME', valid_time.strftime("%Y-%m-%d %HZ"))
     lat = out_ds.select('lat')
     lon = out_ds.select('lon')
@@ -405,7 +410,7 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
     return ds
 
 
-def read_one_hour_navgem(model_file: str,
+def read_one_hour_navgem(file_dict: dict,
                          out_dir: str,
                          model_initialization: datetime,
                          forecast_hour: int):
@@ -420,12 +425,21 @@ def read_one_hour_navgem(model_file: str,
     fh = str(forecast_hour).zfill(3)
     navgem_fn_pattern = f"navgem.%y%m%d{model_hour}_F{fh}.hdf"
     out_fname = model_initialization.strftime(navgem_fn_pattern)
+    tpw_str = "" 
 
-    for ds_key, filter_dict in OUTPUT_VARS_DICT["datasets"].items():
+    dvar_yaml = read_yaml()
+
+    for ds_key, ds_dict in dvar_yaml["datasets"].items():
         if ds_key == "gfs_grib":
-            ds = read_gfs(filter_dict, model_initialization, model_hour, fh)
+            ds = read_gfs(ds_dict, model_initialization, model_hour, fh)
         else:
-            ds = load_dataset(model_file, model_hour, ds_key, filter_dict)
+            try:
+                fe = ds_dict["file_ending"]
+            except:
+                fe = ds_key
+
+            model_file = file_dict[fe]
+            ds = load_dataset(model_file, model_hour, ds_key, ds_dict["filters"])
 
         if ds_key == "tpw":
             tpw_ts = pd.to_datetime(ds.time.data)
@@ -452,7 +466,7 @@ def read_one_hour_navgem(model_file: str,
         # TRUNC will clobber existing
         datasets['out'] = SD(out_fname, SDC.WRITE | SDC.CREATE | SDC.TRUNC)
 
-        write_output_variables(datasets, OUTPUT_VARS_DICT["data_arrays"])
+        write_output_variables(datasets, dvar_yaml["data_arrays"])
     else:
         ts_str = ' '.join(timestamps)
         ts_msg = "Timestamps are not equal/not equal to valid_time: {}".join(ts_str,
@@ -499,10 +513,10 @@ def build_filepath(data_dir, dt: datetime, dir_type="output") -> str:
 
 def process_navgem(base_path=None, input_path=None, start_date=None,
                    url=None, model_run=None, forecast_hours=None,
-                   local=None) -> None:
+                   local=False) -> None:
     """Read input, parse times, and run conversion."""
-    if local is not None:
-        raise RuntimeError("Local is defined, process_navgem subroutine pulls data.")
+    if local:
+        raise RuntimeError("Local is true, but process_navgem subroutine pulls data.")
 
     out_list = None
 
@@ -519,12 +533,13 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     model_run_str = get_model_run_string(start_date, model_run)
 
     model_run_dt = datetime.datetime.strptime(model_run_str, "%Y%m%d%H")
-    navgem_get.url_search_nrl(soup, url, model_run_dt,
-                              forecast_hours, dest_path=grib_path)
-    in_file = navgem_get.concat_gribs_in_one(grib_path, model_run_str)
+    in_files = navgem_get.url_search_nrl(soup, url, model_run_dt,
+                                         forecast_hours, dest_path=grib_path)
+
+    # in_file = navgem_get.concat_gribs_in_many(grib_path, model_run_str)
 
     for forecast_hour in forecast_hours:
-        out_list = read_one_hour_navgem(in_file, out_fp, start_time, forecast_hour)
+        out_list = read_one_hour_navgem(dest_path, out_fp, start_time, forecast_hour)
     LOG.info(out_list)
 
 
@@ -532,6 +547,9 @@ def argument_parser() -> NavgemCommandLineMapping:
     """Parse command line for navgem_clavrx.py."""
     parse_desc = (
         """\nProcess navgem data previously downloaded from NCEP nomads or NRL ftp.""")
+
+    setup_yaml = read_yaml()
+    url = setup_yaml["url"]
 
     formatter = argparse.ArgumentDefaultsHelpFormatter
     parser = argparse.ArgumentParser(description=parse_desc,
@@ -546,14 +564,14 @@ def argument_parser() -> NavgemCommandLineMapping:
                         default=[3, 6, 9, 12],
                         help="The forecast hours from this model run.")
 
-    group.add_argument('-u', '--url', default=OUTPUT_VARS_DICT["url"],
+    group.add_argument('-u', '--url', default=url,
                        help='alternative url string.')
     parser.add_argument('-i', '--input', dest='input_path', action='store',
                         type=str, required=False, default=None, const=None,
                         help="Input path for the data download.")
     # store_true evaluates to False when flag is not in use (flag invokes the store_true action)
-    group.add_argument('-l', '--local', default=None, nargs="*",
-                       help="List of files already downloaded and in location of input_path")
+    group.add_argument('-l', '--local', action='store_true',
+                       help="Use local files already in input path.")
     parser.add_argument('-d', '--base_path', action='store', nargs='?',
                         type=str, required=False, default=OUT_PATH_PARENT, const=OUT_PATH_PARENT,
                         help="Parent output path: year subdirectory appends to this path.")
@@ -574,29 +592,43 @@ def argument_parser() -> NavgemCommandLineMapping:
 if __name__ == '__main__':
 
     parser_args = argument_parser()
+    fn_dict = dict()
 
-    if parser_args["local"] is None:
-        process_navgem(**parser_args)
-    else:
+    if parser_args["local"]:
         inp = parser_args["input_path"]
         inp = build_filepath(inp, parser_args["start_date"], dir_type="input")
-        if len(parser_args["local"]) == 0:
-            full_glob = os.path.join(inp, "*{}.grib".format(parser_args["model_run"]))
-            LOG.debug("Process glob: {}".format(full_glob))
-            fn = glob.glob(full_glob)
-            LOG.debug("Found: {}".format(fn))
-        else:
-            fn = parser_args["local"]
 
         dt_in = parser_args["start_date"]
         model_str = get_model_run_string(dt_in, parser_args["model_run"])
         model_dt = datetime.datetime.strptime(model_str, "%Y%m%d%H")
-        out_path = build_filepath(parser_args['base_path'], dt_in)
-        fn_paths = (os.path.join(inp, x) for x in fn)
-        fn_paths = list(fn_paths)
+
+        full_glob = os.path.join(inp, "navgem_{}_*.grib".format(model_str))
+        LOG.debug("Process glob: {}".format(full_glob))
+        fn_paths = glob.glob(full_glob)
+
+        if len(fn_paths) > 0:
+            LOG.debug("Found: {}".format(fn_paths))
+        else:
+            raise RuntimeError("No files found using {}".format(full_glob))
+
+        pattern = "{inpath}navgem_{modelrun}_{file_ending}.grib"
+        results = list(parse.parse(pattern, x) for x in fn_paths)
+        for line in results:
+            inp = (line["inpath"])
+            run = (line["modelrun"])
+            param  = (line["file_ending"])
+            param_grib = f"{inp}/navgem_{run}_{param}.grib"
+            try:
+                fn_dict.update({param: param_grib})
+            except KeyError as key_err:
+                raise 
+
         out_fnames = []
-        for process_fn in fn_paths:
-            for forecast in parser_args["forecast_hours"]:
-                out_fnames.append(read_one_hour_navgem(process_fn, out_path,
-                                                       model_dt, forecast))
+        out_path = build_filepath(parser_args['base_path'], dt_in)
+
+        for forecast in parser_args["forecast_hours"]:
+            out_fnames.append(read_one_hour_navgem(fn_dict, out_path,
+                                                   model_dt, forecast))
             LOG.info(out_fnames)
+    else:
+        process_navgem(**parser_args)

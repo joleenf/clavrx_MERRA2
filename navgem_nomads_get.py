@@ -103,7 +103,9 @@ def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None)
     # Product name model table:  OLD INFO: https://www.usgodae.org/docs/layout/pn_model_tbl.pns.html
     products_list = ["pres_msl", "pres", "rltv_hum", "air_temp", "snw_dpth",
                      "wnd_ucmp", "wnd_vcmp", "geop_ht", "terr_hgt", "cape",
-                     "air_temp", "vpr_pres", "prcp_h20", "ice_cvrg"]
+                     "air_temp", "vpr_pres", "prcp_h20", "ice_cvrg",
+                     "ltnt_heat_flux"]
+
 
     navgem_run = navgem_run_dt.strftime("%Y%m%d%H")
     regex_minimal = r"US.*?{}.*?{}_(\d+)_(\d+)-(\d+){}"
@@ -111,7 +113,7 @@ def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None)
 
     if forecast_times is None:
         forecast_times = [3, 6, 12, 18]
-    full_list = []
+    full_list = dict() 
 
     for forecast in forecast_times:
         url_base = os.path.dirname(os.path.dirname(url))
@@ -138,7 +140,11 @@ def url_search_nrl(url_soup, url, navgem_run_dt, forecast_times, dest_path=None)
             else:
                 pattern = regex_minimal.format(forecast_time, navgem_run, product_name)
 
-            full_list.extend(build_curl_file_list(this_soup, this_url, pattern, dest_path))
+            product_files = build_curl_file_list(this_soup, this_url,
+                                                 pattern, dest_path)
+            grib_name = concat_gribs_in_many(dest_path, navgem_run, product_name)
+            full_list.update({product_name: grib_name})
+
     if len(full_list) == 0:
         runtime_msg = f"No NAVGEM files loaded with {url}"
         raise RuntimeError(runtime_msg)
@@ -163,7 +169,38 @@ def search_date(url_soup, url, navgem_run_dt, forecast_times, output_path="."):
     return downloaded_files
 
 
-def concat_gribs_in_one(data_path, model_run, file_ending=None):
+def concat_gribs_in_many(data_path, model_run, file_ending):
+    """Concat each variable into it's own grib file.
+
+       In some cases, this will just be a cat of an original
+       single file to a new input name.  This is silly work, but
+       keeps the process consistent.
+    """
+
+    if file_ending == "prcp_h20":
+        # Need to cat the TPW file into this grib set
+        model_run_hour = model_run[-2:]
+        model_run_date = model_run[:-2]
+        if model_run_hour == "06":
+            model_run_tpw = model_run_date + "00"
+        elif model_run_hour == "18":
+            model_run_tpw = model_run_date + "12"
+        else:
+            model_run_tpw = model_run
+
+        tpw_run_glob = f"US*{model_run_tpw}*prcp_h20"
+        data_path_glob = os.path.join(data_path, tpw_run_glob)
+    else:
+        model_run_glob = f"US*{model_run}*{file_ending}"
+        data_path_glob = os.path.join(data_path, model_run_glob)
+
+    grib_name = os.path.join(data_path, f'navgem_{model_run}_{file_ending}.grib')
+    os.system(f'cat {data_path_glob} > {grib_name}')
+
+    return grib_name
+
+
+def concat_gribs_in_one(data_path, model_run):
     """Concat all files in data_path, using model_run to name output file."""
     grib_name = os.path.join(data_path, f'navgem_{model_run}.grib')
     model_run_glob = f"US*{model_run}*"
@@ -256,5 +293,4 @@ if __name__ == '__main__':
         grib_path = os.path.join(parser_args["base_path"], input_year, model_run_dir)
         os.makedirs(grib_path, exist_ok=True)
         files = url_search_nrl(soup, URL, model_run, dest_path=grib_path)
-        concat_to_new = concat_gribs_in_one(grib_path, model_run_str)
-        LOG.info(concat_to_new)
+        LOG.info(files)
