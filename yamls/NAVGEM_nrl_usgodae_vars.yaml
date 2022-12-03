@@ -37,16 +37,16 @@ datasets:
      filters:
        typeOfLevel: surface
        stepType: instant
-   maxWind_ucmp:
+   ucmp10m:
      file_ending: wnd_ucmp
      filters:
-       typeOfLevel: maxWind
-       stepType: instant
-   maxWind_vcmp:
+       typeOfLevel: heightAboveGround
+       shorName: u10
+   vcmp10m:
      file_ending: wnd_vcmp
      filters:
-       typeOfLevel: maxWind
-       stepType: instant
+       typeOfLevel: heightAboveGround
+       shortName: v10
    prcp_h20:
      filters:
        stepType: instant
@@ -68,15 +68,16 @@ datasets:
        typeOfLevel: meanSea
        shortName: msl
    rltv_hum:
-      filters:
-        typeOfLevel: isobaricInhPa
-        shortName: r
-   surfaceHeight:
-     file_ending: geop_ht
      filters:
        typeOfLevel: isobaricInhPa
-       shortName: gh
-       level: 1013
+       shortName: r
+   rltv_hum2m:
+     filters:
+       typeOfLevel: heightAboveGround
+       shortName: r
+   terr_ht:
+     filters:
+       typeOfLevel: surface
    wnd_ucmp:
      filters:
        typeOfLevel: isobaricInhPa
@@ -164,9 +165,15 @@ data_arrays:
     ndims_out: 3
     out_units: "%"
     units_fn: !!python/name:conversions.no_conversion
+   rh at sigma=0.995:
+    dataset: rltv_hum2m
+    cfVarName: r
+    ndims_out: 2
+    out_units: "%"
+    units_fn: !!python/name:conversions.no_conversion
   surface height:
-    dataset: surfaceHeight
-    cfVarName: gh
+    dataset: terr_ht
+    cfVarName: unknown
     ndims_out: 2
     out_units: km
     units_fn: !!python/name:conversions.meter_to_km
@@ -219,8 +226,8 @@ data_arrays:
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   u-wind at sigma=0.995:
-    dataset: maxWind_ucmp
-    cfVarName: u
+    dataset: ucmp10m
+    cfVarName: u10
     ndims_out: 2
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
@@ -231,8 +238,8 @@ data_arrays:
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
   v-wind at sigma=0.995:
-    dataset: maxWind_vcmp
-    cfVarName: v
+    dataset: vcmp10m
+    cfVarName: v10
     ndims_out: 2
     out_units: m/s
     units_fn: !!python/name:conversions.no_conversion
