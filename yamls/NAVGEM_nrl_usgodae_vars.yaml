@@ -41,7 +41,7 @@ datasets:
      file_ending: wnd_ucmp
      filters:
        typeOfLevel: heightAboveGround
-       shorName: u10
+       shortName: 10u
    vcmp10m:
      file_ending: wnd_vcmp
      filters:
