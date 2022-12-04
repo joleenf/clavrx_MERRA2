@@ -1,0 +1,63 @@
+# has a long_name of 'unknown' and that is not super helpful information.
+data_arrays:
+  MSL pressure:
+    shortName: prmsl
+  lat:
+    shortName: latitude
+    ndims_out: 1
+    out_units: Null
+  level:
+    typeOfLevel: isobaricInhPa
+    shortName: pres
+  lon:
+    cfVarName: longitude
+    ndims_out: 1
+    out_units: Null
+    long_name: longitude
+  pressure levels:
+    typeOfLevel: isobaricInhPa
+    shortName: pres
+  o3mr:
+    typeOfLevel: isobaricInhPa
+    shortName: o3mr
+  rh:
+    typeOfLevel: isobaricInhPa
+    shortName: r
+  temperatureAt2m:
+    typeOfLevel: instant
+    shortName: t2m
+  surface temperature:
+    typeOfLevel: surface
+    shortName: t
+  height:
+    cfVarName: gh
+    ndims_out: 3
+    out_units: gpm
+  surface pressure:
+    shortName: sp
+  temperature:
+    cfVarName: t
+    ndims_out: 3
+    out_units: K
+  total precipitable water:
+    cfVarName: p3054
+    ndims_out: 2
+    out_units: cm
+  u-wind:
+    cfVarName: u
+    ndims_out: 3
+    out_units: m/s
+  v-wind:
+    cfVarName: v
+    ndims_out: 3
+    out_units: m/s
+  water equivalent snow depth:
+    cfVarName: sdwe
+    ndims_out: 2
+    out_units: m of water equivalent
+  tropopause pressure:
+    shortName: trpp
+  tropopause temperature:
+    cfVarName: t
+    ndims_out: 2
+    out_units: K
