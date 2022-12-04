@@ -22,14 +22,15 @@ import tempfile
 
 import yaml
 
-import navgem_nomads_get as navgem_get
-from testing import printValue
+import navgem_retrieve as navgem_get
+#from testing import printValue
 
 try:
     import argparse
     import datetime
     import dateutil
     from typing import Callable, Dict, List, Optional, TypedDict
+    from datetime import datetime as dt
 
     import numpy as np
     import pandas as pd
@@ -240,7 +241,6 @@ def read_gfs(gfs_dict, model_init, model_run_hour, forecast) -> xr.Dataset:
     gfs_ds = xr.merge(gfs_datasets_arr)
     gfs_ds = gfs_ds.transpose("latitude", "longitude", "isobaricInhPa")
     gfs_ds = gfs_ds.sortby("latitude", ascending=True)
-    # printValue(gfs_ds["o3mr"])
 
     shutil.rmtree(dirpath)
 
@@ -324,7 +324,7 @@ def get_dim_list_string(param: Dict[str]) -> str:
     return "".join(dim_list)
 
 
-def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, forecast) -> None:
+def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, cape_time, forecast) -> None:
     """Write global attributes."""
 
     var = out_ds.select('temperature')
@@ -338,7 +338,9 @@ def write_global_attributes(out_ds: SD, model_run, valid_time, tpw_time, forecas
     setattr(out_ds, 'NUMBER OF CLWMR LEVELS', nlevel)
     setattr(out_ds, 'MODEL INITIALIZATION TIME', model_run.strftime("%Y-%m-%d %HZ"))
     setattr(out_ds, 'FORECAST', forecast)
-    #setattr(out_ds, 'TPW FORECAST', tpw_time)
+    setattr(out_ds, 'CAPE FORECAST', cape_time)
+    setattr(out_ds, 'TPW FORECAST', tpw_time)
+    setattr(out_ds, 'VALID TIME', valid_time.strftime("%Y-%m-%d %HZ"))
     setattr(out_ds, 'VALID TIME', valid_time.strftime("%Y-%m-%d %HZ"))
     lat = out_ds.select('lat')
     lon = out_ds.select('lon')
@@ -386,11 +388,11 @@ def load_dataset(model_file: str, model_run_hour, dataset_key, filters):
     if dataset_key in ["gfs_grib"]:
         pass
     else:
-        if model_run_hour in ["00", "12"] or dataset_key != "tpw":
-            # select 12 hour forecast for 0 and 12 Z runs
-            filters.update({"P1": 12})
-        elif model_run_hour in ["06", "18"] and dataset_key == "tpw":
-            filters.update({"P1": 18})
+        # select 12 hour forecast for all data every model run (can only get up to 12Z forecast from cape)
+        # For TPW, select the 18 Z forecast for the 6, 18 runs since tpw is only generated at 0 and 12 model runs
+        filters.update({"P1": 12})
+        if model_run_hour in ["06", "18"] and dataset_key == "prcp_h20":
+            filters.update({"P1": 18})  # from the 00Z and 12Z model runs respectively.
 
     dirpath = tempfile.mkdtemp(dir=os.path.expanduser("~"))
     cmd = " xr.open_dataset('{}', engine='cfgrib', backend_kwargs={{'filter_by_keys': {}}})"
@@ -417,6 +419,7 @@ def read_one_hour_navgem(file_dict: dict,
     """Read input, parse times, and run conversion on one day at a time."""
     datasets = dict()
     timestamps = list()
+    params = list()
 
     # build time selection based on forecast hour and model date.
     valid_time = model_initialization + pd.Timedelta("{} hours".format(forecast_hour))
@@ -426,6 +429,7 @@ def read_one_hour_navgem(file_dict: dict,
     navgem_fn_pattern = f"navgem.%y%m%d{model_hour}_F{fh}.hdf"
     out_fname = model_initialization.strftime(navgem_fn_pattern)
     tpw_str = "" 
+    cape_str = "" 
 
     dvar_yaml = read_yaml()
 
@@ -439,16 +443,22 @@ def read_one_hour_navgem(file_dict: dict,
                 fe = ds_key
 
             model_file = file_dict[fe]
+
             ds = load_dataset(model_file, model_hour, ds_key, ds_dict["filters"])
 
-        if ds_key == "tpw":
+        if ds_key in ["prcp_h20", "cape"]:
             tpw_ts = pd.to_datetime(ds.time.data)
             delta = ds.step.data
-            print(ds.step.data)
+            print(ds_key, tpw_ts, delta)
             step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
-            tpw_str= "{} {}Z forecast".format(tpw_ts.strftime("%Y-%m-%d %HZ"), step)
+            fc_str = "{} {}Z forecast".format(tpw_ts.strftime("%Y-%m-%d %HZ"), step)
+            if ds_key == "prcp_h20":
+                tpw_str = fc_str
+            else:
+                cape_str = fc_str 
         else:
             ts = pd.to_datetime(ds.valid_time.data)
+            params.append(ds_key)
             timestamps.append(ts)
             delta = ds.step.data
             step = int(delta.astype("timedelta64[h]") / np.timedelta64(1, 'h') % 24)
@@ -459,7 +469,15 @@ def read_one_hour_navgem(file_dict: dict,
         ds = reorder_dimensions(ds)
         datasets.update({ds_key: ds})
 
-    if all_equal(timestamps) and timestamps[0] == valid_time:
+    if all_equal(timestamps):
+        pass
+    else:
+        ts_msg = "Timestamps are not equal"
+        for var, ts in zip(params, timestamps):
+            print(var,ts)
+        raise ValueError(ts_msg)
+        
+    if timestamps[0] == valid_time:
         out_fname = os.path.join(out_dir, out_fname)
         LOG.info('    working on {}'.format(out_fname))
 
@@ -468,13 +486,13 @@ def read_one_hour_navgem(file_dict: dict,
 
         write_output_variables(datasets, dvar_yaml["data_arrays"])
     else:
-        ts_str = ' '.join(timestamps)
-        ts_msg = "Timestamps are not equal/not equal to valid_time: {}".join(ts_str,
+        ts_str = timestamps[0].strftime("%Y-%m-%d %H")
+        ts_msg = "Timestamps are not equal/not equal to valid_time: {} {}".format(ts_str,
                                                                              valid_time)
         raise ValueError(ts_msg)
 
     write_global_attributes(datasets['out'], model_initialization,
-                            valid_time, tpw_str, forecast_str)
+                            valid_time, tpw_str, cape_str, forecast_str)
 
     return out_fname
 
@@ -488,7 +506,7 @@ def get_model_run_string(model_date_dt, run_hour):
     md_msg = "Run Hour (model run) {}: {}".format(type(run_hour), run_hour)
     LOG.debug(md_msg)
 
-    dt_model_run = datetime.datetime.strptime("{} {}".format(model_date, run_hour), "%Y%m%d %H")
+    dt_model_run = dt.strptime("{} {}".format(model_date, run_hour), "%Y%m%d %H")
     model_run_str = dt_model_run.strftime("%Y%m%d%H")
 
     return model_run_str
@@ -524,7 +542,7 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     os.makedirs(grib_path, exist_ok=True)
 
     # start_time is needed for url string.
-    start_time = datetime.datetime.combine(start_date, datetime.time(int(model_run)))
+    start_time = dt.combine(start_date, datetime.time(int(model_run)))
     LOG.debug("model run {}".format(start_time.strftime("%Y%m%d%H")))
     url = eval(url)
     soup = navgem_get.create_soup(url)
@@ -532,14 +550,13 @@ def process_navgem(base_path=None, input_path=None, start_date=None,
     out_fp = build_filepath(base_path, start_date)
     model_run_str = get_model_run_string(start_date, model_run)
 
-    model_run_dt = datetime.datetime.strptime(model_run_str, "%Y%m%d%H")
-    in_files = navgem_get.url_search_nrl(soup, url, model_run_dt,
-                                         forecast_hours, dest_path=grib_path)
+    model_run_dt = dt.strptime(model_run_str, "%Y%m%d%H")
 
-    # in_file = navgem_get.concat_gribs_in_many(grib_path, model_run_str)
+    # The data download may need more than the actual forecast run
+    in_files = navgem_get.url_search_nrl(soup, url, model_run_dt, dest_path=grib_path)
 
     for forecast_hour in forecast_hours:
-        out_list = read_one_hour_navgem(dest_path, out_fp, start_time, forecast_hour)
+        out_list = read_one_hour_navgem(in_files, out_fp, start_time, forecast_hour)
     LOG.info(out_list)
 
 
@@ -557,11 +574,11 @@ def argument_parser() -> NavgemCommandLineMapping:
     group = parser.add_mutually_exclusive_group()
 
     parser.add_argument('start_date', action=DateParser,
-                        default=datetime.datetime.now(), help="Processing date")
+                        default=dt.now(), help="Processing date")
     parser.add_argument('-m', '--model_run', default='00',
                         help="Model run hour; i.e. 00, 03, 06, 09, 12...")
     parser.add_argument('-f', '--forecast_hours', nargs='+',
-                        default=[3, 6, 9, 12],
+                        default=[3, 6, 9, 12, 18],
                         help="The forecast hours from this model run.")
 
     group.add_argument('-u', '--url', default=url,
@@ -600,8 +617,9 @@ if __name__ == '__main__':
 
         dt_in = parser_args["start_date"]
         model_str = get_model_run_string(dt_in, parser_args["model_run"])
-        model_dt = datetime.datetime.strptime(model_str, "%Y%m%d%H")
+        model_dt = dt.strptime(model_str, "%Y%m%d%H")
 
+        # get every file in directory
         full_glob = os.path.join(inp, "navgem_{}_*.grib".format(model_str))
         LOG.debug("Process glob: {}".format(full_glob))
         fn_paths = glob.glob(full_glob)
@@ -611,12 +629,17 @@ if __name__ == '__main__':
         else:
             raise RuntimeError("No files found using {}".format(full_glob))
 
+        # find keys for this model run
         pattern = "{inpath}navgem_{modelrun}_{file_ending}.grib"
         results = list(parse.parse(pattern, x) for x in fn_paths)
+
         for line in results:
             inp = (line["inpath"])
             run = (line["modelrun"])
             param  = (line["file_ending"])
+            # get run_adjustment
+            run_dt = navgem_get.model_run_adjustment(dt.strptime(run, "%Y%m%d%H"), param)
+            run = run_dt.strftime("%Y%m%d%H")
             param_grib = f"{inp}/navgem_{run}_{param}.grib"
             try:
                 fn_dict.update({param: param_grib})

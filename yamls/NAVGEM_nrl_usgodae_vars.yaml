@@ -46,7 +46,7 @@ datasets:
      file_ending: wnd_vcmp
      filters:
        typeOfLevel: heightAboveGround
-       shortName: v10
+       shortName: 10v
    prcp_h20:
      filters:
        stepType: instant
@@ -71,7 +71,8 @@ datasets:
      filters:
        typeOfLevel: isobaricInhPa
        shortName: r
-   rltv_hum2m:
+   rltv_hum_2m:
+     file_ending: rltv_hum
      filters:
        typeOfLevel: heightAboveGround
        shortName: r
@@ -166,7 +167,7 @@ data_arrays:
     out_units: "%"
     units_fn: !!python/name:conversions.no_conversion
   rh at sigma=0.995:
-    dataset: rltv_hum2m
+    dataset: rltv_hum_2m
     cfVarName: r
     ndims_out: 2
     out_units: "%"
