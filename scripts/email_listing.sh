@@ -12,12 +12,7 @@ last_month_text=`date -d "$(date -d "$month 15 $year" +%F) ${months_back} month 
 
 echo "Running merra conversion code for $last_month_text"
 
-#cmd="screen -dm -S run_last_month /bin/bash $BASE/runMonth.sh $last_month"
-cmd="/bin/bash $BASE/runMonth.sh $last_month"
-
-echo "Run $cmd"
-
-eval $cmd
+`/bin/bash $BASE/list_missing_inventory.sh $last_month | /bin/mail -s "Inventory for $last_month" "joleen.feltz@ssec.wisc.edu"`
 
 : <<=cut
 =pod

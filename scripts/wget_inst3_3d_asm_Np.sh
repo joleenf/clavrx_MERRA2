@@ -39,7 +39,6 @@ if [ -s "3d_asm/${TARGET_FILE}" ] || [ -s "3d_asm/${REANALYSIS}" ];  then
         exit
 fi
 
-#wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
 ${WGET_CMD} ${HTTP_PATH}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
