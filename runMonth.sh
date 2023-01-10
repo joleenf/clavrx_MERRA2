@@ -17,6 +17,8 @@ EndOfMessage
 
 }
 
+export PS4='L${LINENO}: '
+export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 set -x
 
 bin_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

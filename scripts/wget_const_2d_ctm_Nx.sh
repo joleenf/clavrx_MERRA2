@@ -46,7 +46,6 @@ if [ -s "2d_ctm/${FALSE_DATE_TARGET_NAME}" ]; then
 fi
 
 echo Getting $TARGET_FILE
-#wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
 ${WGET_CMD} https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
 if [ -s "$TARGET_FILE" ]; then
     # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?

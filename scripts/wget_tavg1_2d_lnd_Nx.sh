@@ -39,7 +39,6 @@ if [ -s "./2d_lnd/${TARGET_FILE}" ] || [ -s "./2d_lnd/${REANALYSIS}" ]; then
         exit
 fi
 
-#wget -q --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 ${WGET_CMD} ${BASEURL}/${YYYY}/${MM}/${TARGET_FILE}
 
 if [ $? != 0 ]; then
