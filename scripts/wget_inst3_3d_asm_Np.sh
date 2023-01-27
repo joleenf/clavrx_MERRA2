@@ -21,7 +21,6 @@ DD=${3}
 #
 # Define STREAM by date:
 
-set -x
 let YMD=${YYYY}${MM}${DD}
 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -30,6 +29,7 @@ source ${scripts_home}/get_stream.sh
 source ${scripts_home}/wget_exec.sh
 get_stream ${YMD}
 
+set -x
 TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 REANALYSIS=MERRA2_401.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
