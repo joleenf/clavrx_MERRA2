@@ -142,9 +142,11 @@ INVENTORY_FILE=${LOG_DIR}/inventory_${START_DATE:0:4}_${START_DATE:4:2}.log
 
 echo "Writing logs to ${LOG_FILE} and ${INVENTORY_FILE}"
 
+set +x
 source ~/.bashrc
 conda activate merra2_clavrx
 
+set -x
 TMPDIR=${DATA_PATH}/tmp
 mkdir -p $TMPDIR
 cd $TMPDIR || (hostname;echo \"could not access $TMPDIR\"; exit 1)
