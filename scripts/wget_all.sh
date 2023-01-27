@@ -86,6 +86,8 @@ do
         key="${association%%::*}"
         value="${association##*::}"
 	mkdir -p ${value}
+	set +x
+	echo "Calling ${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}"
 	${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
 	cd ${download_dir}
 done
