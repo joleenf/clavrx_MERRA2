@@ -396,7 +396,7 @@ def _extrapolate_below_sfc(t, fill):
     #            that is not CLAVRX_FILL. Use this data value to fill in missing
     #            values all the down to bottom index.
     lowest_good = t[0] * 0.0 + fill
-    lowest_good_ind = np.zeros(lowest_good.shape, dtype=np.int)
+    lowest_good_ind = np.zeros(lowest_good.shape, dtype=int)
     for l_ind in np.arange(t.shape[0]):
         t_at_l = t[l_ind]
         t_at_l_good = (t_at_l != fill)
