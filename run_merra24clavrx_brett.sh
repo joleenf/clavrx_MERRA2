@@ -4,9 +4,9 @@ echo starting at `date`
 # USER OPTIONS
 BIN_DIR=$HOME/clavrx_MERRA2
 #M2_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input
-M2_DIR=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/
+M2_DIR=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/
 #OUT_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2
-OUT_DIR=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
+OUT_DIR=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
 # END USER OPTIONS
 
 source /etc/profile
