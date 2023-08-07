@@ -28,7 +28,7 @@
 #}
 
 
-DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
+DATA_PATH=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
 
 if [ $# -eq 0 ]; then
 	`/bin/pod2usage $0`
@@ -51,7 +51,7 @@ if [ -z $YEAR ] || [ -z $MONTH ];then
          exit
 fi
 
-month=`printf "%02d" $MONTH`
+month=`printf "%02d" $((10#$MONTH))`
 
 str_month=`date -d ${YEAR}-${month}-01 +"%B %Y"`
 
@@ -93,7 +93,7 @@ fi
 
    Recognized optional command line arguments
       -w <string>  -- Use an alternate merra2 data path
-       (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2)
+       (default: /ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2)
       -h  -- Display usage message
 
 

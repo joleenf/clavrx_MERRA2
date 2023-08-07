@@ -58,7 +58,7 @@ Q_ARR = [0, 0.25, 0.5, 0.75, 1.0]
 # no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
 # fill_bad = lambda a: a * np.nan
 
-OUT_PATH_PARENT = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/era5/'
+OUT_PATH_PARENT = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/era5/'
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 

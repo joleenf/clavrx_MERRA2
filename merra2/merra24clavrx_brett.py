@@ -741,9 +741,9 @@ if __name__ == '__main__':
     #outpath = '/Volumes/stuff/merra/output/'
     #inpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/'
     #outpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/out/'
-    inpath = '/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
+    inpath = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
     #outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
-    outpath = "/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+    outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
 
     try:
         date_str_arg = sys.argv[1]

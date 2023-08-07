@@ -59,7 +59,7 @@ COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest fill
 TOP_LEVEL = 10  # [hPa] This is the highest CFSR level, trim anything higher.
 CLAVRX_FILL = 9.999e20
 
-OUT_PATH_PARENT = "/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/"
+OUT_PATH_PARENT = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/"
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 

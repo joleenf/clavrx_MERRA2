@@ -23,12 +23,10 @@ if ! [[ $YEAR =~ $re ]] ; then
 fi
 
 # make sure directory exists...
-mkdir -p /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/$YEAR
+mkdir -p /ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2/$YEAR
 
-i=1
-while [[ $i -le $end_loop ]]
+for i in $(seq -w 01 $end_loop); 
 do
    screen_name=run$YEAR_$i
    /bin/bash $BASE/count_inventory.sh $YEAR $i;err=$?
-   ((i++))
 done

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-DATA_PATH=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
+DATA_PATH=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
 
 if [ $# -eq 0 ]; then
 	`/bin/pod2usage $0`
@@ -84,7 +84,7 @@ rm $tmpfile02
 
    Recognized optional command line arguments
       -w <string>  -- Use an alternate merra2 data path
-       (default: /apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2)
+       (default: /ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2)
       -h  -- Display usage message
 
 
