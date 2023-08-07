@@ -21,7 +21,7 @@ DD=${3}
 #
 # Define STREAM by date:
 
-set -x
+#set -x
 let YMD=${YYYY}${MM}${DD}
 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

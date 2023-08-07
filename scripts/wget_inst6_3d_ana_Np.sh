@@ -21,7 +21,7 @@ DD=${3}
 #
 # Define STREAM by date:
 
-set -x
+#set -x
 export PS4='+(${BASH_SOURCE}:${LINENO}:  ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 let YMD=${YYYY}${MM}${DD}
 

@@ -23,15 +23,16 @@ DD=${3}
 #       "date" 00000000. The "stream" is defined as 101, so values are hard-coded here
 #       regardless of the YYYY, MM, DD values provided.
 
-set -x
 let YMD=${YYYY}${MM}${DD}
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 source ${scripts_home}/wget_exec.sh
 
+#set -x
+
 TARGET_FILE=MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 FALSE_DATE_TARGET_NAME=MERRA2_101.const_2d_ctm_Nx.${YMD}.nc4
-HOLD_FILE=/apollo/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/MERRA2_101.const_2d_ctm_Nx.00000000.nc4
+HOLD_FILE=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/MERRA2_101.const_2d_ctm_Nx.00000000.nc4
 
 # check if file already exists on disk
 if [ -s ${HOLD_FILE} ]; then
