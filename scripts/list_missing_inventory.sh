@@ -21,7 +21,7 @@ MONTH=${@:$OPTIND+1:1}
 
 month="${MONTH##*(0)}"
 
-[ -z "${month}" ] && oops || month=`printf "%02d" $month`
+[ -z "${month}" ] && oops || month=`printf "%02d" $((10#$MONTH))`
 
 # call run merra for this full month
 ndays=`cal ${MONTH} ${YEAR} | awk 'NF {DAYS = $NF}; END {print DAYS}'`
@@ -33,7 +33,7 @@ if [ -z $YEAR ] || [ -z $MONTH ];then
          exit
 fi
 
-month=`printf "%02d" $MONTH`
+month=`printf "%02d" $((10#$MONTH))`
 
 str_month=`date -d ${YEAR}-${month}-01 +"%B %Y"`
 
