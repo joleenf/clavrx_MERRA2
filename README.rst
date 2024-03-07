@@ -2,8 +2,8 @@ Purpose
 -------------------
 This code began as a tool to process MERRA reanalysis datasets to calculate fields,
 and write them in a format similar to GFS forecast data.
-The intent is to use these reanalysis datasets as input to the CLAVRx cloud processing system in lieu of GFS data.
-The project has evolved to read MERRA2 reanalysis data and includes plans for processing ERA5 data.
+The intent is to use these reanalysis datasets as input to the CLAVRx cloud processing system.
+The project has evolved to read MERRA2 reanalysis data.
 
 Running Code:
 -------------

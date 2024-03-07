@@ -30,7 +30,7 @@ The code needs the appropriate conda environment from [merra2_clavrx.yml ](merra
 
 ```
 conda create -f merra2_clavrx.yml 
-    conda activate merra2_clavrx
+conda activate merra2_clavrx
 ```
   
   
@@ -38,7 +38,3 @@ After running the run-script for a selected INPUT_DATE, files will appear in /tm
 directory is currently being removed every time the run-script is used, so if you iterate over  
 multiple dates, you'll scrub the output on every intermediate date and only have the output for the  
 last date. You can get rid of this by commenting-out Lines 24-27 of test_merra24clavrx.sh.
-
-
-JMF NOTES:
-Use test_merra24_brett.sh to test original code.
