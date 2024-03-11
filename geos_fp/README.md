@@ -8,8 +8,6 @@ Constants File
 
 https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
 
-Saved on disk at /ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/GOES-FP_INPUT/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
-
 ### inst3_2d_asm_Nx
 2d assimilated state
 
