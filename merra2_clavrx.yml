@@ -13,3 +13,5 @@ dependencies:
   - pip
   - wget
   - typing
+  - pip
+    - parse

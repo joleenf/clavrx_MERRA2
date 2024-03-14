@@ -28,6 +28,7 @@ https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/GEOS.fp.asm.const_2d_asm
 | U | U-wind |
 | V | V-wind |
 | QI | Mass Fraction of Cloud Ice Water |
+| QL | mass fraction of cloud liquid water |
 | QV | Relative Humidity |
 | O3 | Ozone Mass Mixing Ratio (Total Ozone in final hdf) |
 

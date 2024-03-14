@@ -24,7 +24,7 @@ let YMD=${YYYY}${MM}${DD}
 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 forecast_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/forecast/Y${YYYY}/M${MM}/D${DD}/H${synoptic_run}
-assimilated_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/Y${YYYY}/M${MM}/D${DD}
+assimilation_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/Y${YYYY}/M${MM}/D${DD}
 
 
 case "${FILENAME_ID}" in
@@ -36,9 +36,18 @@ case "${FILENAME_ID}" in
 		run_valid=${synoptic_run}30
 		url=${forecast_url}
 		;;
+	inst3_2d_asm_Nx)
+		run_valid=${synoptic_run}00
+                url=${assimilation_url}
+		;;
 esac
 
-PRODUCT_FILE=GEOS.fp.fcst.${FILENAME_ID}.${YYYY}${MM}${DD}_${synoptic_run}+${YYYY}${MM}${DD}_${run_valid}.${geos_version}.nc4
+case "${FILENAME_ID}" in
+	inst3_2d_asm_Nx) PRODUCT_FILE=GEOS.fp.asm.${FILENAME_ID}.${YYYY}${MM}${DD}_${run_valid}.${geos_version}.nc4
+                ;;
+	*) PRODUCT_FILE=GEOS.fp.fcst.${FILENAME_ID}.${YYYY}${MM}${DD}_${synoptic_run}+${YYYY}${MM}${DD}_${run_valid}.${geos_version}.nc4
+		;;
+esac
 remote_url=${url}/${PRODUCT_FILE}
 product_filepath=${DOWNLOAD_PATH}/${PRODUCT_FILE}
 

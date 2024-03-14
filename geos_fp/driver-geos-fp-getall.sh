@@ -63,13 +63,15 @@ else
 fi
 
 case "${in_key}" in
-   all) FILETYPES=(const_2d_ctm_Nx::2d_ctm
+   all) FILETYPES=(const_2d_ctm_Nx::2d_ctm inst3_2d_asm_Nx::2d_asm
 	           inst3_3d_asm_Np::3d_asm tavg1_2d_flx_Nx::2d_flx 
 		   tavg1_2d_lnd_Nx::2d_lnd tavg1_2d_rad_Nx::2d_rad 
 		   tavg1_2d_slv_Nx::2d_slv)
                     ;;
    const_2d_ctm_Nx) FILETYPES=(const_2d_ctm_Nx::2d_ctm)
                     ;;
+   inst3_2d_asm_Nx) FILETYPES=(inst3_2d_asm_Nx::2d_asm)
+		    ;;
    inst3_3d_asm_Np) FILETYPES=(inst3_3d_asm_Np::3d_asm)
                     ;;
    tavg1_2d_flx_Nx) FILETYPES=(tavg1_2d_flx_Nx::2d_flx)
@@ -90,12 +92,12 @@ for association in "${FILETYPES[@]}"
 do
 	echo "${association}"
         key="${association%%::*}"
-        value="${association##*::}"
-	mkdir -p ${value}
+	download_path=$(pwd)/${YYYY}/${MM}_${DD}_${HH}
+	mkdir -p ${download_path}
 	if [ "${key}" == "const_2d_ctm_Nx" ]; then
-   	        ${SCRIPTS_DIR}/geos-fp_get_${key}.sh ${YYYY} ${MM} ${DD} ${HH}
+   	        ${SCRIPTS_DIR}/geos-fp_get_${key}.sh ${download_path}
         else
-		${SCRIPTS_DIR}/geos-fp_retrieve.sh ${YYYY} ${MM} ${DD} ${HH} ${key} $(pwd)/${value}
+		${SCRIPTS_DIR}/geos-fp_retrieve.sh ${YYYY} ${MM} ${DD} ${HH} ${key} $download_path
 	fi
 done
 
