@@ -24,9 +24,6 @@ from pyhdf.SD import SDC
 
 from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
 
-# CLAVRX_FILL = 9.999e20
-# COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest fill
-
 LOG = logging.getLogger(__name__)
 
 
@@ -154,6 +151,9 @@ class ReanalysisConversion:
 
         return data
 
+    def updateAttr(self, attr_name, replace_data):
+        setattr(self, attr_name, replace_data)
+
     @staticmethod
     def apply_fill(data: np.ndarray, fill_value, variable_name: str, nan_fill: bool):
         """Apply different fill value to data in special cases."""
@@ -201,14 +201,13 @@ class ReanalysisConversion:
         if (self.ndims_out == 3) or (self.ndims_out == 2):
             data = self._shift_lon()
 
-        if self.ndims_out != 3:
-            return data
-        # do extrapolation before reshape
-        # (extrapolate fn depends on a certain dimensionality/ordering)
-        data = self._extrapolate_below_sfc(data, fill)
-        data = np.swapaxes(data, 0, 2)
-        data = np.swapaxes(data, 0, 1)
-        data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+        if self.ndims_out == 3:
+            # do extrapolation before reshape
+            # (extrapolate fn depends on a certain dimensionality/ordering)
+            data = self._extrapolate_below_sfc(data, fill)
+            data = np.swapaxes(data, 0, 2)
+            data = np.swapaxes(data, 0, 1)
+            data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
         return data
 
     @staticmethod
@@ -277,13 +276,10 @@ class ReanalysisConversion:
     @property
     def get_units(self):
         """If possible, get units from ncattrs."""
-        print(self.shortname, self.nc_dataset.variables[self.shortname].ncattrs)
-        units = self.nc_dataset.variables[self.shortname].ncattrs().get("units", "")
-        print(type(units))
-        print(self, units)
+        units = self.nc_dataset.variables[self.shortname].getncattr("units")
         return units
 
-    def update_output(self, sd, in_file_short_value, data_array, out_fill):
+    def update_output(self, sd, in_file_short_value, out_fill):
         """Finalize output variables."""
         LOG.info("Writing %s", self)
         out_sds = sd["out"].create(self.out_name,
@@ -304,7 +300,7 @@ class ReanalysisConversion:
         elif self.out_units in ("none", "None"):
             out_sds.units = "1"
         else:
-            out_sds.units = self.get_units()
+            out_sds.units = self.get_units
 
         unit_desc = " in [{}]".format(out_sds.units)
 
@@ -342,3 +338,31 @@ class ReanalysisConversion:
         LOG.debug(msg_str)
 
         return out_sds
+
+
+class MerraConversion(ReanalysisConversion):
+    """Adjust longitude as appropriate for MERRA data."""
+
+    @staticmethod
+    def _reorder_lon(in_name, data):
+        """Reorder longitude as needed for datasets.
+
+        Merra2:  Stack halfway to end and then start to halfway.
+        """
+        if in_name in "lon":
+            tmp = np.copy(data)
+            halfway = data.shape[0] // 2
+            data = np.r_[tmp[halfway:], tmp[:halfway]]
+        else:
+            raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
+
+        return data
+
+    def long_name(self):
+        """Return long name from input file unless there is a special case."""
+        if self.out_name == "height":
+            long_name = "Geopotential Height"
+        else:
+            long_name = self[self.shortname].long_name
+
+        return long_name
