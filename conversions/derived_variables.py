@@ -4,6 +4,8 @@ import numpy as np
 import pint
 from netCDF4 import Dataset
 
+from conversions import Q_, ureg
+
 
 def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
     """Calculate the total saturation pressure.
@@ -13,6 +15,8 @@ def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
     :param mix_hi:
     :return: Total saturation pressure
     """
+    mix_lo = Q_(mix_lo, "K")
+    mix_hi = Q_(mix_hi, "K")
     saturation_vapor_pressure_wmo = (vapor_pressure_liquid_water_wmo(temp_in_k))
     es_total = saturation_vapor_pressure_wmo.copy()
 
@@ -38,12 +42,14 @@ def vapor_pressure_liquid_water_wmo(temp_in_kelvin):
     # 253.16 < T < 273.16: weighted interpolation of water / ice
     # < 253.16: w.r.t ice
 
-    es_wmo = 10.0 ** (10.79574 * (1. - 273.16 / temp_in_kelvin)
-                      - 5.02800 * np.log10(temp_in_kelvin / 273.16)
+    kelvinQuant = Q_(273.16, "K")
+
+    es_wmo = 10.0 ** (10.79574 * (1. - kelvinQuant / temp_in_kelvin)
+                      - 5.02800 * np.log10(temp_in_kelvin / kelvinQuant)
                       + 1.50475 * 10. ** -4. *
-                      (1. - 10. ** (-8.2969 * (temp_in_kelvin / 273.16 - 1)))
+                      (1. - 10. ** (-8.2969 * (temp_in_kelvin / kelvinQuant - 1)))
                       + 0.42873 * 10. ** -3. *
-                      (10. ** (4.76955 * (1 - 273.16 / temp_in_kelvin)) - 1.)
+                      (10. ** (4.76955 * (1 - kelvinQuant / temp_in_kelvin)) - 1.)
                       + 0.78614) * 100.0  # [Pa])
 
     return es_wmo
@@ -51,10 +57,11 @@ def vapor_pressure_liquid_water_wmo(temp_in_kelvin):
 
 def vapor_pressure_over_ice(temp_in_kelvin):
     """Calculate the vapor pressure over ice using the Goff Gratch equation."""
+    kelvinQuant = Q_(273.16, "K")
     goff_gratch_vapor_pressure_ice = (10.0 ** (
-            -9.09718 * (273.16 / temp_in_kelvin - 1.0)
-            - 3.56654 * np.log10(273.16 / temp_in_kelvin)
-            + 0.876793 * (1.0 - temp_in_kelvin / 273.16)
+            -9.09718 * (kelvinQuant / temp_in_kelvin - 1.0)
+            - 3.56654 * np.log10(kelvinQuant / temp_in_kelvin)
+            + 0.876793 * (1.0 - temp_in_kelvin / kelvinQuant)
             + np.log10(6.1071)
     ) * 100.0)  # [Pa]
 
@@ -74,7 +81,7 @@ def vapor_pressure_approximation(qv, sfc_pressure, plevels):
     )  # still need to multiply by pressure @ each level
     if sfc_pressure is None:
         # 3D RH field
-        for i, lev in enumerate(plevels):
+        for i, lev in enumerate(plevels.magnitude):
             # already cut out time dim
             vapor_pressure[i, :, :] = vapor_pressure[i, :, :] * lev
     else:
@@ -87,15 +94,14 @@ def vapor_pressure_approximation(qv, sfc_pressure, plevels):
 def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None):
     """Convert Specific Humidity [kg/kg] -> relative humidity [%]."""
     # See Petty Atmos. Thermo. 4.41 (p. 65), 8.1 (p. 140), 8.18 (p. 147)
-    ureg = pint.UnitRegistry()
-    levels = (levels.to(ureg.pascal)).magnitude   # [hPa] -> [Pa] when necessary.
+    levels = (levels.to(ureg.pascal))   # [hPa] -> [Pa] when necessary.
 
     es_tot = total_saturation_pressure(temp_k)
 
     vapor_pressure = vapor_pressure_approximation(specific_humidity, press_at_sfc, levels)
 
-    relative_humidity = vapor_pressure / es_tot * 100.0  # relative humidity [%]
-    relative_humidity[relative_humidity > 100.0] = 100.0  # clamp to 100% to mimic CFSR
+    relative_humidity = (vapor_pressure / es_tot * 100.0).magnitude  # relative humidity [%]
+    relative_humidity[relative_humidity > 100.0] = 100.0
 
     return relative_humidity
 
@@ -122,7 +128,6 @@ def dobson_layer(mmr_data_array, level_index, pressure_levels: pint.Quantity):
     :return: dobson layer
     """
     # Make Sure Pressure is in hPa
-    ureg = pint.UnitRegistry()
     pressure_levels = (pressure_levels.to(ureg.hectopascal)).magnitude
 
     dobson_unit_conversion = 2.69e16  # 1 DU = 2.69e16 molecules cm-2
@@ -160,7 +165,7 @@ def total_ozone(mmr, fill_value, pressure_levels: pint.Quantity):
 def merra_land_mask(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     """Convert fractional merra land mask to 1=land 0=ocean.
 
-    use FRLANDICE so antarctica and greenland get included.
+    add FRLANDICE to include antarctica and greenland.
     :rtype: np.ndarray
     """
     frlandice = mask_sd.variables["FRLANDICE"][0]  # 0th time index

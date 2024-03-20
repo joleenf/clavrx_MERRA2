@@ -21,18 +21,16 @@ except ImportError as e:
 FORMAT = '%(asctime)s %(clientip)-15s %(user)-8s %(message)s'
 logging.basicConfig(format=FORMAT)
 LOG = logging.getLogger("__name__")
+LOG.setLevel(logging.INFO)
 
 np.seterr(all='ignore')
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT_DIR, 'yamls', 'geosfp.yaml'), "r") as yml:
-    OUTPUT_VARS_DICT = yaml.load(yml, Loader=yaml.Loader)
+    OUTPUT_VARS_DICT = yaml.safe_load(yml)
 
 levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
 LEVELS = levels_listings["hPa_levels"]
-
-#no_conversion = lambda a: a  # ugh why doesn't python have a no-op function...
-#fill_bad = lambda a: a*np.nan
 
 
 def construct_filepath(base_data_dir, base_out_dir, input_datetime):
@@ -60,7 +58,7 @@ def get_input_files(filepath, input_datetime):
     mask_file = os.path.join(filepath, "GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4")
     if not os.path.isfile(mask_file):
         raise FileNotFoundError(mask_file)
-    in_files = {"mask_file": mask_file}
+    in_files = {"mask": mask_file}
 
     print(f"Processing date: {file_start}")
 
@@ -86,15 +84,11 @@ def get_input_files(filepath, input_datetime):
 
 
 def make_one_hour(in_files, out_dir):
-    """Read input, parse times, run conversion on one day at a time."""
+    """Read input, verify times, run conversion on one synoptic run."""
     merra_sd = dict()
-    mask_file = None
 
     for file_name_key, file_name in in_files.items():
-        if file_name_key == "mask_file":
-            mask_file = Dataset(file_name)
-        else:
-            merra_sd[file_name_key] = Dataset(file_name)
+        merra_sd[file_name_key] = Dataset(file_name)
 
     # just use any dataset key to get ncattrs
     any_key = list(merra_sd.keys())[0]
@@ -105,28 +99,24 @@ def make_one_hour(in_files, out_dir):
         except AttributeError:
             pass
 
-    times, common_times = frw.get_common_time(merra_sd)
+    times, out_time = frw.get_common_time(merra_sd)
+    # keep this for MERRA2 which operates on 4 time periods at a time.
+    time_inds = frw.get_time_index(in_files.keys(), times, out_time)
     model_type = file_global_attrs["Filename"].split(".")[0]
 
-    final_filename_list = []
-    for out_time in sorted(common_times):
-        fn = f"{model_type}.{out_time.strftime('%y%m%d%H_F000.hdf')}"
-        final_filename_list.append(fn)
-        out_fn = os.path.join(out_dir, fn)
+    fn = f"{model_type}.{out_time.strftime('%y%m%d%H_F000.hdf')}"
+    out_fn = os.path.join(out_dir, fn)
 
-        merra_sd["out"] = SD(
-            out_fn, SDC.WRITE | SDC.CREATE | SDC.TRUNC
-        )  # TRUNC will clobber existing
+    merra_sd["out"] = SD(
+        out_fn, SDC.WRITE | SDC.CREATE | SDC.TRUNC
+    )  # TRUNC will clobber existing
+    # --- prepare input data variables
+    out_vars = frw.get_input_data(merra_sd, time_inds, OUTPUT_VARS_DICT)
+    frw.write_output_variables(merra_sd, out_vars)
 
-        time_inds = frw.get_time_index(in_files.keys(), times, out_time)
+    frw.write_global_attributes(merra_sd["out"], file_global_attrs)
 
-        # --- prepare input data variables
-        out_vars = frw.get_input_data(merra_sd, time_inds, OUTPUT_VARS_DICT)
-        frw.write_output_variables(merra_sd, mask_file, out_vars)
-
-        frw.write_global_attributes(merra_sd["out"], file_global_attrs)
-
-    return final_filename_list
+    return fn
 
 
 def main(in_data_dir, final_dir, data_dt: str, run_hour: str):
@@ -136,9 +126,9 @@ def main(in_data_dir, final_dir, data_dt: str, run_hour: str):
     in_data_dir, out_path_full = construct_filepath(in_data_dir, final_dir, date_parsed)
     in_files = get_input_files(in_data_dir, date_parsed)
 
-    out_file_list = make_one_hour(in_files, out_path_full)
-    print("out_path_full")
-    print("out_files: {}".format(out_file_list))
+    out_file = make_one_hour(in_files, out_path_full)
+    print(f"{out_path_full}")
+    print(f"out_files: {out_file}")
 
 
 if __name__ == '__main__':

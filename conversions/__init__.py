@@ -1,5 +1,9 @@
 """Unit conversions for variables used in merra2 and era5 data."""
 import numpy as np
+import pint
+
+ureg = pint.UnitRegistry()
+Q_ = ureg.Quantity
 
 CLAVRX_FILL = 9.999e20
 COMPRESSION_LEVEL = 6

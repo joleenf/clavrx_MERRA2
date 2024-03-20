@@ -20,9 +20,11 @@ import logging
 from typing import List, Optional, TypedDict, Union
 
 import numpy as np
+import pint
+import pyhdf
 from pyhdf.SD import SDC
 
-from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
+from conversions import CLAVRX_FILL, COMPRESSION_LEVEL, Q_, ureg
 
 LOG = logging.getLogger(__name__)
 
@@ -66,6 +68,25 @@ class CommandLineMapping(TypedDict):
     local: List[str]
 
 
+def pint_unit_from_str(unit_str):
+    """Convert unit string to pint units using custom dictionary if necessary."""
+    # a re.match would be better, this is simpler for me to read.
+    convert_dict = {"kg kg-1": "kg/kg", "m s-2": (ureg.meters / ureg.seconds ** 2),
+                    "m s-1": (ureg.meters / ureg.seconds),
+                    "kg/m^2": (ureg.kg / ureg.meters ** 2),
+                    "kg m-2": (ureg.kg / ureg.meters ** 2)}
+
+    if unit_str in convert_dict.keys():
+        pint_unit = convert_dict[unit_str]
+    else:
+        try:
+            pint_unit = ureg.Unit(unit_str)
+        except TypeError as pint_error:
+            raise TypeError(f"{pint_error} from {unit_str}")
+
+    return pint_unit
+
+
 class ReanalysisConversion:
     """Handles extracting variables from netCDF4.Dataset."""
 
@@ -93,6 +114,7 @@ class ReanalysisConversion:
     def __repr__(self):
         """Report the name conversion when creating this object."""
         str_template = "Input name {} ==> Output Name: {}"
+
         return str_template.format(self[self.shortname].long_name, self.out_name)
 
     def __getitem__(self, item):
@@ -117,7 +139,9 @@ class ReanalysisConversion:
 
     def _get_data(self, time_ind, not_masked, nan_fill):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
-        data = np.ma.getdata(self[self.shortname])
+
+        data_var = self[self.shortname]
+        data = np.ma.getdata(data_var)
 
         # want only dependent arrays as masked arrays, everything else can be a regular np.array.
         if not_masked:
@@ -147,12 +171,16 @@ class ReanalysisConversion:
         if self.fill is not None:
             data = self.apply_fill(data, self.fill, self.out_name, nan_fill)
 
-        # data = data.astype(np.float32)
+        # add units, make exception for units that are not defined in pint.
+        if data_var.units not in ["degrees_north", "degrees_east",
+                                  "1=land, 0=ocean, greenland and antarctica are land"]:
+            pint_unit = pint_unit_from_str(data_var.units)
+            data = Q_(data, pint_unit)
 
         return data
 
-    def updateAttr(self, attr_name, replace_data):
-        setattr(self, attr_name, replace_data)
+    def updateAttr(self, attr_name, replace_with):
+        setattr(self, attr_name, replace_with)
 
     @staticmethod
     def apply_fill(data: np.ndarray, fill_value, variable_name: str, nan_fill: bool):
@@ -246,7 +274,7 @@ class ReanalysisConversion:
         return data
 
     @staticmethod
-    def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
+    def _extrapolate_below_sfc(t: np.ndarray, fill: Optional[float]) -> np.ndarray:
         """Set below ground fill values to lowest good value instead of extrapolation.
 
         Major difference between CFSR and MERRA is that CFSR extrapolates
@@ -276,36 +304,53 @@ class ReanalysisConversion:
     @property
     def get_units(self):
         """If possible, get units from ncattrs."""
-        units = self.nc_dataset.variables[self.shortname].getncattr("units")
+        try:
+            units = self.nc_dataset.variables[self.shortname].getncattr("units")
+        except AttributeError:
+            LOG.info(f"No Units found for {self.shortname}")
+        if isinstance(self.data, pint.Quantity):
+            units = str(self.data.units)
         return units
 
-    def update_output(self, sd, in_file_short_value, out_fill):
+    def update_output(self, sd, in_file_short_value):
         """Finalize output variables."""
-        LOG.info("Writing %s", self)
+        print(f"Writing {self}")
+
         out_sds = sd["out"].create(self.out_name,
                                    output_dtype(self.out_name, self.data.dtype),
                                    self._modify_shape())
+
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)
+
+        try:
+            out_sds.units = self.out_units
+        except pyhdf.error.HDF4Error as e:
+            print(e)
+            print(out_sds.units)
+
         if self.out_name == "lon":
             out_sds.set(self._reshape(fill=None))
         else:
-            out_data = self._refill(self._reshape(fill=out_fill), out_fill)
+            if isinstance(self.data, pint.Quantity):
+                self.updateAttr("data", self.data.magnitude)
+            else:
+                self.updateAttr("data", self.data)
+            out_data = self._refill(self._reshape(fill=self.fill), self.fill)
             out_sds.set(out_data)
 
-        if out_fill is not None:
+        if self.fill is not None:
             out_sds.setfillvalue(CLAVRX_FILL)
-        if self.out_units is not None:
-            out_sds.units = self.out_units
-        elif self.out_units in ("none", "None"):
-            out_sds.units = "1"
-        else:
-            out_sds.units = self.get_units
+        # if self.out_units is not None:
+        #     out_sds.units = self.out_units
+        # elif self.out_units in ("none", "None"):
+        #     out_sds.units = "1"
+        # else:
+        #     out_sds.units = self.get_units
 
-        unit_desc = " in [{}]".format(out_sds.units)
+        #unit_desc = " in [{}]".format(out_sds.units)
 
-        out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
-                                                 self.shortname, unit_desc))
+        out_sds.source_data = f"{in_file_short_value}->{self.shortname}{out_sds.units}"
 
         out_sds.long_name = self.long_name()
         out_sds.endaccess()
