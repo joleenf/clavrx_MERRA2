@@ -74,7 +74,8 @@ def pint_unit_from_str(unit_str):
     convert_dict = {"kg kg-1": "kg/kg", "m s-2": (ureg.meters / ureg.seconds ** 2),
                     "m s-1": (ureg.meters / ureg.seconds),
                     "kg/m^2": (ureg.kg / ureg.meters ** 2),
-                    "kg m-2": (ureg.kg / ureg.meters ** 2)}
+                    "kg m-2": (ureg.kg / ureg.meters ** 2),
+                    "m+2 s-2": (ureg.meters ** 2 / ureg.seconds ** 2)}
 
     if unit_str in convert_dict.keys():
         pint_unit = convert_dict[unit_str]
@@ -97,9 +98,9 @@ class ReanalysisConversion:
             out_name=None,
             out_units=None,
             ndims_out=None,
-            time_ind=None,
             not_masked=True,
-            nan_fill=False
+            nan_fill=False,
+            time_ind=None
     ) -> None:
         """Based on variable, adjust shape, apply fill and determine dtype."""
         self.nc_dataset = nc_dataset
@@ -109,7 +110,7 @@ class ReanalysisConversion:
         self.ndims_out = ndims_out
 
         self.fill = self._get_fill
-        self.data = self._get_data(time_ind, not_masked, nan_fill)
+        self.data = self._get_data(not_masked, nan_fill, time_ind)
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
@@ -137,10 +138,10 @@ class ReanalysisConversion:
 
         return fill
 
-    def _get_data(self, time_ind, not_masked, nan_fill):
+    def _get_data(self, not_masked, nan_fill, time_ind):
         """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
-
         data_var = self[self.shortname]
+        print(f"Getting data for {self.shortname}")
         data = np.ma.getdata(data_var)
 
         # want only dependent arrays as masked arrays, everything else can be a regular np.array.
@@ -156,8 +157,7 @@ class ReanalysisConversion:
             )
 
         # select time index.
-        ndims_in = len(data.shape)
-        if ndims_in in (3, 4):
+        if "time" in data_var.dimensions:
             # note, vars w/ 3 spatial dims will be 4d due to time
             data = data[time_ind]
 
@@ -207,12 +207,13 @@ class ReanalysisConversion:
 
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
-        if self.out_name == 'total ozone' and len(self.data.shape) == 3:
-            # b/c we vertically integrate ozone to get dobson units here
-            shape = (self.data.shape[1], self.data.shape[2])
-        elif self.ndims_out == 3:
-            # clavr-x needs level to be the last dim
-            shape = (self.data.shape[1], self.data.shape[2], self.data.shape[0])
+        if len(self.data.shape) == 3:
+            if self.out_name == 'total ozone':
+                # b/c we vertically integrate ozone to get dobson units here
+                shape = (self.data.shape[1], self.data.shape[2])
+            else:
+                # clavr-x needs level to be the last dim
+                shape = (self.data.shape[1], self.data.shape[2], self.data.shape[0])
         else:
             shape = self.data.shape
 
@@ -226,10 +227,11 @@ class ReanalysisConversion:
         * CFSR starts at 0 deg lon but merra starts at -180.
         """
         data = self.data
-        if (self.ndims_out == 3) or (self.ndims_out == 2):
+        ndims_out = len(self.data.shape)
+        if ndims_out in [2, 3]:
             data = self._shift_lon()
 
-        if self.ndims_out == 3:
+        if ndims_out == 3:
             # do extrapolation before reshape
             # (extrapolate fn depends on a certain dimensionality/ordering)
             data = self._extrapolate_below_sfc(data, fill)
@@ -244,6 +246,7 @@ class ReanalysisConversion:
         if data.dtype in (np.float32, np.float64):
             data[np.isnan(data)] = CLAVRX_FILL
             data[data == old_fill] = CLAVRX_FILL
+        print(data.max())
         return data
 
     @staticmethod

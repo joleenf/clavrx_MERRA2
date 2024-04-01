@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 import datetime
+import functools
 import logging
-from typing import Dict, Generator, KeysView, Tuple, Union
+from typing import Dict, Iterator, KeysView, Tuple, Union
 
 import numpy as np
 from netCDF4 import Dataset, num2date
@@ -16,9 +15,11 @@ np.seterr(all="ignore")
 
 LOG = logging.getLogger(__name__)
 
+OutVarDictType = Dict[str, Union[MerraConversion, str]]
+
 
 def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
-                   time_index: Dict[str, int], output_vars_dict) -> Generator[Dict]:
+                   time_index: list, output_vars_dict) -> Iterator[Dict[str, MerraConversion]]:
     """Using the mappings from output_vars_dict, map input data to output products."""
     out_vars = dict()
 
@@ -30,13 +31,11 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
             out_name=out_key,
             out_units=rsk["out_units"],
             ndims_out=rsk["ndims_out"],
-            time_ind=time_index[rsk["in_file"]],
             not_masked=True,
             nan_fill=rsk["nan_fill"],
+            time_ind=time_index[rsk["in_file"]]
         )
-        out_vars["in_file"] = rsk["in_file"]
         if "dependent" in rsk:
-            out_vars["dependent"] = dict()
             for support_var_name in rsk["dependent"]:
                 sub_field = rsk["dependent"][support_var_name]
                 support_obj = MerraConversion(
@@ -45,16 +44,19 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
                     out_name=support_var_name,
                     out_units=sub_field["out_units"],
                     ndims_out=sub_field["ndims_out"],
-                    time_ind=time_index[sub_field["in_file"]],
                     not_masked=False,  # load these as masked arrays.
-                    nan_fill=sub_field["nan_fill"]
+                    nan_fill=sub_field["nan_fill"],
+                    time_ind=time_index[sub_field["in_file"]]
                 )
-                out_vars["dependent"].update({support_var_name: support_obj})
+                try:
+                    out_vars["dependent"].update({support_var_name: support_obj})
+                except KeyError:
+                    out_vars["dependent"] = {support_var_name: support_obj}
 
         yield out_vars
 
 
-def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[Dict]) -> None:
+def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Dict]) -> None:
     """Calculate the final output and write to file."""
     if "ana" in datasets.keys():
         file_pressure_levels = datasets["ana"].variables["lev"]
@@ -74,47 +76,50 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Generator[D
         try:
             current_var = next(out_fields)
             out_var = current_var["data_object"]
-            file_tag = current_var["in_file"]
+            file_tag = out_var.nc_dataset.getncattr("Filename")
             out_key = out_var.out_name
             LOG.info(f"Processing {out_key}")
 
-            if out_key == "rh":
-                temp_k = current_var["dependent"]["masked_temp_k"].data
-                new_data = derive_var.qv_to_rh(out_var.data, temp_k, pint_unit_levels)
-                new_data[np.isnan(new_data)] = new_data.fill_value
-                out_var.updateAttr('fill', new_data.fill_value)
-                out_var.updateAttr("data", new_data)
-                out_var.updateAttr("out_units", "%")
-            elif out_key == "rh at sigma=0.995":
-                temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
-                ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
-                new_data = derive_var.rh_at_sigma(temp_t10m, ps_pa,
-                                                  out_var.fill, pint_unit_levels, out_var.data)
-                out_var.updateAttr("fill", new_data.fill_value)
-                out_var.updateAttr("data", new_data.filled())
-                out_var.updateAttr("out_units", "%")
-            elif out_key == "water equivalent snow depth":
-                out_var.updateAttr("data", derive_var.hack_snow(out_var.data.magnitude, datasets["mask"]))
-            elif out_key == "land mask":
-                land_mask = derive_var.merra_land_mask(out_var.data, datasets["mask"])
-                # input neither clavrx_fill nor the input data fill make sense for this land mask
-                out_var.updateAttr("fill", None)
-                out_var.updateAttr("data", land_mask.astype(np.int32))
-            elif out_key == "total ozone":
-                new_data = derive_var.total_ozone(out_var.data, out_var.fill, pint_unit_levels)
-                out_var.updateAttr("data", conversions.kg_per_metersq_to_dobson(new_data))
-            elif out_key == "total precipitable water":
-                out_var.updateAttr("data", (out_var.data / 10.0))
-            else:
-                if out_var.out_units in [1, "degrees_north", "degrees_east"]:
-                    # no conversion
-                    pass
-                else:
-                    print(f"Convert {out_key}[{out_var.get_units}] to {out_var.out_units}")
-                    try:
-                        out_var.updateAttr("data", out_var.data.to(out_var.out_units))
-                    except AttributeError as _e:
-                        raise AttributeError(f"Can't convert {out_key}: {out_var.data} to {out_var.out_units}")
+            match out_key:
+                case "rh":
+                    temp_k = current_var["dependent"]["masked_temp_k"].data
+                    new_data = derive_var.qv_to_rh(out_var.data, temp_k, pint_unit_levels)
+                    new_data[np.isnan(new_data)] = new_data.fill_value
+                    out_var.updateAttr('fill', new_data.fill_value)
+                    out_var.updateAttr("data", new_data)
+                    out_var.updateAttr("out_units", "%")
+                case "rh at sigma=0.995":
+                    temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
+                    ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
+                    new_data = derive_var.rh_at_sigma(temp_t10m, ps_pa,
+                                                      out_var.fill, pint_unit_levels, out_var.data)
+                    out_var.updateAttr("fill", new_data.fill_value)
+                    out_var.updateAttr("data", new_data.filled())
+                    out_var.updateAttr("out_units", "%")
+                case "water equivalent snow depth":
+                    out_var.updateAttr("data", derive_var.hack_snow(out_var.data.magnitude, datasets["mask"]))
+                case "land mask":
+                    land_mask = derive_var.merra_land_mask(out_var.data, datasets["mask"])
+                    # input neither clavrx_fill nor the input data fill make sense for this land mask
+                    out_var.updateAttr("fill", None)
+                    out_var.updateAttr("data", land_mask.astype(np.int32))
+                case "total ozone":
+                    new_data = derive_var.total_ozone(out_var.data, out_var.fill, pint_unit_levels)
+                    out_var.updateAttr("data", new_data)
+                case "total precipitable water":
+                    out_var.updateAttr("data", (out_var.data / 10.0))
+                case "surface height":
+                    out_var.updateAttr("data", conversions.geopotential(out_var.data))
+                case _:
+                    if out_var.out_units in [1, "degrees_north", "degrees_east"]:
+                        # no conversion
+                        pass
+                    else:
+                        print(f"Convert {out_key}[{out_var.get_units}] to {out_var.out_units}")
+                        try:
+                            out_var.updateAttr("data", out_var.data.to(out_var.out_units))
+                        except AttributeError as _e:
+                            raise AttributeError(f"Can't convert {out_key}: {out_var.data} to {out_var.out_units}")
 
             out_var.update_output(datasets, f"{source_name}({file_tag})->{out_key}")
 
@@ -168,8 +173,11 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
     out_sd.end()
 
 
-def get_common_time(datasets: Dict[str, Dataset]):
+def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp"):
     """Enforce a 'common' start time among the input datasets."""
+    dataset_times: Dict[str, datetime.datetime]
+    time_set: Dict[str, Set(datetime.datetime)]
+
     dataset_times = dict()
     time_set = dict()
     keys = list(datasets.keys())
@@ -199,20 +207,26 @@ def get_common_time(datasets: Dict[str, Dataset]):
                                 datetime.timedelta(minutes=time_hack_offset)
             # This is just to get the index for a given timestamp later:
             dataset_times[ds_key].append((i, analysis_time))
-            time_set.update({ds_key: analysis_time})
+            time_set[ds_key].add(analysis_time)
     # find set of time common to all input files
     print(time_set.values())
-    ds_common_times = set(time_set.values())
+    ds_common_times = functools.reduce(lambda x, y: x & y, time_set.values())
 
     # if this code has not forced one common time, one of the datasets probably does not match
     ncommon = len(ds_common_times)
-    if ncommon != 1:
-        print(ds_common_times)
-
-        raise ValueError("Input files have not produced common times: {ncommon}")
-    else:
-        # return datetime, not single set value
-        common_time = ds_common_times.pop()
+    if input_type == "geosfp":
+        if ncommon != 1:
+            print(ds_common_times)
+            raise ValueError("Input files have not produced common times: {ncommon}")
+        else:
+            # return datetime, not single set value
+            common_time = ds_common_times.pop()
+    elif input_type == "merra":
+        if ncommon != 4:
+            print(ds_common_times)
+            raise ValueError("Input files have not produced 4 common times: {ncommon}")
+        else:
+            common_time = ds_common_times
 
     return [dataset_times, common_time]
 

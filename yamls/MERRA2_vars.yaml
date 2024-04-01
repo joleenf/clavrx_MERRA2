@@ -2,86 +2,80 @@ defined levels:
         hPa_levels: [ 1000, 975, 950, 925, 900, 875, 850, 825, 800, 775, 750, 725, 700, 650, 600, 550, 500, 450, 400, 350, 300, 250, 200, 150, 100, 70, 50, 40, 30, 20, 10, 7, 5, 4, 3, 2, 1, 0.7, 0.5, 0.4, 0.3, 0.1 ] # [hPa]
 
 MSL pressure:
-  in_file: asm3d
+  in_file: ana
   shortname: SLP
   ndims_out: 2
   out_units: hPa
-  #units_fn: !!python/name:conversions.pa_to_hPa
   nan_fill: False
 cloud ice water mixing ratio:
   in_file: asm3d
   shortname: QI
   ndims_out: 3
-  out_units: kg/kg  # TODO: this is an issue because pint will make it dimensionless
-  #units_fn: !!python/name:conversions.no_conversion
+  out_units: kg/kg
   nan_fill: False
 clwmr:
   in_file: asm3d
   shortname: QL
   ndims_out: 3
-  out_units: kg/kg  # TODO: this is an issue because pint will make it dimensionless
-  #units_fn: !!python/name:conversions.no_conversion
+  out_units: kg/kg
   nan_fill: False
 height:
-  in_file: asm3d
+  in_file: ana
   shortname: H
   ndims_out: 3
   out_units: km
-  #units_fn: !!python/name:conversions.meter_to_km
   nan_fill: False
 ice fraction:
   in_file: flx
   shortname: FRSEAICE
   ndims_out: 2
-  out_units: 1
-  #units_fn: !!python/name:conversions.no_conversion
+  out_units: "1"
   nan_fill: False
 lat:
-  in_file: asm3d
+  in_file: ana
   shortname: lat
   ndims_out: 1
   out_units: degrees_north
-  #units_fn: !!python/name:conversions.no_conversion
+  nan_fill: False
+level:
+  in_file: ana
+  shortname: lev
+  ndims_out: 1
+  out_units: hPa
   nan_fill: False
 lon:
-  in_file: asm3d
+  in_file: ana
   shortname: lon
   ndims_out: 1
   out_units: degrees_east
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 o3mr:
-  in_file: asm3d
+  in_file: ana
   shortname: O3
   ndims_out: 3
   out_units: kg/kg
-  #units_fn: !!python/name:conversions.no_conversion
-  nan_fill: True
+  nan_fill: False
 planetary boundary layer height:
   in_file: flx
   shortname: PBLH
   ndims_out: 2
   out_units: km
-  #units_fn: !!python/name:conversions.meter_to_km
   nan_fill: False
 pressure levels:
-  in_file: asm3d
+  in_file: ana
   shortname: lev
   ndims_out: 1
   out_units: hPa
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 rh:
-  in_file: asm3d
+  in_file: ana
   shortname: QV
   ndims_out: 3
-  out_units: percent
-  #units_fn: null
+  out_units: '%'
   nan_fill: True
-  #units_fn: !!python/name:conversions.no_conversion
   dependent:  # dependent variables do not apply conversion.
       masked_temp_k: # this is a support variable which is stored as a masked array to match old code.
-        in_file: asm3d
+        in_file: ana
         shortname: T
         ndims_out: 3
         nan_fill: True
@@ -90,9 +84,8 @@ rh at sigma=0.995:
   in_file: slv
   shortname: QV10M
   ndims_out: 2
-  out_units: percent
+  out_units: '%'
   nan_fill: False
-  #units_fn: !!python/name:conversions.fill_bad
   dependent:  # dependents currently do not apply conversions.
     surface_pressure_at_sigma:   # supports rh at sigma calculation
       in_file: slv
@@ -107,115 +100,106 @@ rh at sigma=0.995:
       nan_fill: False
       out_units: K
 surface pressure:
-  in_file: asm3d
+  in_file: ana
   shortname: PS
   ndims_out: 2
   out_units: hPa
-  #units_fn: !!python/name:conversions.pa_to_hPa
   nan_fill: False
 surface temperature:
   in_file: slv
   shortname: TS
   ndims_out: 2
   out_units: K
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 temperature:
-  in_file: asm3d
+  in_file: ana
   shortname: T
   ndims_out: 3
   out_units: K
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 temperature at sigma=0.995:
   in_file: slv
   shortname: T10M
   ndims_out: 2
   out_units: K
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 total cloud fraction:
   in_file: rad
   shortname: CLDTOT
   ndims_out: 2
-  out_units: 1
-  #units_fn: !!python/name:conversions.no_conversion
+  out_units: "1"
   nan_fill: False
 total ozone:
-  in_file: asm3d
+  in_file: ana
   shortname: O3
   ndims_out: 2
-  out_units: 1    # This needs special handling to define dobson after special conversion.
-  #units_fn: !!python/name:conversions.kg_per_metersq_to_dobson
+  out_units: Dobson
   nan_fill: True
 total precipitable water:
-  in_file: slv
+  in_file: asm2d
   shortname: TQV
   ndims_out: 2
   out_units: cm
-  #units_fn: !!python/name:conversions.meter_to_km
   nan_fill: False
 tropopause pressure:
   in_file: slv
   shortname: TROPPT
   ndims_out: 2
   out_units: hPa
-  #units_fn: !!python/name:conversions.pa_to_hPa
   nan_fill: False
 tropopause temperature:
   in_file: slv
   shortname: TROPT
   ndims_out: 2
   out_units: K
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 u-wind:
-  in_file: asm3d
+  in_file: ana
   shortname: U
   ndims_out: 3
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 u-wind at 50M:
   in_file: slv
   shortname: U50M
   ndims_out: 2
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 u-wind at sigma=0.995:
   in_file: slv
   shortname: U10M
   ndims_out: 2
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 v-wind:
-  in_file: asm3d
+  in_file: ana
   shortname: V
   ndims_out: 3
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 v-wind at 50M:
   in_file: slv
   shortname: V50M
   ndims_out: 2
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 v-wind at sigma=0.995:
   in_file: slv
   shortname: V10M
   ndims_out: 2
   out_units: m/s
-  #units_fn: !!python/name:conversions.no_conversion
   nan_fill: False
 water equivalent snow depth:
   in_file: lnd
   shortname: SNOMAS
   ndims_out: 2
-  out_units: kg m-2
+  out_units: kg/m^2
+  nan_fill: False
+surface height:  # geopotential height
+  in_file: mask
+  shortname: PHIS
+  ndims_out: 2
+  out_units: km
   nan_fill: False
 land mask:
   in_file: mask
@@ -223,9 +207,15 @@ land mask:
   ndims_out: 2
   out_units: 1=land, 0=ocean, greenland and antarctica are land
   nan_fill: False
-surface height:  # geopotential height
+FRACI:
   in_file: mask
-  shortname: PHIS
+  shortname: FRACI
   ndims_out: 2
-  out_units: km
+  out_units: "1"
+  nan_fill: False
+land ice fraction:
+  in_file: mask
+  shortname:  FRLANDICE
+  out_units: "1"
+  ndims_out: 2
   nan_fill: False
