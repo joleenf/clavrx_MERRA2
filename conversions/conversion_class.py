@@ -20,12 +20,11 @@ import logging
 from typing import List, Optional, TypedDict, Union
 
 import numpy as np
+import pint
+import pyhdf
 from pyhdf.SD import SDC
 
-from conversions import CLAVRX_FILL, COMPRESSION_LEVEL
-
-# CLAVRX_FILL = 9.999e20
-# COMPRESSION_LEVEL = 6  # 6 is the gzip default; 9 is best/slowest/smallest fill
+from conversions import CLAVRX_FILL, COMPRESSION_LEVEL, Q_, ureg
 
 LOG = logging.getLogger(__name__)
 
@@ -69,64 +68,95 @@ class CommandLineMapping(TypedDict):
     local: List[str]
 
 
+def pint_unit_from_str(unit_str):
+    """Convert unit string to pint units using custom dictionary if necessary."""
+    # a re.match would be better, this is simpler for me to read.
+    convert_dict = {"kg kg-1": "kg/kg", "m s-2": (ureg.meters / ureg.seconds ** 2),
+                    "m s-1": (ureg.meters / ureg.seconds),
+                    "kg/m^2": (ureg.kg / ureg.meters ** 2),
+                    "kg m-2": (ureg.kg / ureg.meters ** 2),
+                    "m+2 s-2": (ureg.meters ** 2 / ureg.seconds ** 2)}
+
+    if unit_str in convert_dict.keys():
+        pint_unit = convert_dict[unit_str]
+    else:
+        try:
+            pint_unit = ureg.Unit(unit_str)
+        except TypeError as pint_error:
+            raise TypeError(f"{pint_error} from {unit_str}")
+
+    return pint_unit
+
+
 class ReanalysisConversion:
     """Handles extracting variables from netCDF4.Dataset."""
 
     def __init__(
             self,
-            nc_dataset=None,
-            shortname=None,
+            file_tag=None,
+            data_array=None,
             out_name=None,
             out_units=None,
             ndims_out=None,
-            time_ind=None,
-            not_masked=True,
-            nan_fill=False
+            unmask=True,
+            nan_fill=False,
+            time_ind=None
     ) -> None:
         """Based on variable, adjust shape, apply fill and determine dtype."""
-        self.nc_dataset = nc_dataset
-        self.shortname = shortname
+        self.file_tag = file_tag
+        self.shortname = data_array.name
+        self.long_name = data_array.long_name
         self.out_name = out_name
         self.out_units = out_units
         self.ndims_out = ndims_out
 
-        self.fill = self._get_fill
-        self.data = self._get_data(time_ind, not_masked, nan_fill)
+        self.fill = self.get_fill(data_array)
+        self.data = self._get_data(data_array, out_name, unmask,
+                                   nan_fill, time_ind)
+        self.dependent = None  # add later when necessary
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
         str_template = "Input name {} ==> Output Name: {}"
-        return str_template.format(self[self.shortname].long_name, self.out_name)
-
-    def __getitem__(self, item):
-        """Access data in the NetCDF dataset variable by variable key."""
-        return self.nc_dataset.variables[item]
+        return str_template.format(self.long_name, self.out_name)
 
     def out_name(self):
         """Return variable name as defined in the output file."""
         return self.out_name
 
-    @property
-    def _get_fill(self):
+    @staticmethod
+    def get_fill(data_array):
         """Get the fill value of this data."""
-        if "_FillValue" in self[self.shortname].ncattrs():
-            fill = self[self.shortname].getncattr("_FillValue")
-        elif "missing_value" in self[self.shortname].ncattrs():
-            fill = self[self.shortname].getncattr("missing_value")
+        if "_FillValue" in data_array.ncattrs():
+            fill = data_array.getncattr("_FillValue")
+        elif "missing_value" in data_array.ncattrs():
+            fill = data_array.getncattr("missing_value")
         else:
             fill = None
 
         return fill
 
-    def _get_data(self, time_ind, not_masked, nan_fill):
-        """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
-        data = np.ma.getdata(self[self.shortname])
+    def _get_data(self, data_var, out_name: str, unmask: bool,
+                  nan_fill: bool, time_ind: int, toa2sfc=True):
+        """Get data and based on dimensions reorder axes, truncate TOA, apply fill.
+        :param data_var: working data array (SDS)
+        :param out_name:  output name of variable (usually different than NASA name)
+        :param unmask:  fill masked values (true except for dependent variables)
+        :param nan_fill:  (bool) apply fill after unmask
+        :param time_ind:  index for current time in data_var
+        :keyword toa2src: (bool) flip level top of atmosphere to surface
+            to match traditional code, make this false for dependent level variables.
+        """
+        shortname = data_var.name
+        print(f"Getting data for {shortname}")
+
+        data = np.ma.getdata(data_var)
 
         # want only dependent arrays as masked arrays, everything else can be a regular np.array.
-        if not_masked:
+        if unmask:
             data = np.asarray(data.filled())
 
-        if self.shortname == "lev" and len(data) != 42:
+        if shortname == "lev" and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
             # also is expected based on data documentation:
             # https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
@@ -135,24 +165,30 @@ class ReanalysisConversion:
             )
 
         # select time index.
-        ndims_in = len(data.shape)
-        if ndims_in in (3, 4):
+        if "time" in data_var.dimensions:
             # note, vars w/ 3 spatial dims will be 4d due to time
             data = data[time_ind]
 
-        # apply special cases
-        if self.shortname in ("lev", "level"):
+        # # # apply special cases
+        if shortname in ("lev", "level") and toa2sfc:
             data = data.astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.shortname in ("lon", "longitude"):
-            data = self._reorder_lon(self.shortname, data)
+        elif shortname in ("lon", "longitude"):
+            data = self._reorder_lon(shortname, data)
 
-        if self.fill is not None:
-            data = self.apply_fill(data, self.fill, self.out_name, nan_fill)
+        data_fill = self.get_fill(data_var)
+        data = self.apply_fill(data, data_fill, out_name, nan_fill)
 
-        # data = data.astype(np.float32)
+        # add units, make exception for units that are not defined in pint.
+        if data_var.units not in ["degrees_north", "degrees_east",
+                                  "1=land, 0=ocean, greenland and antarctica are land"]:
+            pint_unit = pint_unit_from_str(data_var.units)
+            data = Q_(data, pint_unit)
 
         return data
+
+    def updateAttr(self, attr_name, replace_with):
+        setattr(self, attr_name, replace_with)
 
     @staticmethod
     def apply_fill(data: np.ndarray, fill_value, variable_name: str, nan_fill: bool):
@@ -161,7 +197,7 @@ class ReanalysisConversion:
             #  Special case: set snow depth missing values to 0 matching CFSR.
             data[data == fill_value] = 0.0
         if nan_fill:
-            data[data == fill_value] = np.nan   # no effect on masked arrays.
+            data[data == fill_value] = np.nan  # no effect on masked arrays.
         else:
             pass  # default from old code and this matters for extrapolation below surface.
 
@@ -175,16 +211,43 @@ class ReanalysisConversion:
     @property
     def long_name(self):
         """Update long_name from input name if function changes output."""
-        raise NotImplementedError
+        return self.long_name
+
+    def add_dependent(self, data_arr, secondary_name, secondary_nan_fill,
+                      secondary_time_ind, unmask=False):
+        """Add Dependent datasets needed for variable derivation.
+           These variables have traditionally been masked.
+
+           :param data_arr:  Netcdf4 Variable array
+           after creation of Quantity.  This is annoying.
+           :param secondary_name:  Name of the dependent variable
+           :param secondary_nan_fill:  The nan_fill flag for the dependent variable
+           :param secondary_time_ind:  The time index for the dependent variable
+           :param unmask:  boolean for the dependent variable mask.  Typically False,
+           unmask in some cases because mixed fill values in quantities create surprises.
+        """
+
+        support_data = self._get_data(data_arr, secondary_name, unmask, secondary_nan_fill,
+                                      secondary_time_ind, toa2sfc=False)
+
+        added_dependent = {secondary_name: support_data}
+
+        if self.dependent:
+            # Note:  Keep this in two steps, otherwise self.dependent returns None
+            self.dependent.update(added_dependent)
+            self.updateAttr("dependent", self.dependent)
+        else:
+            self.updateAttr("dependent", added_dependent)
 
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
-        if self.out_name == 'total ozone' and len(self.data.shape) == 3:
-            # b/c we vertically integrate ozone to get dobson units here
-            shape = (self.data.shape[1], self.data.shape[2])
-        elif self.ndims_out == 3:
-            # clavr-x needs level to be the last dim
-            shape = (self.data.shape[1], self.data.shape[2], self.data.shape[0])
+        if len(self.data.shape) == 3:
+            if self.out_name == 'total ozone':
+                # b/c we vertically integrate ozone to get dobson units here
+                shape = (self.data.shape[1], self.data.shape[2])
+            else:
+                # clavr-x needs level to be the last dim
+                shape = (self.data.shape[1], self.data.shape[2], self.data.shape[0])
         else:
             shape = self.data.shape
 
@@ -198,17 +261,20 @@ class ReanalysisConversion:
         * CFSR starts at 0 deg lon but merra starts at -180.
         """
         data = self.data
-        if (self.ndims_out == 3) or (self.ndims_out == 2):
+        ndims_out = len(self.data.shape)
+
+        if ndims_out in [2, 3]:
             data = self._shift_lon()
 
-        if self.ndims_out != 3:
-            return data
-        # do extrapolation before reshape
-        # (extrapolate fn depends on a certain dimensionality/ordering)
-        data = self._extrapolate_below_sfc(data, fill)
-        data = np.swapaxes(data, 0, 2)
-        data = np.swapaxes(data, 0, 1)
-        data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+        if ndims_out in [1, 3]:
+            # do extrapolation before reshape
+            # (extrapolate fn depends on a certain dimensionality/ordering)
+            if ndims_out == 3:
+                data = self._extrapolate_below_sfc(data, fill)
+                data = np.swapaxes(data, 0, 2)
+                data = np.swapaxes(data, 0, 1)
+                data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+
         return data
 
     @staticmethod
@@ -247,7 +313,7 @@ class ReanalysisConversion:
         return data
 
     @staticmethod
-    def _extrapolate_below_sfc(t: np.ndarray, fill: float) -> np.ndarray:
+    def _extrapolate_below_sfc(t: np.ndarray, fill: Optional[float]) -> np.ndarray:
         """Set below ground fill values to lowest good value instead of extrapolation.
 
         Major difference between CFSR and MERRA is that CFSR extrapolates
@@ -277,41 +343,47 @@ class ReanalysisConversion:
     @property
     def get_units(self):
         """If possible, get units from ncattrs."""
-        print(self.shortname, self.nc_dataset.variables[self.shortname].ncattrs)
-        units = self.nc_dataset.variables[self.shortname].ncattrs().get("units", "")
-        print(type(units))
-        print(self, units)
+        try:
+            units = self.nc_dataset.variables[self.shortname].getncattr("units")
+        except AttributeError:
+            LOG.info(f"No Units found for {self.shortname}")
+        if isinstance(self.data, pint.Quantity):
+            units = str(self.data.units)
         return units
 
-    def update_output(self, sd, in_file_short_value, data_array, out_fill):
+    def update_output(self, sd, in_file_short_value):
         """Finalize output variables."""
-        LOG.info("Writing %s", self)
+        print(f"Writing {self}")
+
         out_sds = sd["out"].create(self.out_name,
                                    output_dtype(self.out_name, self.data.dtype),
                                    self._modify_shape())
+
         out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
         self.set_dim_names(out_sds)
+
+        try:
+            out_sds.units = self.out_units
+        except pyhdf.error.HDF4Error as e:
+            print(e)
+            print(out_sds.units)
+
         if self.out_name == "lon":
             out_sds.set(self._reshape(fill=None))
         else:
-            out_data = self._refill(self._reshape(fill=out_fill), out_fill)
+            if isinstance(self.data, pint.Quantity):
+                self.updateAttr("data", self.data.magnitude)
+            else:
+                self.updateAttr("data", self.data)
+            out_data = self._refill(self._reshape(fill=self.fill), self.fill)
             out_sds.set(out_data)
 
-        if out_fill is not None:
+        if self.fill is not None:
             out_sds.setfillvalue(CLAVRX_FILL)
-        if self.out_units is not None:
-            out_sds.units = self.out_units
-        elif self.out_units in ("none", "None"):
-            out_sds.units = "1"
-        else:
-            out_sds.units = self.get_units()
 
-        unit_desc = " in [{}]".format(out_sds.units)
+        out_sds.source_data = f"{in_file_short_value}->{self.shortname}{out_sds.units}"
 
-        out_sds.source_data = ("{}->{}{}".format(in_file_short_value,
-                                                 self.shortname, unit_desc))
-
-        out_sds.long_name = self.long_name()
+        out_sds.long_name = self.long_name
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):
@@ -342,3 +414,31 @@ class ReanalysisConversion:
         LOG.debug(msg_str)
 
         return out_sds
+
+
+class MerraConversion(ReanalysisConversion):
+    """Adjust longitude as appropriate for MERRA data."""
+
+    @staticmethod
+    def _reorder_lon(in_name, data):
+        """Reorder longitude as needed for datasets.
+
+        Merra2:  Stack halfway to end and then start to halfway.
+        """
+        if in_name in "lon":
+            tmp = np.copy(data)
+            halfway = data.shape[0] // 2
+            data = np.r_[tmp[halfway:], tmp[:halfway]]
+        else:
+            raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
+
+        return data
+
+    def long_name(self):
+        """Return long name from input file unless there is a special case."""
+        if self.out_name == "height":
+            long_name = "Geopotential Height"
+        else:
+            long_name = self[self.shortname].long_name
+
+        return long_name

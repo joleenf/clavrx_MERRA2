@@ -11,9 +11,9 @@ export WGET_CMD="wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookie
 # GMAO Office Note No. 4 (Version 1.2): Lucchesi, R., 2018. File Specification for GEOS-5 FP (Forward Processing)
 # https://gmao.gsfc.nasa.gov/pubs/docs/Lucchesi1203.pdf
 #
-# NOTE: There is only one constants file, stored 
+# NOTE: There is only one constants file, stored
 #       https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
-#       "date" 00000000. "time" 0000.  
+#       "date" 00000000. "time" 0000.
 
 let YMD=${YYYY}${MM}${DD}
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -42,7 +42,7 @@ else
     if [ -s "$CONSTANTS_FILEPATH" ]; then
         # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?
         cp ${CONSTANTS_FILEPATH} ${download_dir}/${FALSE_DATE_TARGET_NAME}
-    else 
+    else
         echo "ERROR: ${CONSTANTS_FILEPATH} does not exist, even after wget attempt."
     fi
 fi

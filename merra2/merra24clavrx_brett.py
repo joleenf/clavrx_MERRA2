@@ -640,6 +640,7 @@ def make_merra_one_day(in_files, out_dir, mask_file):
 
         out_fnames = []
         for out_time in common_times:
+        #for out_time in {datetime(2024, 2, 10, 0, 0)}:
             print('    working on time: {}'.format(out_time))
             out_fname = os.path.join(out_dir, out_time.strftime('merra.%y%m%d%H_F000.hdf'))
             out_fnames.append(out_fname)
@@ -735,15 +736,9 @@ def make_merra_one_day(in_files, out_dir, mask_file):
     return out_fnames
 
 if __name__ == '__main__':
-    #inpath = '/fjord/jgs/personal/mfoster/MERRA/'
-    #outpath = '/fjord/jgs/personal/mhiley/MERRA/'
-    #inpath = '/Volumes/stuff/merra/input/'
-    #outpath = '/Volumes/stuff/merra/output/'
-    #inpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/'
-    #outpath = '/home/clavrx_ops/clavrx_MERRA2/merra2/tmp/out/'
-    inpath = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
-    #outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
-    outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+    home = os.path.expanduser("~")
+    inpath = os.path.join(home, "data", "merra_input")
+    outpath = os.path.join(home, "data", "merra_output")
 
     try:
         date_str_arg = sys.argv[1]

@@ -28,11 +28,11 @@ assimilation_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/Y${YYYY
 
 
 case "${FILENAME_ID}" in
-	inst3_3d_asm_Np|inst3_3d_asm_Nv) 
+	inst3_3d_asm_Np|inst3_3d_asm_Nv)
 		run_valid=${synoptic_run}00
 		url=${forecast_url}
 		;;
-	tavg1_2d_flx_Nx|tavg1_2d_lnd_Nx|tavg1_2d_rad_Nx|tavg1_2d_slv_Nx) 
+	tavg1_2d_flx_Nx|tavg1_2d_lnd_Nx|tavg1_2d_rad_Nx|tavg1_2d_slv_Nx)
 		run_valid=${synoptic_run}30
 		url=${forecast_url}
 		;;
