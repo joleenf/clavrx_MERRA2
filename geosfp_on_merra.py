@@ -82,7 +82,7 @@ def make_merra_all_hours(in_files, out_dir):
         time_inds = frw.get_time_index(in_files.keys(), times, out_time)
         print(out_time)
         out_vars = frw.get_input_data(merra_sd, time_inds, OUTPUT_VARS_DICT)
-        frw.write_output_variables(merra_sd, out_vars)
+        frw.write_output_variables(merra_sd, out_vars, model_type)
 
         frw.write_global_attributes(merra_sd["out"], file_global_attrs)
 

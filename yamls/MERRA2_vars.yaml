@@ -80,6 +80,14 @@ rh:
         ndims_out: 3
         nan_fill: True
         out_units: K
+        unmask: False
+      unit_levels:
+        in_file: ana
+        shortname: lev
+        ndims_out: 1
+        out_units: hPa
+        nan_fill: True
+        unmask: True
 rh at sigma=0.995:
   in_file: slv
   shortname: QV10M
@@ -87,18 +95,27 @@ rh at sigma=0.995:
   out_units: '%'
   nan_fill: False
   dependent:  # dependents currently do not apply conversions.
-    surface_pressure_at_sigma:   # supports rh at sigma calculation
-      in_file: slv
-      shortname: PS
-      ndims_out: 2
-      nan_fill: True
-      out_units: hPa
-    masked_temperature_at_sigma: # this is a support variable which is stored as a masked array to match old code.
-      in_file: slv
-      shortname: T10M
-      ndims_out: 2
-      nan_fill: False
-      out_units: K
+      surface_pressure_at_sigma:   # supports rh at sigma calculation
+           in_file: slv
+           shortname: PS
+           ndims_out: 2
+           nan_fill: True
+           out_units: hPa
+           unmask: False
+      masked_temperature_at_sigma: # this is a support variable which is stored as a masked array to match old code.
+           in_file: slv
+           shortname: T10M
+           ndims_out: 2
+           nan_fill: False
+           out_units: K
+           unmask: False
+      unit_levels:
+        in_file: ana
+        shortname: lev
+        ndims_out: 1
+        out_units: hPa
+        nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
+        unmask: True
 surface pressure:
   in_file: ana
   shortname: PS
@@ -135,6 +152,14 @@ total ozone:
   ndims_out: 2
   out_units: Dobson
   nan_fill: True
+  dependent:
+    unit_levels:
+      in_file: ana
+      shortname: lev
+      ndims_out: 1
+      out_units: hPa
+      nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
+      unmask: True
 total precipitable water:
   in_file: asm2d
   shortname: TQV

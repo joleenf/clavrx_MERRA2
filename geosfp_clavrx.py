@@ -112,7 +112,7 @@ def make_one_hour(in_files, out_dir):
     )  # TRUNC will clobber existing
     # --- prepare input data variables
     out_vars = frw.get_input_data(merra_sd, time_inds, OUTPUT_VARS_DICT)
-    frw.write_output_variables(merra_sd, out_vars)
+    frw.write_output_variables(merra_sd, out_vars, model_type)
 
     frw.write_global_attributes(merra_sd["out"], file_global_attrs)
 

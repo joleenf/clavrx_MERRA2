@@ -1,7 +1,7 @@
 import datetime
 import functools
 import logging
-from typing import Dict, Iterator, KeysView, Tuple, Union
+from typing import Dict, Iterator, KeysView, List, Tuple, Union
 
 import numpy as np
 from netCDF4 import Dataset, num2date
@@ -16,6 +16,7 @@ np.seterr(all="ignore")
 LOG = logging.getLogger(__name__)
 
 OutVarDictType = Dict[str, Union[MerraConversion, str]]
+Complicated_DatasetTimes = Dict[str, List[Tuple[int, datetime.datetime]]]
 
 
 def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
@@ -25,75 +26,55 @@ def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
 
     for out_key, rsk in output_vars_dict.items():
         LOG.info("Get data from %s for %s", rsk["in_file"], rsk["shortname"])
+        filetag = merra_ds[rsk["in_file"]].getncattr("Filename")
         out_vars["data_object"] = MerraConversion(
-            nc_dataset=merra_ds[rsk["in_file"]],
-            shortname=rsk["shortname"],
+            data_array=merra_ds[rsk["in_file"]].variables[rsk["shortname"]],
+            file_tag=filetag,
             out_name=out_key,
             out_units=rsk["out_units"],
             ndims_out=rsk["ndims_out"],
-            not_masked=True,
+            unmask=True,
             nan_fill=rsk["nan_fill"],
             time_ind=time_index[rsk["in_file"]]
         )
         if "dependent" in rsk:
             for support_var_name in rsk["dependent"]:
                 sub_field = rsk["dependent"][support_var_name]
-                support_obj = MerraConversion(
-                    nc_dataset=merra_ds[sub_field["in_file"]],
-                    shortname=sub_field["shortname"],
-                    out_name=support_var_name,
-                    out_units=sub_field["out_units"],
-                    ndims_out=sub_field["ndims_out"],
-                    not_masked=False,  # load these as masked arrays.
-                    nan_fill=sub_field["nan_fill"],
-                    time_ind=time_index[sub_field["in_file"]]
-                )
-                try:
-                    out_vars["dependent"].update({support_var_name: support_obj})
-                except KeyError:
-                    out_vars["dependent"] = {support_var_name: support_obj}
+                var_name = sub_field["shortname"]
+                data_array = merra_ds[sub_field["in_file"]].variables[var_name]
+                out_vars["data_object"].add_dependent(data_array,
+                                                      support_var_name,
+                                                      sub_field["nan_fill"],
+                                                      time_index[sub_field["in_file"]],
+                                                      sub_field["unmask"])
 
         yield out_vars
 
 
-def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Dict]) -> None:
+def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Dict], source_name: str) -> None:
     """Calculate the final output and write to file."""
-    if "ana" in datasets.keys():
-        file_pressure_levels = datasets["ana"].variables["lev"]
-        global_attrs = datasets["ana"]
-    else:
-        file_pressure_levels = datasets["asm3d"].variables["lev"]
-        global_attrs = datasets["asm3d"]
-
-    try:
-        source_name = global_attrs.getncattr("Source")
-    except KeyError:
-        source_name = ""
-
-    pint_unit_levels = conversions.Q_(np.asarray(file_pressure_levels), file_pressure_levels.units)
-
     while True:
         try:
             current_var = next(out_fields)
             out_var = current_var["data_object"]
-            file_tag = out_var.nc_dataset.getncattr("Filename")
             out_key = out_var.out_name
             LOG.info(f"Processing {out_key}")
 
             match out_key:
                 case "rh":
-                    temp_k = current_var["dependent"]["masked_temp_k"].data
-                    new_data = derive_var.qv_to_rh(out_var.data, temp_k, pint_unit_levels)
+                    new_data = derive_var.qv_to_rh(out_var.data, out_var.dependent["masked_temp_k"],
+                                                   out_var.dependent["unit_levels"])
                     new_data[np.isnan(new_data)] = new_data.fill_value
-                    out_var.updateAttr('fill', new_data.fill_value)
-                    out_var.updateAttr("data", new_data)
+                    out_var.updateAttr("fill", new_data.fill_value)
+                    out_var.updateAttr("data", new_data.filled())
                     out_var.updateAttr("out_units", "%")
                 case "rh at sigma=0.995":
-                    temp_t10m = current_var["dependent"]["masked_temperature_at_sigma"].data
-                    ps_pa = current_var["dependent"]["surface_pressure_at_sigma"].data
+                    temp_t10m = out_var.dependent["masked_temperature_at_sigma"]
+                    ps_pa = out_var.dependent["surface_pressure_at_sigma"]
                     new_data = derive_var.rh_at_sigma(temp_t10m, ps_pa,
-                                                      out_var.fill, pint_unit_levels, out_var.data)
-                    out_var.updateAttr("fill", new_data.fill_value)
+                                                      out_var.fill, out_var.dependent["unit_levels"], out_var.data)
+
+                    new_data[np.isnan(new_data)] = out_var.fill
                     out_var.updateAttr("data", new_data.filled())
                     out_var.updateAttr("out_units", "%")
                 case "water equivalent snow depth":
@@ -104,7 +85,7 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Di
                     out_var.updateAttr("fill", None)
                     out_var.updateAttr("data", land_mask.astype(np.int32))
                 case "total ozone":
-                    new_data = derive_var.total_ozone(out_var.data, out_var.fill, pint_unit_levels)
+                    new_data = derive_var.total_ozone(out_var.data, out_var.fill, out_var.dependent["unit_levels"])
                     out_var.updateAttr("data", new_data)
                 case "total precipitable water":
                     out_var.updateAttr("data", (out_var.data / 10.0))
@@ -121,7 +102,7 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Di
                         except AttributeError as _e:
                             raise AttributeError(f"Can't convert {out_key}: {out_var.data} to {out_var.out_units}")
 
-            out_var.update_output(datasets, f"{source_name}({file_tag})->{out_key}")
+            out_var.update_output(datasets, f"{source_name}({out_var.file_tag})->{out_key}")
 
         except StopIteration:
             break
@@ -173,11 +154,8 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
     out_sd.end()
 
 
-def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp"):
+def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp") -> List[Complicated_DatasetTimes, List]:
     """Enforce a 'common' start time among the input datasets."""
-    dataset_times: Dict[str, datetime.datetime]
-    time_set: Dict[str, Set(datetime.datetime)]
-
     dataset_times = dict()
     time_set = dict()
     keys = list(datasets.keys())
@@ -232,7 +210,7 @@ def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp"):
 
 
 def get_time_index(file_keys: KeysView[str],
-                   file_times: Dict[str, Tuple[int, datetime.datetime]],
+                   file_times: Complicated_DatasetTimes,
                    current_time: datetime.datetime) -> Dict[str, int]:
     """Determine the time index from the input files based on the output time.
 
@@ -245,6 +223,6 @@ def get_time_index(file_keys: KeysView[str],
         if file_name_key in ["mask", "mask_file"]:
             time_index[file_name_key] = 0
         else:
-            time_index[file_name_key] = [i for (i, t) in file_times[file_name_key]
-                                         if t == current_time][0]
+            time_index[file_name_key] = [index for (index, time_at_index) in file_times[file_name_key]
+                                         if time_at_index == current_time][0]
     return time_index

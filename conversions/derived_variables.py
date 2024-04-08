@@ -1,5 +1,3 @@
-from typing import Callable
-
 import numpy as np
 import pint
 from netCDF4 import Dataset
@@ -91,16 +89,19 @@ def vapor_pressure_approximation(qv, sfc_pressure, plevels):
     return vapor_pressure
 
 
-def qv_to_rh(specific_humidity, temp_k, levels: pint.Quantity, press_at_sfc=None):
+def qv_to_rh(specific_humidity, temp_k, in_levels: pint.Quantity, press_at_sfc=None):
     """Convert Specific Humidity [kg/kg] -> relative humidity [%]."""
     # See Petty Atmos. Thermo. 4.41 (p. 65), 8.1 (p. 140), 8.18 (p. 147)
-    levels = (levels.to(ureg.pascal))   # [hPa] -> [Pa] when necessary.
+    levels = (in_levels.to(ureg.pascal))  # [hPa] -> [Pa] when necessary.
+
+    # match fill values
+
 
     es_tot = total_saturation_pressure(temp_k)
 
     vapor_pressure = vapor_pressure_approximation(specific_humidity, press_at_sfc, levels)
 
-    relative_humidity = (vapor_pressure / es_tot * 100.0).magnitude  # relative humidity [%]
+    relative_humidity = (vapor_pressure / es_tot).magnitude * 100.0  # relative humidity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0
 
     return relative_humidity
@@ -181,16 +182,16 @@ def hack_snow(data: np.ndarray, mask_sd: Dataset) -> np.ndarray:
     return data
 
 
-def apply_conversion(scale_func: Callable, data: np.ndarray, fill, p_levels=None) -> np.ndarray:
-    """Apply fill to converted data after function."""
-    converted = data.copy()
-
-    if scale_func == "total_ozone":
-        converted = total_ozone(data, fill, p_levels)
-    else:
-        converted = scale_func(converted)
-
-        if fill is not None:
-            converted[data == fill] = fill
-
-    return converted
+# def apply_conversion(scale_func: Callable, data: np.ndarray, fill, p_levels=None) -> np.ndarray:
+#     """Apply fill to converted data after function."""
+#     converted = data.copy()
+#
+#     if scale_func == "total_ozone":
+#         converted = total_ozone(data, fill, p_levels)
+#     else:
+#         converted = scale_func(converted)
+#
+#         if fill is not None:
+#             converted[data == fill] = fill
+#
+#     return converted

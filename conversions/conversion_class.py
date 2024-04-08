@@ -93,62 +93,70 @@ class ReanalysisConversion:
 
     def __init__(
             self,
-            nc_dataset=None,
-            shortname=None,
+            file_tag=None,
+            data_array=None,
             out_name=None,
             out_units=None,
             ndims_out=None,
-            not_masked=True,
+            unmask=True,
             nan_fill=False,
             time_ind=None
     ) -> None:
         """Based on variable, adjust shape, apply fill and determine dtype."""
-        self.nc_dataset = nc_dataset
-        self.shortname = shortname
+        self.file_tag = file_tag
+        self.shortname = data_array.name
+        self.long_name = data_array.long_name
         self.out_name = out_name
         self.out_units = out_units
         self.ndims_out = ndims_out
 
-        self.fill = self._get_fill
-        self.data = self._get_data(not_masked, nan_fill, time_ind)
+        self.fill = self.get_fill(data_array)
+        self.data = self._get_data(data_array, out_name, unmask,
+                                   nan_fill, time_ind)
+        self.dependent = None  # add later when necessary
 
     def __repr__(self):
         """Report the name conversion when creating this object."""
         str_template = "Input name {} ==> Output Name: {}"
-
-        return str_template.format(self[self.shortname].long_name, self.out_name)
-
-    def __getitem__(self, item):
-        """Access data in the NetCDF dataset variable by variable key."""
-        return self.nc_dataset.variables[item]
+        return str_template.format(self.long_name, self.out_name)
 
     def out_name(self):
         """Return variable name as defined in the output file."""
         return self.out_name
 
-    @property
-    def _get_fill(self):
+    @staticmethod
+    def get_fill(data_array):
         """Get the fill value of this data."""
-        if "_FillValue" in self[self.shortname].ncattrs():
-            fill = self[self.shortname].getncattr("_FillValue")
-        elif "missing_value" in self[self.shortname].ncattrs():
-            fill = self[self.shortname].getncattr("missing_value")
+        if "_FillValue" in data_array.ncattrs():
+            fill = data_array.getncattr("_FillValue")
+        elif "missing_value" in data_array.ncattrs():
+            fill = data_array.getncattr("missing_value")
         else:
             fill = None
 
         return fill
 
-    def _get_data(self, not_masked, nan_fill, time_ind):
-        """Get data and based on dimensions reorder axes, truncate TOA, apply fill."""
-        data_var = self[self.shortname]
-        print(f"Getting data for {self.shortname}")
+    def _get_data(self, data_var, out_name: str, unmask: bool,
+                  nan_fill: bool, time_ind: int, toa2sfc=True):
+        """Get data and based on dimensions reorder axes, truncate TOA, apply fill.
+        :param data_var: working data array (SDS)
+        :param out_name:  output name of variable (usually different than NASA name)
+        :param unmask:  fill masked values (true except for dependent variables)
+        :param nan_fill:  (bool) apply fill after unmask
+        :param time_ind:  index for current time in data_var
+        :keyword toa2src: (bool) flip level top of atmosphere to surface
+            to match traditional code, make this false for dependent level variables.
+        """
+        shortname = data_var.name
+        print(f"Getting data for {shortname}")
+
         data = np.ma.getdata(data_var)
 
         # want only dependent arrays as masked arrays, everything else can be a regular np.array.
-        if not_masked:
+        if unmask:
             data = np.asarray(data.filled())
 
-        if self.shortname == "lev" and len(data) != 42:
+        if shortname == "lev" and len(data) != 42:
             # insurance policy while levels are hard-coded in unit conversion fn's
             # also is expected based on data documentation:
             # https://gmao.gsfc.nasa.gov/pubs/docs/Bosilovich785.pdf
@@ -161,15 +169,15 @@ class ReanalysisConversion:
             # note, vars w/ 3 spatial dims will be 4d due to time
             data = data[time_ind]
 
-        # apply special cases
-        if self.shortname in ("lev", "level"):
+        # # # apply special cases
+        if shortname in ("lev", "level") and toa2sfc:
             data = data.astype(np.float32)
             data = np.flipud(data)  # clavr-x needs toa->surface
-        elif self.shortname in ("lon", "longitude"):
-            data = self._reorder_lon(self.shortname, data)
+        elif shortname in ("lon", "longitude"):
+            data = self._reorder_lon(shortname, data)
 
-        if self.fill is not None:
-            data = self.apply_fill(data, self.fill, self.out_name, nan_fill)
+        data_fill = self.get_fill(data_var)
+        data = self.apply_fill(data, data_fill, out_name, nan_fill)
 
         # add units, make exception for units that are not defined in pint.
         if data_var.units not in ["degrees_north", "degrees_east",
@@ -189,7 +197,7 @@ class ReanalysisConversion:
             #  Special case: set snow depth missing values to 0 matching CFSR.
             data[data == fill_value] = 0.0
         if nan_fill:
-            data[data == fill_value] = np.nan   # no effect on masked arrays.
+            data[data == fill_value] = np.nan  # no effect on masked arrays.
         else:
             pass  # default from old code and this matters for extrapolation below surface.
 
@@ -203,7 +211,33 @@ class ReanalysisConversion:
     @property
     def long_name(self):
         """Update long_name from input name if function changes output."""
-        raise NotImplementedError
+        return self.long_name
+
+    def add_dependent(self, data_arr, secondary_name, secondary_nan_fill,
+                      secondary_time_ind, unmask=False):
+        """Add Dependent datasets needed for variable derivation.
+           These variables have traditionally been masked.
+
+           :param data_arr:  Netcdf4 Variable array
+           after creation of Quantity.  This is annoying.
+           :param secondary_name:  Name of the dependent variable
+           :param secondary_nan_fill:  The nan_fill flag for the dependent variable
+           :param secondary_time_ind:  The time index for the dependent variable
+           :param unmask:  boolean for the dependent variable mask.  Typically False,
+           unmask in some cases because mixed fill values in quantities create surprises.
+        """
+
+        support_data = self._get_data(data_arr, secondary_name, unmask, secondary_nan_fill,
+                                      secondary_time_ind, toa2sfc=False)
+
+        added_dependent = {secondary_name: support_data}
+
+        if self.dependent:
+            # Note:  Keep this in two steps, otherwise self.dependent returns None
+            self.dependent.update(added_dependent)
+            self.updateAttr("dependent", self.dependent)
+        else:
+            self.updateAttr("dependent", added_dependent)
 
     def _modify_shape(self):
         """Modify shape based on output characteristics."""
@@ -228,16 +262,19 @@ class ReanalysisConversion:
         """
         data = self.data
         ndims_out = len(self.data.shape)
+
         if ndims_out in [2, 3]:
             data = self._shift_lon()
 
-        if ndims_out == 3:
+        if ndims_out in [1, 3]:
             # do extrapolation before reshape
             # (extrapolate fn depends on a certain dimensionality/ordering)
-            data = self._extrapolate_below_sfc(data, fill)
-            data = np.swapaxes(data, 0, 2)
-            data = np.swapaxes(data, 0, 1)
-            data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+            if ndims_out == 3:
+                data = self._extrapolate_below_sfc(data, fill)
+                data = np.swapaxes(data, 0, 2)
+                data = np.swapaxes(data, 0, 1)
+                data = data[:, :, ::-1]  # clavr-x needs toa->surface not surface->toa
+
         return data
 
     @staticmethod
@@ -246,7 +283,6 @@ class ReanalysisConversion:
         if data.dtype in (np.float32, np.float64):
             data[np.isnan(data)] = CLAVRX_FILL
             data[data == old_fill] = CLAVRX_FILL
-        print(data.max())
         return data
 
     @staticmethod
@@ -344,18 +380,10 @@ class ReanalysisConversion:
 
         if self.fill is not None:
             out_sds.setfillvalue(CLAVRX_FILL)
-        # if self.out_units is not None:
-        #     out_sds.units = self.out_units
-        # elif self.out_units in ("none", "None"):
-        #     out_sds.units = "1"
-        # else:
-        #     out_sds.units = self.get_units
-
-        #unit_desc = " in [{}]".format(out_sds.units)
 
         out_sds.source_data = f"{in_file_short_value}->{self.shortname}{out_sds.units}"
 
-        out_sds.long_name = self.long_name()
+        out_sds.long_name = self.long_name
         out_sds.endaccess()
 
     def set_dim_names(self, out_sds):
