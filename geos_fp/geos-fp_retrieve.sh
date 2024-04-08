@@ -11,7 +11,7 @@ SYNOPTIC_RUN=${4}
 FILENAME_ID=${5}
 DOWNLOAD_PATH=${6}
 geos_version="V01"
-export WGET_CMD="wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookies --keep-session-cookies"
+export WGET_CMD="wget --load-cookies $HOME/.urs_cookies --save-cookies $HOME/.urs_cookies --keep-session-cookies"
 
 str_size=`echo $SYNOPTIC_RUN | awk '{print length}'`
 if [ ${str_size} ==  2 ]; then
