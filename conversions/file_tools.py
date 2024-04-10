@@ -154,7 +154,7 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
     out_sd.end()
 
 
-def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp") -> List[Complicated_DatasetTimes, List]:
+def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp"):
     """Enforce a 'common' start time among the input datasets."""
     dataset_times = dict()
     time_set = dict()
