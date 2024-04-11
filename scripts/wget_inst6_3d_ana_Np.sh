@@ -37,7 +37,7 @@ TARGET_FILE=MERRA2_${STREAM}.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
 REANALYSIS=MERRA2_401.inst6_3d_ana_Np.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I6NPANA.5.12.4
 
-if [ -s "3d_ana/${TARGET_FILE}" ] || [ -s "3d_ana/${REANALYSIS}" ]; then
+if [ -s "${TARGET_FILE}" ] || [ -s "${REANALYSIS}" ]; then
         echo "${TARGET_FILE} exists"
         exit
 fi
@@ -50,7 +50,7 @@ fi
 
 
 if [ -s "$TARGET_FILE" ]; then
-    mv ${TARGET_FILE} 3d_ana/.
+    continue
 else 
     echo "${TARGET_FILE} does not exist."
     exit 1

@@ -57,39 +57,36 @@ else
 fi
 
 case "${in_key}" in
-   all) FILETYPES=(inst6_3d_ana_Np::3d_ana inst6_3d_ana_Nv::3d_ana tavg1_2d_slv_Nx::2d_slv
-                   tavg1_2d_flx_Nx::2d_flx inst3_3d_asm_Np::3d_asm const_2d_ctm_Nx::2d_ctm
-                   inst1_2d_asm_Nx::2d_asm tavg1_2d_lnd_Nx::2d_lnd tavg1_2d_rad_Nx::2d_rad)
+   all) FILETYPES=(inst6_3d_ana_Np inst6_3d_ana_Nv tavg1_2d_slv_Nx
+                   tavg1_2d_flx_Nx inst3_3d_asm_Np const_2d_ctm_Nx
+                   inst1_2d_asm_Nx tavg1_2d_lnd_Nx tavg1_2d_rad_Nx)
                     ;;
-   inst6_3d_ana_Np) FILETYPES=(inst6_3d_ana_Np::3d_ana)
+   inst6_3d_ana_Np) FILETYPES=(inst6_3d_ana_Np)
                     ;;
-   inst6_3d_ana_Nv) FILETYPES=(inst6_3d_ana_Nv::3d_ana)
+   inst6_3d_ana_Nv) FILETYPES=(inst6_3d_ana_Nv)
                     ;;
-   tavg1_2d_slv_Nx) FILETYPES=(tavg1_2d_slv_Nx::2d_slv)
+   tavg1_2d_slv_Nx) FILETYPES=(tavg1_2d_slv_Nx)
                     ;;
-   tavg1_2d_flx_Nx) FILETYPES=(tavg1_2d_flx_Nx::2d_flx)
+   tavg1_2d_flx_Nx) FILETYPES=(tavg1_2d_flx_Nx)
                     ;;
-   inst3_3d_asm_Np) FILETYPES=(inst3_3d_asm_Np::3d_asm)
+   inst3_3d_asm_Np) FILETYPES=(inst3_3d_asm_Np)
                     ;;
-   const_2d_ctm_Nx) FILETYPES=(const_2d_ctm_Nx::2d_ctm)
+   const_2d_ctm_Nx) FILETYPES=(const_2d_ctm_Nx)
                     ;;
-   inst1_2d_asm_Nx) FILETYPES=(inst1_2d_asm_Nx::2d_asm)
+   inst1_2d_asm_Nx) FILETYPES=(inst1_2d_asm_Nx)
                     ;;
-   tavg1_2d_lnd_Nx) FILETYPES=(tavg1_2d_lnd_Nx::2d_lnd)
+   tavg1_2d_lnd_Nx) FILETYPES=(tavg1_2d_lnd_Nx)
                     ;;
-   tavg1_2d_rad_Nx) FILETYPES=(tavg1_2d_rad_Nx::2d_rad)
+   tavg1_2d_rad_Nx) FILETYPES=(tavg1_2d_rad_Nx)
                     ;;
    *) echo "Unkown key $in_key"
       exit 1
       ;;
 esac
 
-for association in "${FILETYPES[@]}"
+for key in "${FILETYPES[@]}"
 do
-	echo "${association}"
-        key="${association%%::*}"
-        value="${association##*::}"
-	mkdir -p ${value}
+	echo "${key}"
 	${SCRIPTS_DIR}/wget_${key}.sh ${YYYY} ${MM} ${DD}
 	cd ${download_dir}
 done

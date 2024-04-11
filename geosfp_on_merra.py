@@ -125,8 +125,10 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
 
 if __name__ == '__main__':
         home = os.path.expanduser("~")
-        scratch = os.path.join(home, "data", "merra_input")
-        outpath = os.path.join(home, "data", "merra_output")
+        #scratch = os.path.join(home, "data", "merra_input")
+        #outpath = os.path.join(home, "data", "merra_output")
+        scratch = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
+        outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
 
         try:
             date_str_arg = sys.argv[1]

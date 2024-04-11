@@ -34,7 +34,7 @@ TARGET_FILE=MERRA2_${STREAM}.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 REANALYSIS=MERRA2_401.inst3_3d_asm_Np.${YYYY}${MM}${DD}.nc4
 HTTP_PATH=https://goldsmr5.gesdisc.eosdis.nasa.gov/data/MERRA2/M2I3NPASM.5.12.4
 
-if [ -s "3d_asm/${TARGET_FILE}" ] || [ -s "3d_asm/${REANALYSIS}" ];  then
+if [ -s "${TARGET_FILE}" ] || [ -s "${REANALYSIS}" ];  then
         echo "${TARGET_FILE} exists"
         exit
 fi
@@ -46,7 +46,7 @@ if [ $? != 0 ]; then
 fi
 
 if [ -s "$TARGET_FILE" ]; then
-    mv ${TARGET_FILE} 3d_asm/.
+    continue
 else 
     echo "${TARGET_FILE} does not exist."
     exit 1

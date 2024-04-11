@@ -34,7 +34,7 @@ TARGET_FILE=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
 REANALYSIS=MERRA2_${STREAM}.tavg1_2d_rad_Nx.${YYYY}${MM}${DD}.nc4
 BASEURL=https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2/M2T1NXRAD.5.12.4
 
-if [ -s "./2d_rad/${TARGET_FILE}" ] ||  [ -s "./2d_rad/${REANALYSIS}" ]; then
+if [ -s "./${TARGET_FILE}" ] ||  [ -s "./${REANALYSIS}" ]; then
         echo "${TARGET_FILE} exists"
         exit
 fi
@@ -46,7 +46,7 @@ if [ $? != 0 ]; then
 fi
 
 if [ -s "$TARGET_FILE" ]; then
-    mv ${TARGET_FILE} 2d_rad/.
+	continue
 else 
     echo "${TARGET_FILE} does not exist."
     exit 1

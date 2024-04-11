@@ -36,13 +36,13 @@ HOLD_FILE=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/MERRA2
 
 # check if file already exists on disk
 if [ -s ${HOLD_FILE} ]; then
-	cp ${HOLD_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME} 
-	echo "${HOLD_FILE} already on disc, copying to 2d_ctm/${FALSE_DATE_TARGET_NAME}"
+	cp ${HOLD_FILE} ${FALSE_DATE_TARGET_NAME} 
+	echo "${HOLD_FILE} already on disc, copying to ${FALSE_DATE_TARGET_NAME}"
 	exit
 fi
 
-if [ -s "2d_ctm/${FALSE_DATE_TARGET_NAME}" ]; then
-	echo "already on disc, 2d_ctm/${FALSE_DATE_TARGET_NAME}"
+if [ -s "${FALSE_DATE_TARGET_NAME}" ]; then
+	echo "already on disc, ${FALSE_DATE_TARGET_NAME}"
         exit
 fi
 
@@ -50,7 +50,7 @@ echo Getting $TARGET_FILE
 ${WGET_CMD} https://goldsmr4.gesdisc.eosdis.nasa.gov/data/MERRA2_MONTHLY/M2C0NXCTM.5.12.4/1980/${TARGET_FILE}
 if [ -s "$TARGET_FILE" ]; then
     # this should be a constants file, maybe just cp to target_name so this does not need to be downloaded every time?
-    cp ${TARGET_FILE} 2d_ctm/${FALSE_DATE_TARGET_NAME}
+    cp ${TARGET_FILE} ${FALSE_DATE_TARGET_NAME}
 else 
     echo "${TARGET_FILE} does not exist."
 fi
