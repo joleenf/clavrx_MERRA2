@@ -1,9 +1,11 @@
 """ TODO module doc """
-from glob import glob
-from pyhdf.SD import SD, SDC
-from netCDF4 import Dataset
 from datetime import datetime, timedelta
+from glob import glob
+
 import numpy as np
+from netCDF4 import Dataset
+from pyhdf.SD import SD, SDC
+
 np.seterr(all='ignore')
 import os
 import sys
@@ -36,7 +38,7 @@ def qv_to_rh(qv, t, ps=None):
     mix_hi = 273.16
     mix_ind = (t > mix_lo) & (t < mix_hi)
     ice_ind = t <= mix_lo
-    es_wmo = 10.0**(10.79574*(1.-273.16/t) 
+    es_wmo = 10.0**(10.79574*(1.-273.16/t)
             - 5.02800*np.log10(t/273.16)
             + 1.50475*10.**-4.*(1.-10.**(-8.2969*(t/273.16-1)))
             + 0.42873*10.**-3.*(10.**(4.76955*(1-273.16/t)) - 1.)
@@ -91,7 +93,7 @@ def kgkg_to_dobson(data):
         dp = LEVELS[j-1] - LEVELS[j]
         dobs_layer = ppmv * dp * const / du
         total[good] = (total[good] + dobs_layer[good])
-    return total 
+    return total
 
 # the merra4clavrx rosetta stone
 # one key for each output var
@@ -118,7 +120,7 @@ rs = {
         'units_fn': lambda a: a/100.0, # scale factor for Pa --> hPa
         'ndims_out': 2
         },
-    'height': { 
+    'height': {
         'in_file': 'ana',
         'in_varname': 'H',
         'out_units': 'km',
@@ -339,7 +341,7 @@ def nc4_to_SD_dtype(nc4_dtype):
 
 def _reshape(data, ndims_out, fill):
     """ Do a bunch of manipulation needed to make MERRA look like CFSR:
-    
+
       * For arrays with dims (level, lat, lon) we need to make level the last dim.
       * All CFSR fields are continuous but MERRA sets below-ground values to fill.
       * CFSR starts at 0 deg lon but merra starts at -180.
@@ -376,8 +378,8 @@ def _shift_lon_2d(data):
     return data
 
 def _shift_lon(data):
-    """ Make lon start at 0deg instead of -180. 
-    
+    """ Make lon start at 0deg instead of -180.
+
     Assume dims are (level, lat, lon) or (lat, lon)
     """
     if len(data.shape) == 3:
@@ -456,8 +458,8 @@ class MerraConversion(object):
         print('BTH: performing data pull on',self.in_dataset,self.in_name)
         data = np.asarray(in_sds.variables[self.in_name])
         # BTH: data has changed from a netCDF4 variable object to a numpy array
-        #      after this point, so checks on variable attributes (e.g. _FillValue) 
-        #      need to be applied to in_sds.variables[self.in_name] 
+        #      after this point, so checks on variable attributes (e.g. _FillValue)
+        #      need to be applied to in_sds.variables[self.in_name]
         #      rather than to data. "MaskedArray object has no attribute <ex>" is a
         #      sign that the attribute read is being attempted on data rather than
         #      the native netCDF4 variable object.
@@ -535,7 +537,7 @@ class MerraConversion(object):
             elif 'missing_value' in in_sds.variables[self.in_name].ncattrs():
                 fill = in_sds.variables[self.in_name].missing_value
                 if self.out_name == 'water equivalent snow depth':
-                    # Special case: set snow depth missing values to 0 
+                    # Special case: set snow depth missing values to 0
                     # to match CFSR behavior.
                     data[data == fill] = 0.0
                     converted = _hack_snow(data)
@@ -563,7 +565,7 @@ class MerraConversion(object):
                 u = ' in [' + sd[self.in_dataset].variables[self.in_name].units + ']'
             else:
                 u = ''
-            setattr(out_sds, 'source_data', 
+            setattr(out_sds, 'source_data',
                     'MERRA->' + self.in_dataset + '->' + self.in_name + u)
             setattr(out_sds, 'long_name', sd[self.in_dataset].variables[self.in_name].long_name)
             #setattr(out_sds, 'missing_value', in_sds.attributes()['missing_value'])
@@ -621,14 +623,14 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                 else:
                     raise ValueError("Can't handle time unit")
                 if time.minute == TIME_HACK_OFFSET:
-                    # total hack to deal with non-analysis products being on the half-hour 
+                    # total hack to deal with non-analysis products being on the half-hour
                     time = time - timedelta(minutes=TIME_HACK_OFFSET)
                 # This is just to get the index for a given timestamp later:
                 times[k].append((i, time))
                 time_set[k].add(time)
         # find set of time common to all input files
-        common_times = (time_set['ana'] & 
-                        time_set['flx'] & 
+        common_times = (time_set['ana'] &
+                        time_set['flx'] &
                         time_set['slv'] &
                         time_set['lnd'] &
                         time_set['asm3d'] &
@@ -639,8 +641,8 @@ def make_merra_one_day(in_files, out_dir, mask_file):
         assert len(common_times) == 4
 
         out_fnames = []
-        for out_time in common_times:
-        #for out_time in {datetime(2024, 2, 10, 0, 0)}:
+        #for out_time in common_times:
+        for out_time in {datetime(2024, 2, 10, 0, 0)}:
             print('    working on time: {}'.format(out_time))
             out_fname = os.path.join(out_dir, out_time.strftime('merra.%y%m%d%H_F000.hdf'))
             out_fnames.append(out_fname)
@@ -660,14 +662,14 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                             rsk['in_varname'],
                             k,
                             rsk['out_units'],
-                            rsk['units_fn'], 
+                            rsk['units_fn'],
                             rsk['ndims_out']
                         ).do_conversion(sd, time_inds[rsk['in_file']])
 
             # --- handle surface height and static land mask from constants (mask_file) specially
             sd['mask'] = Dataset(mask_file)
             MerraConversion(
-                        'mask', 
+                        'mask',
                         'PHIS',
                         'surface height',
                         'km',
@@ -675,7 +677,7 @@ def make_merra_one_day(in_files, out_dir, mask_file):
                         2
                     ).do_conversion(sd, 0)
             MerraConversion(
-                        'mask', 
+                        'mask',
                         'FRLAND',
                         'land mask',
                         '1=land, 0=ocean, greenland and antarctica are land',
@@ -763,14 +765,14 @@ if __name__ == '__main__':
     print("looking at {}".format(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
     mask_file = glob(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
-    in_files = { 
-            'ana': glob(inpath_full + '/3d_ana/MERRA2*ana_Np.' + 
+    in_files = {
+            'ana': glob(inpath_full + '/3d_ana/MERRA2*ana_Np.' +
                 date_str_arg + '.nc4')[0],
-            'flx': glob(inpath_full + '/2d_flx/MERRA2*flx_Nx.' + 
+            'flx': glob(inpath_full + '/2d_flx/MERRA2*flx_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'slv': glob(inpath_full + '/2d_slv/MERRA2*slv_Nx.' + 
+            'slv': glob(inpath_full + '/2d_slv/MERRA2*slv_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'lnd': glob(inpath_full + '/2d_lnd/MERRA2*lnd_Nx.' + 
+            'lnd': glob(inpath_full + '/2d_lnd/MERRA2*lnd_Nx.' +
                 date_str_arg + '.nc4')[0],
             'asm3d': glob(inpath_full + '/3d_asm/MERRA2*asm_Np.' +
                 date_str_arg + '.nc4')[0],

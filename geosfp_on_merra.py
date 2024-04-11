@@ -29,9 +29,6 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 with open(os.path.join(ROOT_DIR, 'yamls', 'MERRA2_vars.yaml'), "r") as yml:
     OUTPUT_VARS_DICT = yaml.safe_load(yml)
 
-levels_listings = OUTPUT_VARS_DICT.pop("defined levels")
-LEVELS = levels_listings["hPa_levels"]
-
 
 def construct_filepath(base_data_dir, base_out_dir, input_datetime):
     """Construct the filepath given a datetime containing the date and the synoptic hour."""
