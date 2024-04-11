@@ -739,8 +739,11 @@ def make_merra_one_day(in_files, out_dir, mask_file):
 
 if __name__ == '__main__':
     home = os.path.expanduser("~")
-    inpath = os.path.join(home, "data", "merra_input")
-    outpath = os.path.join(home, "data", "merra_output")
+    #inpath = os.path.join(home, "data", "merra_input")
+    #outpath = os.path.join(home, "data", "merra_output")
+    inpath = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
+    outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
+    outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
 
     try:
         date_str_arg = sys.argv[1]
@@ -754,7 +757,6 @@ if __name__ == '__main__':
     day_str = date_str_arg[6:8]
     date_str = "{}_{}_{}".format(year_str, month_str, day_str)
     outpath_full = os.path.join(outpath, year_str) + '/'
-    #inpath_full = inpath
     inpath_full = os.path.join(inpath, year_str, date_str)
 
     try:
@@ -762,23 +764,23 @@ if __name__ == '__main__':
     except OSError:
         pass # dir already exists
     # BTH: Define mask_file here
-    print("looking at {}".format(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
-    mask_file = glob(inpath_full + '/2d_ctm/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
+    print("looking at {}".format(inpath_full + 'MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
+    mask_file = glob(inpath_full + 'MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
     in_files = {
-            'ana': glob(inpath_full + '/3d_ana/MERRA2*ana_Np.' +
+            'ana': glob(inpath_full + 'MERRA2*ana_Np.' +
                 date_str_arg + '.nc4')[0],
-            'flx': glob(inpath_full + '/2d_flx/MERRA2*flx_Nx.' +
+            'flx': glob(inpath_full + 'MERRA2*flx_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'slv': glob(inpath_full + '/2d_slv/MERRA2*slv_Nx.' +
+            'slv': glob(inpath_full + 'MERRA2*slv_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'lnd': glob(inpath_full + '/2d_lnd/MERRA2*lnd_Nx.' +
+            'lnd': glob(inpath_full + 'MERRA2*lnd_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'asm3d': glob(inpath_full + '/3d_asm/MERRA2*asm_Np.' +
+            'asm3d': glob(inpath_full + 'MERRA2*asm_Np.' +
                 date_str_arg + '.nc4')[0],
-            'asm2d': glob(inpath_full + '/2d_asm/MERRA2*asm_Nx.' +
+            'asm2d': glob(inpath_full + 'MERRA2*asm_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'rad': glob(inpath_full + '/2d_rad/MERRA2*rad_Nx.' +
+            'rad': glob(inpath_full + 'MERRA2*rad_Nx.' +
                 date_str_arg + '.nc4')[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
