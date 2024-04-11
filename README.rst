@@ -23,15 +23,15 @@ The python code needs the appropriate conda environment from `merra2_clavrx.yml 
 
 3. Follow `How to Download Files from HTTPS Service with wget <https://disc.gsfc.nasa.gov/information/howto?keywords=Wget&page=1>`_ to register, and set up user credential for wget data access from the GES-DISC.
 
-4. Edit bash script `run_merra24clavrx_brett.sh <run_merra24clavrx_brett.sh>`_ to change variables as needed for file paths and run dates. Full months can be run with runMonth.sh, full years with runYear.sh
+4. Edit bash script `run_merra4clavrx.sh <run_merra4clavrx.sh>`_ to change variables as needed for file paths and run dates. Full months can be run with runMonth.sh, full years with runYear.sh
 
 5. Run the bash script on the command line:
 
    .. code-block:: bash
 
-    bash run_merra24clavrx_brett.sh
+    bash run_merra4clavrx.sh
 
-   Using:  run_merra24clavrx_brett.sh to call the python code is recommende
+   Using:  run_merra4clavrx.sh to call the python code is recommende
     Advantages of bash script:
     - Run dates can be updated by the user in vim
     - downloads merra files
