@@ -54,7 +54,7 @@ end_date=$(date -d $end_day +%Y%m%d)
 #screen -dm -S $screen_name /bin/bash $bin_dir/run_merra24.sh $start_day $end_day
 while [[ $start_date -le $end_date ]];
 do
-    /bin/bash $bin_dir/run_merra24clavrx_brett.sh $start_date 
+    /bin/bash $bin_dir/run_merra4clavrx.sh $start_date 
     start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 done
 
