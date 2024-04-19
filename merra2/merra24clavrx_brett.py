@@ -361,12 +361,15 @@ def _reshape(data, ndims_out, fill):
 # The highest (closest to TOA) level in CFSR. We trim anything above this:
 TOP_LEVEL = 10 # [hPa]
 CLAVRX_FILL = 9.999e20
+
+
 def _refill(data, old_fill):
     """Clavr-x assumes a particular fill value instead of reading from attributes"""
     if (data.dtype == np.float32) or (data.dtype == np.float64):
         data[np.isnan(data)] = CLAVRX_FILL
         data[data == old_fill] = CLAVRX_FILL
     return data
+
 
 def _shift_lon_2d(data):
     """ Helper function that assumes dims are 2d and (lat, lon) """
@@ -738,12 +741,16 @@ def make_merra_one_day(in_files, out_dir, mask_file):
     return out_fnames
 
 if __name__ == '__main__':
-    home = os.path.expanduser("~")
-    #inpath = os.path.join(home, "data", "merra_input")
-    #outpath = os.path.join(home, "data", "merra_output")
-    inpath = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
-    outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
-    outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+
+    if os.path.isdir("ships22/"):
+        inpath = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp'
+        #outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
+        outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+    else:
+        home = os.path.expanduser("~")
+        inpath = os.path.join(home, "data", "merra_input")
+        outpath = os.path.join(home, "data", "merra_output")
+
 
     try:
         date_str_arg = sys.argv[1]
@@ -762,25 +769,25 @@ if __name__ == '__main__':
     try:
         os.makedirs(outpath_full)
     except OSError:
-        pass # dir already exists
+        pass  # dir already exists
     # BTH: Define mask_file here
-    print("looking at {}".format(inpath_full + 'MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
-    mask_file = glob(inpath_full + 'MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
+    print("looking at {}".format(inpath_full + '/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4'))
+    mask_file = glob(inpath_full + '/MERRA2_101.const_2d_ctm_Nx.'+date_str_arg+'.nc4')[0]
     print('Processing date: {}'.format(date_parsed.strftime('%Y-%m-%d')))
     in_files = {
-            'ana': glob(inpath_full + 'MERRA2*ana_Np.' +
+            'ana': glob(inpath_full + '/MERRA2*ana_Np.' +
                 date_str_arg + '.nc4')[0],
-            'flx': glob(inpath_full + 'MERRA2*flx_Nx.' +
+            'flx': glob(inpath_full + '/MERRA2*flx_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'slv': glob(inpath_full + 'MERRA2*slv_Nx.' +
+            'slv': glob(inpath_full + '/MERRA2*slv_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'lnd': glob(inpath_full + 'MERRA2*lnd_Nx.' +
+            'lnd': glob(inpath_full + '/MERRA2*lnd_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'asm3d': glob(inpath_full + 'MERRA2*asm_Np.' +
+            'asm3d': glob(inpath_full + '/MERRA2*asm_Np.' +
                 date_str_arg + '.nc4')[0],
-            'asm2d': glob(inpath_full + 'MERRA2*asm_Nx.' +
+            'asm2d': glob(inpath_full + '/MERRA2*asm_Nx.' +
                 date_str_arg + '.nc4')[0],
-            'rad': glob(inpath_full + 'MERRA2*rad_Nx.' +
+            'rad': glob(inpath_full + '/MERRA2*rad_Nx.' +
                 date_str_arg + '.nc4')[0],
         }
     out_files = make_merra_one_day(in_files, outpath_full, mask_file)
