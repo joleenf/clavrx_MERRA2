@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Iterator, KeysView, List, Tuple, Union
 
 import numpy as np
+from cftime._cftime import real_datetime
 from netCDF4 import Dataset, num2date
 from pyhdf.SD import SD, SDC
 
@@ -16,7 +17,7 @@ np.seterr(all="ignore")
 LOG = logging.getLogger(__name__)
 
 OutVarDictType = Dict[str, Union[MerraConversion, str]]
-Complicated_DatasetTimes = Dict[str, List[Tuple[int, datetime.datetime]]]
+Complicated_DatasetTimes = Dict[str, List[Tuple[int, real_datetime]]]
 
 
 def get_input_data(merra_ds: Dict[str, Union[Dataset, SD]],
@@ -156,8 +157,8 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
 
 def get_common_time(datasets: Dict[str, Dataset], input_type="geosfp"):
     """Enforce a 'common' start time among the input datasets."""
-    dataset_times = dict()
-    time_set = dict()
+    dataset_times: Complicated_DatasetTimes = dict()
+    time_set: Dict[str, real_datetime] = dict()
     keys = list(datasets.keys())
     keys.remove("mask")
 

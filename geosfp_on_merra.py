@@ -69,7 +69,7 @@ def make_merra_all_hours(in_files, out_dir):
         print(out_time)
         model_type = file_global_attrs["Filename"].split(".")[0]
 
-        fn = f"{model_type}.{out_time.strftime('%y%m%d%H_F000.hdf')}"
+        fn = f"merra.{out_time.strftime('%y%m%d%H_F000.hdf')}"
         out_fn = os.path.join(out_dir, fn)
 
         merra_sd["out"] = SD(
@@ -124,11 +124,14 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
 
 
 if __name__ == '__main__':
-        home = os.path.expanduser("~")
-        #scratch = os.path.join(home, "data", "merra_input")
-        #outpath = os.path.join(home, "data", "merra_output")
-        scratch = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/'
+    if os.path.isdir("ships22/"):
+        scratch = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp'
+        # outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
         outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+    else:
+        home = os.path.expanduser("~")
+        scratch = os.path.join(home, "data", "merra_input")
+        outpath = os.path.join(home, "data", "merra_output")
 
         try:
             date_str_arg = sys.argv[1]

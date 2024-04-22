@@ -104,9 +104,9 @@ class ReanalysisConversion:
     ) -> None:
         """Based on variable, adjust shape, apply fill and determine dtype."""
         self.file_tag = file_tag
-        self.shortname = data_array.name
-        self.long_name = data_array.long_name
         self.out_name = out_name
+        self._shortname = data_array.name
+        self.long_name = data_array.long_name
         self.out_units = out_units
         self.ndims_out = ndims_out
 
@@ -120,9 +120,23 @@ class ReanalysisConversion:
         str_template = "Input name {} ==> Output Name: {}"
         return str_template.format(self.long_name, self.out_name)
 
-    def out_name(self):
-        """Return variable name as defined in the output file."""
-        return self.out_name
+    @property
+    def shortname(self):
+        """Get the current shortname."""
+        return self._shortname
+
+    @property
+    def long_name(self):
+        """Extract the long_name."""
+        return self._long_name
+
+    @long_name.setter
+    def long_name(self, long_name_from_input_array):
+        """Return long name from input file unless there is a special case."""
+        if self.out_name == "height":
+            self._long_name = "Geopotential Height"
+        else:
+            self._long_name = long_name_from_input_array
 
     @staticmethod
     def get_fill(data_array):
@@ -207,11 +221,6 @@ class ReanalysisConversion:
     def _reorder_lon(in_name, data):
         """Reorder longitude as needed for datasets."""
         raise NotImplementedError
-
-    @property
-    def long_name(self):
-        """Update long_name from input name if function changes output."""
-        return self.long_name
 
     def add_dependent(self, data_arr, secondary_name, secondary_nan_fill,
                       secondary_time_ind, unmask=False):
@@ -373,12 +382,11 @@ class ReanalysisConversion:
         else:
             if isinstance(self.data, pint.Quantity):
                 self.updateAttr("data", self.data.magnitude)
-            else:
-                self.updateAttr("data", self.data)
+
             out_data = self._refill(self._reshape(fill=self.fill), self.fill)
             out_sds.set(out_data)
 
-        if self.fill is not None:
+        if self.fill:
             out_sds.setfillvalue(CLAVRX_FILL)
 
         out_sds.source_data = f"{in_file_short_value}->{self.shortname}{out_sds.units}"
@@ -433,12 +441,3 @@ class MerraConversion(ReanalysisConversion):
             raise ValueError("Unexpected Merra Longitude Variable name {}".format(in_name))
 
         return data
-
-    def long_name(self):
-        """Return long name from input file unless there is a special case."""
-        if self.out_name == "height":
-            long_name = "Geopotential Height"
-        else:
-            long_name = self[self.shortname].long_name
-
-        return long_name
