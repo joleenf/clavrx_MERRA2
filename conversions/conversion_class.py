@@ -360,16 +360,18 @@ class ReanalysisConversion:
             units = str(self.data.units)
         return units
 
-    def update_output(self, sd, in_file_short_value):
+    def update_output(self, sd, in_file_short_value, create=True):
         """Finalize output variables."""
         print(f"Writing {self}")
 
-        out_sds = sd["out"].create(self.out_name,
-                                   output_dtype(self.out_name, self.data.dtype),
-                                   self._modify_shape())
-
-        out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
-        self.set_dim_names(out_sds)
+        if create:
+            out_sds = sd["out"].create(self.out_name,
+                                       output_dtype(self.out_name, self.data.dtype),
+                                       self._modify_shape())
+            out_sds.setcompress(SDC.COMP_DEFLATE, value=COMPRESSION_LEVEL)
+            self.set_dim_names(out_sds)
+        else:
+            out_sds = sd["out"].select(self.out_name)
 
         try:
             out_sds.units = self.out_units
