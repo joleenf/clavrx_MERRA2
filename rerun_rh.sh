@@ -28,18 +28,40 @@ export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 BIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOG_DIR=$HOME/logs/merra_archive
 M2_DIR=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/
+MERRA_OUT=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
 export PYTHONPATH=$PYTHON_PATH:$BIN_DIR
 
 mkdir -p $LOG_DIR
 
  
+dated_dir() {
+	in_date="$@"
+	YYYY=${in_date:0:4}
+        MM=${in_date:4:2}
+        DD=${in_date:6:2}
+	export DATED_DIR=${M2_DIR}${YYYY}/${YYYY}_${MM}_${DD}
+	echo $DATED_DIR
+}
+export -f dated_dir
+
+remove_input_files() {
+	in_date="$@"
+	dated_dir $in_date
+	echo "Removing $DATED_DIR and contents"
+	rm -rf $DATED_DIR
+}
+export -f remove_input_files
+
+
 run_rh_for_day() {
     in_date="$@"
     conda activate base
     conda activate merra2_clavrx
     capture_scratch=`python ${BIN_DIR}/conversions/fix_rh.py $in_date`
-    capture_scratch=`echo $capture_scratch | awk '{print $3}'`
-    echo $capture_scratch
+    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00
+    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06
+    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12
+    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18
 }
 export -f run_rh_for_day
 
@@ -49,13 +71,14 @@ get_merra_for_day() {
         MM=${in_date:4:2}
         DD=${in_date:6:2}
 
-        M2_DIR=${M2_DIR}${YYYY}/${YYYY}_${MM}_${DD}
-        mkdir -p $M2_DIR
+        dated_dir $in_date 
+	echo $DATED_DIR
+        mkdir -p $DATED_DIR
 
-        cmd="/bin/bash ${BIN_DIR}/scripts/wget_all.sh -k const_2d_ctm_Nx -w $M2_DIR ${YYYY} ${MM} ${DD}"
+        cmd="/bin/bash ${BIN_DIR}/scripts/wget_all.sh -k const_2d_ctm_Nx -w $DATED_DIR ${YYYY} ${MM} ${DD}"
         echo $cmd
         eval $cmd
-        cmd="/bin/bash ${BIN_DIR}/scripts/wget_all.sh -k inst6_3d_ana_Np -w $M2_DIR ${YYYY} ${MM} ${DD}"
+        cmd="/bin/bash ${BIN_DIR}/scripts/wget_all.sh -k inst6_3d_ana_Np -w $DATED_DIR ${YYYY} ${MM} ${DD}"
         echo $cmd
         eval $cmd
 }
@@ -97,9 +120,9 @@ rerun_rh_for_month() {
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
     done
 
-    if [ -d "${M2_DIR}" ]
+    if [ -d "${DATED_DIR}" ]
     then
-        rm -rf ${M2_DIR}
+        rm -rf ${DATED_DIR}
     fi
 }
 
