@@ -4,6 +4,7 @@ from glob import glob as glob
 
 import numpy as np
 import yaml
+import sys
 from netCDF4 import Dataset
 from pyhdf.SD import SD, SDC
 
@@ -74,15 +75,24 @@ def read_input_file(ana_file, merra_hdf_dir):
 
 
 if __name__ == "__main__":
-    date_str_arg = datetime.datetime(2024, 2, 10)
+    date_str_arg = datetime.datetime.strptime(sys.argv[1], "%Y%m%d")
     year_str = date_str_arg.strftime("%Y")
     date_str = date_str_arg.strftime("%Y_%m_%d")
     yymmdd = date_str_arg.strftime("%y%m%d")
     yyyymmdd = date_str_arg.strftime("%Y%m%d")
+  
+    home = os.path.dirname(os.path.expanduser("~"))
 
-    scratch = "/Users/joleenf/data/merra_input"
-    merra_dir = f"/Users/joleenf/data/merra_output/{year_str}/old"
-    scratch = os.path.join(scratch, year_str, date_str)
+    if home == "/home":
+        scratch = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/"
+        scratch = os.path.join(scratch, year_str, date_str)
+        merra_dir = f"/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
+        merra_dir = os.path.join(merra_dir, year_str)
+    else:
+        scratch = os.path.join(home, "data", "merra_input")
+        merra_dir = os.path.join(home, "data", "merra_output", year_str)
+
+    print(f"Looking in {scratch}")
 
     input_file = glob(f"{scratch}/MERRA2*ana_Np.{yyyymmdd}.nc4")[0]
     read_input_file(input_file, merra_dir)

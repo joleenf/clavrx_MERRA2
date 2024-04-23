@@ -124,20 +124,20 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
 
 
 if __name__ == '__main__':
-    if os.path.isdir("ships22/"):
+    home = os.path.dirname(os.path.expanduser("~"))
+
+    if home == "/home":
         scratch = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp'
-        # outpath = '/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2'
         outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
     else:
-        home = os.path.expanduser("~")
         scratch = os.path.join(home, "data", "merra_input")
         outpath = os.path.join(home, "data", "merra_output")
 
-        try:
-            date_str_arg = sys.argv[1]
-            date_parsed = datetime.datetime.strptime(date_str_arg, '%Y%m%d')
-        except IndexError as _e:
-            print('usage:\n    python merra4clavrx.py 20090101')
-            exit()
+    try:
+        date_str_arg = sys.argv[1]
+        date_parsed = datetime.datetime.strptime(date_str_arg, '%Y%m%d')
+    except IndexError as _e:
+        print('usage:\n    python merra4clavrx.py 20090101')
+        exit()
 
-        main_merra(scratch, outpath, date_parsed)
+    main_merra(scratch, outpath, date_parsed)

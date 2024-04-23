@@ -33,7 +33,8 @@ YEAR=$1
 shift
 MONTH=$1
 shift
-secondary_script=$1
+default_script=$bin_dir/run_merra4clavrx.sh
+secondary_script=${1:-default_script}
 secondary_script_args="$@"
 
 test -z $YEAR && usage

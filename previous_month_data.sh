@@ -12,8 +12,9 @@ last_month_text=`date -d "$(date -d "$month 15 $year" +%F) ${months_back} month 
 
 echo "Running merra conversion code for $last_month_text"
 
+bin_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 #cmd="screen -dm -S run_last_month /bin/bash $BASE/runMonth.sh $last_month"
-cmd="/bin/bash $BASE/runMonth.sh $last_month"
+cmd="/bin/bash $BASE/runMonth.sh $last_month $bin_dir/run_merra4clavrx.sh"
 
 echo "Run $cmd"
 
