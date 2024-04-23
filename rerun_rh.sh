@@ -68,13 +68,9 @@ verify_results() {
 	# This verifies the file was repaired
 	in_date="$@"
         python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00 --early_exit
-	echo $?
         python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06 --early_exit
-        echo $?
         python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12 --early_exit
-	echo $?
         python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18 --early_exit
-	echo $?
 }
 export -f verify_results
 
