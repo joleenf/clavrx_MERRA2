@@ -21,6 +21,8 @@ EndOfMessage
 
 
 source ~/.bashrc
+conda activate base
+conda activate merra2_clavrx
 export PS4='L${LINENO}: '
 export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 #set -x
@@ -52,16 +54,35 @@ remove_input_files() {
 }
 export -f remove_input_files
 
+list_results_of_repair() {
+	# This lists the range of rh after repair
+	in_date="$@"
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00 --rh_range
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06 --rh_range
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12 --rh_range
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18 --rh_range
+}
+export -f list_results_of_repair
+
+verify_results() {
+	# This verifies the file was repaired
+	in_date="$@"
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00 --early_exit
+	echo $?
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06 --early_exit
+        echo $?
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12 --early_exit
+	echo $?
+        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18 --early_exit
+	echo $?
+}
+export -f verify_results
+
 
 run_rh_for_day() {
     in_date="$@"
-    conda activate base
-    conda activate merra2_clavrx
-    capture_scratch=`python ${BIN_DIR}/conversions/fix_rh.py $in_date`
-    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00
-    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06
-    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12
-    python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18
+    python ${BIN_DIR}/conversions/fix_rh.py $in_date
+    verify_results $in_date
 }
 export -f run_rh_for_day
 
@@ -150,6 +171,10 @@ export -f run_rh_over_years
   # e.g. ./rerun_rh.sh rerun_rh_for_month YYYY MM 
   # e.g. ./rerun_rh.sh get_merra_for_day YYYYmmdd
   # e.g. ./rerun_rh.sh run_rh_for_day YYYYmmdd
+  # e.g. ./rerun_rh.sh remove_input_files YYYYmmdd
+  # e.g. ./rerun_rh.sh dated_dir YYYYmmdd
+  # e.g. ./rerun_rh.sh verify_results YYYYmmdd
+  # e.g. ./rerun_rh.sh list_results_of_repair YYYYmmdd
 
 "$@"
 

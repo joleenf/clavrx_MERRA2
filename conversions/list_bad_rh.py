@@ -4,6 +4,7 @@ import os
 import datetime
 import numpy as np
 import pandas as pd
+from argparse import BooleanOptionalAction
 from pyhdf.SD import SD, SDC
 from pyhdf.error import HDF4Error
 import sys
@@ -59,6 +60,8 @@ def read_files(fullpath, exit_early=False, print_rh_range=False):
                 out_of_range.append(data)
             # Can jump out, found a problem case.
             break
+    if exit_early and out_of_range == 0:
+        print(f"{merra_file} OK")
     rh.endaccess()
     d.end()
 
@@ -89,7 +92,8 @@ def create_parser():
     parser.add_argument('--dt', action='store',
                         type=lambda s: datetime.datetime.strptime(s, "%Y%m%d"), required=True,
                         help="date to process in YYYYmmdd format")
-    parser.add_argument('--rh_range', help="Print range of rh field.", action=argparse.BooleanOptionalAction)
+    parser.add_argument('--rh_range', help="Print range of rh field.", action=BooleanOptionalAction)
+    parser.add_argument('--early_exit', help="Exit with error code.", action=BooleanOptionalAction)
 
 
     args = vars(parser.parse_args())
@@ -103,12 +107,13 @@ if __name__ == "__main__":
     date_processed = args["dt"]
     synoptic_run = args["synoptic_run"]
     rh_range = args["rh_range"]
+    early_exit = args["early_exit"]
 
     year = date_processed.strftime("%Y")
     merra_date = date_processed.strftime("%y%m%d")
 
     merra_file = os.path.join(merra_dir, year, f"merra.{merra_date}{synoptic_run}_F000.hdf")
-    res=read_files(merra_file, print_rh_range=rh_range)
+    res=read_files(merra_file, print_rh_range=rh_range, exit_early=early_exit)
 
     if isinstance(res, int):
         sys.exit(res)
