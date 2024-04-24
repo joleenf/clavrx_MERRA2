@@ -1,4 +1,7 @@
 #!/bin/bash
+# Run this code to pull merra data and run for specified date
+# sh  run_merra4clavrx.sh <YYYYmmdd>
+
 echo starting at `date`
 
 # USER OPTIONS
