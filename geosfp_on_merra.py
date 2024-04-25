@@ -108,13 +108,13 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
     in_files = {"mask": mask_file}
 
     in_files = {
-        'ana': glob(f"{scratch}/MERRA2*ana_Np.{date_str_arg}.nc4")[0],
-        'flx': glob(f"{scratch}/MERRA2*flx_Nx.{date_str_arg}.nc4")[0],
-        'slv': glob(f"{scratch}/MERRA2*slv_Nx.{date_str_arg}.nc4")[0],
-        'lnd': glob(f"{scratch}/MERRA2*lnd_Nx.{date_str_arg}.nc4")[0],
-        'asm3d': glob(f"{scratch}/MERRA2*asm_Np.{date_str_arg}.nc4")[0],
-        'asm2d': glob(f"{scratch}/MERRA2*asm_Nx.{date_str_arg}.nc4")[0],
-        'rad': glob(f"{scratch}/MERRA2*rad_Nx.{date_str_arg}.nc4")[0],
+        'ana': glob(os.path.join(scratch, f"MERRA2*ana_Np.{date_str_arg}.nc4"))[0],
+        'flx': glob(os.path.join(scratch, f"MERRA2*flx_Nx.{date_str_arg}.nc4"))[0],
+        'slv': glob(os.path.join(scratch, f"MERRA2*slv_Nx.{date_str_arg}.nc4"))[0],
+        'lnd': glob(os.path.join(scratch, f"MERRA2*lnd_Nx.{date_str_arg}.nc4"))[0],
+        'asm3d': glob(os.path.join(scratch, f"MERRA2*asm_Np.{date_str_arg}.nc4"))[0],
+        'asm2d': glob(os.path.join(scratch, f"MERRA2*asm_Nx.{date_str_arg}.nc4"))[0],
+        'rad': glob(os.path.join(scratch, f"MERRA2*rad_Nx.{date_str_arg}.nc4"))[0],
     }
     in_files.update({"mask": mask_file})
     print(in_files)
@@ -124,9 +124,9 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
 
 
 if __name__ == '__main__':
-    home = os.path.dirname(os.path.expanduser("~"))
+    home = os.path.expanduser("~")
 
-    if home == "/home":
+    if os.path.dirname(home) == "/home":
         scratch = '/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp'
         outpath = "/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2"
     else:
