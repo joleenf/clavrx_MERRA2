@@ -37,6 +37,7 @@ while getopts "w:k:h" flag; do
 	esac
 done
 
+set -x
 YYYY=${@:$OPTIND:1}
 MM=${@:$OPTIND+1:1}
 DD=${@:$OPTIND+2:1}

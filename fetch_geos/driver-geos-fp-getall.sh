@@ -49,6 +49,9 @@ HH=${@:$OPTIND+3:1}
 [[ -z "${DD}" ]] && oops
 [[ -z "${HH}" ]] && oops
 
+echo $YYYY $MM $DD $HH
+echo $download_dir
+
 
 export PS4='+${LINENO}: '
 set -x

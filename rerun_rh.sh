@@ -65,20 +65,37 @@ list_results_of_repair() {
 export -f list_results_of_repair
 
 verify_results() {
-	# This verifies the file was repaired
+	# This verifies the file was repaired, holds error codes and adds.  If zero, then files were repaired
+	# print message verification can be found using printe_verify to call this block.
 	in_date="$@"
-        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00 --early_exit
-        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06 --early_exit
-        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12 --early_exit
-        python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18 --early_exit
+        zeroZ=`python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 00 --early_exit`
+	err1=`echo $? | awk '{print $NF}'`
+        sixZ=`python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 06 --early_exit`
+	err2=`echo $? | awk '{print $NF}'`
+        twelveZ=`python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 12 --early_exit`
+	err3=`echo $? | awk '{print $NF}'`
+	finalZ=`python ${BIN_DIR}/conversions/list_bad_rh.py --dt $in_date --merra_dir $MERRA_OUT --s 18 --early_exit`
+	err4=`echo $? | awk '{print $NF}'`
+	export num=$(($err1 + $err2 + $err3 + $err4))
 }
 export -f verify_results
+
+print_verify() {
+	# This verifies the file was repaired and prints message to screen
+	verify_results "$@"
+	echo $zeroZ
+	echo $sixZ
+	echo $twelveZ
+	echo $finalZ
+}
+export -f print_verify
 
 
 run_rh_for_day() {
     in_date="$@"
     python ${BIN_DIR}/conversions/fix_rh.py $in_date
     verify_results $in_date
+    echo $num
 }
 export -f run_rh_for_day
 
@@ -129,11 +146,15 @@ rerun_rh_for_month() {
     start_date=$(date -d $start_day +%Y%m%d)
     end_date=$(date -d $end_day +%Y%m%d)
 
+    echo $start_date, $end_date
     while [[ $start_date -le $end_date ]];
     do
         # Here is where to run the python....
-	get_merra_for_day ${start_date}
-	run_rh_for_day ${start_date}
+	verify_results ${start_date}
+	if [ $num != 0 ]; then
+	    get_merra_for_day ${start_date}
+       	    run_rh_for_day ${start_date}
+        fi
         start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
     done
 
@@ -148,29 +169,26 @@ export -f rerun_rh_for_month
 
 
 run_rh_over_years() {
-    for year in {2000..1980};
+    for year in {1992..1980};
     do
        for i in {1..12};
        do
-          screen_name=run$year_$i
-          echo $screen_name
-          cmd="/bin/bash rerun_rh_for_month $year $i"
-          echo $cmd
-          eval $cmd
+	  echo $year, $i
+          rerun_rh_for_month $year $i
        done
     done
     }
 export -f run_rh_over_years
 
   # for testing, forward to a sub-function
-  # e.g. ./rerun_rh.sh run_rh_over_years
-  # e.g. ./rerun_rh.sh rerun_rh_for_month YYYY MM 
-  # e.g. ./rerun_rh.sh get_merra_for_day YYYYmmdd
-  # e.g. ./rerun_rh.sh run_rh_for_day YYYYmmdd
-  # e.g. ./rerun_rh.sh remove_input_files YYYYmmdd
-  # e.g. ./rerun_rh.sh dated_dir YYYYmmdd
-  # e.g. ./rerun_rh.sh verify_results YYYYmmdd
-  # e.g. ./rerun_rh.sh list_results_of_repair YYYYmmdd
+  # e.g. ./rerun_rh.sh run_rh_over_years  (run RH repair from 2000-1980)
+  # e.g. ./rerun_rh.sh rerun_rh_for_month YYYY MM   (Rerun rh repair for one month)
+  # e.g. ./rerun_rh.sh get_merra_for_day YYYYmmdd  (get the constants and slv file for this day)
+  # e.g. ./rerun_rh.sh run_rh_for_day YYYYmmdd   (run rh for this data if the constants and slv file are downloaded)
+  # e.g. ./rerun_rh.sh remove_input_files YYYYmmdd  (remove input files for this day)
+  # e.g. ./rerun_rh.sh dated_dir YYYYmmdd   (get the dated directory for this download date)
+  # e.g. ./rerun_rh.sh print_verify YYYYmmdd  (verify that the rh has been corrected and print message to screen)
+  # e.g. ./rerun_rh.sh list_results_of_repair YYYYmmdd  (list the results of the repair but printing the rh range for each level)
 
 "$@"
 

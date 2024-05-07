@@ -107,6 +107,8 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
 
     in_files = {"mask": mask_file}
 
+    print(f"MERRA2*ana_Np.{date_str_arg}.nc4")
+    print(glob(os.path.join(scratch, f"MERRA2*ana_Np.{date_str_arg}.nc4")))
     in_files = {
         'ana': glob(os.path.join(scratch, f"MERRA2*ana_Np.{date_str_arg}.nc4"))[0],
         'flx': glob(os.path.join(scratch, f"MERRA2*flx_Nx.{date_str_arg}.nc4"))[0],

@@ -93,7 +93,7 @@ def create_parser():
                         type=lambda s: datetime.datetime.strptime(s, "%Y%m%d"), required=True,
                         help="date to process in YYYYmmdd format")
     parser.add_argument('--rh_range', help="Print range of rh field.", action=BooleanOptionalAction)
-    parser.add_argument('--early_exit', help="Exit with error code.", action=BooleanOptionalAction)
+    parser.add_argument('--early_exit', help="Exit with error code only.", action=BooleanOptionalAction)
 
 
     args = vars(parser.parse_args())
