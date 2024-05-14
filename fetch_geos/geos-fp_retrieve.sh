@@ -22,6 +22,7 @@ fi
 
 let YMD=${YYYY}${MM}${DD}
 
+#set -x 
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 forecast_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/forecast/Y${YYYY}/M${MM}/D${DD}/H${synoptic_run}
 assimilation_url=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/Y${YYYY}/M${MM}/D${DD}

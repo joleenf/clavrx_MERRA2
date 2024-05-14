@@ -54,7 +54,7 @@ echo $download_dir
 
 
 export PS4='+${LINENO}: '
-set -x
+#set -x
 SCRIPTS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 if [ -d ${download_dir} ];
@@ -95,7 +95,7 @@ for association in "${FILETYPES[@]}"
 do
 	echo "${association}"
         key="${association%%::*}"
-	download_path=$(pwd)/${YYYY}/${MM}_${DD}_${HH}
+	download_path=$(pwd)/${YYYY}/${YYYY}_${MM}_${DD}_${HH}
 	mkdir -p ${download_path}
 	if [ "${key}" == "const_2d_ctm_Nx" ]; then
    	        ${SCRIPTS_DIR}/geos-fp_get_${key}.sh ${download_path}

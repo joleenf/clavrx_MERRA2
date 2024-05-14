@@ -46,7 +46,7 @@ cd ${M2_DIR}
 sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 
 # Run merra conversion code for clavrx
-python ${BIN_DIR}/geosfp_on_merra.py ${INPUT_DATE}
+python ${BIN_DIR}/convert_merra_for_clavrx.py ${INPUT_DATE}
 #
 # clean up
 #M2_DIR=`dirname $M2_DIR`

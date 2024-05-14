@@ -18,7 +18,7 @@ export WGET_CMD="wget --load-cookies ~/.urs_cookies --save-cookies ~/.urs_cookie
 let YMD=${YYYY}${MM}${DD}
 scripts_home="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-set -x
+#set -x
 
 # Getting download_dir from a change directory in wget_all...Not sure this is desirable.
 DOWNLOAD_DIR=$(pwd)
@@ -26,7 +26,7 @@ download_dir=${1:-$DOWNLOAD_DIR}
 echo $download_dir
 cd $download_dir
 
-CONSTANTS_FILEPATH=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/GOES-FP_INPUT/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
+CONSTANTS_FILEPATH=${DYNAMIC_ANCIL}/GEOS-FP_INPUT/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
 FALSE_DATE_TARGET_NAME=GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
 REMOTE_FILE=https://portal.nccs.nasa.gov/datashare/gmao/geos-fp/das/GEOS.fp.asm.const_2d_asm_Nx.00000000_0000.V01.nc4
 
