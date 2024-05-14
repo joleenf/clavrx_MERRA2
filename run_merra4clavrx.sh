@@ -4,17 +4,17 @@
 
 echo starting at `date`
 
+source $HOME/.bash_profile
+
+set -x
 # USER OPTIONS
 BIN_DIR=$HOME/clavrx_MERRA2
-#M2_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2/saved_input
-M2_DIR=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/MERRA_INPUT/tmp/
-#OUT_DIR=/data/Personal/joleenf/test_BH_merra2/clavrx_ancil_data/dynamic/merra2
-OUT_DIR=/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/merra2
+M2_DIR=${DYNAMIC_ANCIL}/MERRA_INPUT/tmp/
+OUT_DIR=${DYNAMIC_ANCIL}/merra2
 # END USER OPTIONS
 
 source /etc/profile
 module purge
-#module load shellb3      # Does not exist on solar4
 module load miniconda
 
 source activate merra2_clavrx
@@ -46,7 +46,7 @@ cd ${M2_DIR}
 sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 
 # Run merra conversion code for clavrx
-python ${BIN_DIR}/convert_merra_for_clavrx.py ${INPUT_DATE}
+python ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}
 #
 # clean up
 #M2_DIR=`dirname $M2_DIR`
