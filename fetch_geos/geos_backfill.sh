@@ -47,10 +47,9 @@ month="${MONTH##*(0)}"
 
 # call run merra for this full month
 ndays=`cal ${MONTH} ${YEAR} | awk 'NF {DAYS = $NF}; END {print DAYS}'`
-#start_day=${YEAR}${month}01
-start_day=${YEAR}${month}26
+start_day=${YEAR}${month}01
 
-DAYS_AGO=3
+DAYS_AGO=2
 dayago=`date --date="${DAYS_AGO} days ago" +'%Y%m%d'`
 curr_month=`date --date="${DAYS_AGO} days ago" +'%m'`
 curr_day=`date --date="${DAYS_AGO}  days ago" +'%d'`

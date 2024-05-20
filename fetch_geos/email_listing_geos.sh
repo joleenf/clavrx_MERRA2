@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ~/.bash_profile
+
 default_back=-1
 months_back=${1:$default_back}
 BASE="$( cd -P "$( dirname "$0" )" && pwd )"
@@ -12,7 +14,7 @@ last_month_text=`date -d "$(date -d "$month 15 $year" +%F) ${months_back} month 
 
 echo "Running geos inventory for $last_month_text"
 
-`/bin/bash $BASE/list_missing_geos.sh $last_month | /bin/mail -s "Inventory for $last_month" "joleen.feltz@ssec.wisc.edu"`
+`/bin/bash $BASE/list_missing_geos.sh $last_month geosfp $DYNAMIC_ANCIL/geos/ | /bin/mail -s "Inventory for $last_month" "joleen.feltz@ssec.wisc.edu"`
 
 : <<=cut
 =pod
