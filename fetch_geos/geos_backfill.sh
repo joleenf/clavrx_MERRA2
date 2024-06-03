@@ -2,7 +2,7 @@
 function usage {
 cat << EndOfMessage
 
-    Usage: sh $0 [options] YYYY MM
+    Usage: sh $0 YYYY MM
 
     Example: sh $0 2023 12 
 

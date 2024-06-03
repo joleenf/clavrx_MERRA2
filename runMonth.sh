@@ -21,7 +21,6 @@ EndOfMessage
 
 export PS4='L${LINENO}: '
 export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
-#set -x
 
 bin_dir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 LOG_DIR=$HOME/logs/merra_archive
@@ -68,6 +67,6 @@ do
     start_date=$(date -d"$start_date + 1 day" +"%Y%m%d")
 done
 
-echo "/bin/bash $bin_dir/$secondary_script secondary_script_args for $start_day $end_day"
+echo "/bin/bash $bin_dir/$secondary_script $secondary_script_args for $start_day $end_day"
 sh $bin_dir/scripts/count_inventory.sh $YEAR $MONTH >> $LOG_DIR/inventory_${YEAR}.log
 exit
