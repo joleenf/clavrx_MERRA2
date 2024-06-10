@@ -24,8 +24,8 @@ oops () {
 }
 
 
-DATA_PATH="/ships22/cloud/Ancil_Data/cfsr/hdf_05"
-PRODUCT_ID=cfsr
+DATA_PATH="/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/geos/"
+PRODUCT_ID=geosfp
 trim=`date +"(${0}=>%Y%m%d %H:%M:%S) "`
 TODAY=$(date +"%Y%m%d")
 YEAR=$(date -d "$TODAY" +"%Y")
