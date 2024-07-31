@@ -17,7 +17,7 @@ source /etc/profile
 module purge
 module load miniconda
 
-source activate merra2_clavrx
+mamba activate merra2_clavrx
 
 conda env list
 

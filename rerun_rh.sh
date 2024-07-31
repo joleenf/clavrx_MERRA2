@@ -21,8 +21,8 @@ EndOfMessage
 
 
 source ~/.bashrc
-conda activate base
-conda activate merra2_clavrx
+mamba activate base
+mamba activate merra2_clavrx
 export PS4='L${LINENO}: '
 export PS4='+(${BASH_SOURCE}:${LINENO}): ${FUNCNAME[0]:+${FUNCNAME[0]}(): }'
 #set -x

@@ -41,7 +41,7 @@ source /etc/profile
 source $HOME/.bash_profile
 module purge
 module load miniconda
-source activate merra2_clavrx
+mamba activate merra2_clavrx
 
 yesterday=`date -d "1 day ago" +"%Y%m%d"`
 

@@ -15,7 +15,7 @@ try:
     from pyhdf.SD import SD, SDC
 except ImportError as e:
     print("Import Error {}".format(e))
-    print("Type:  conda activate merra2_clavrx")
+    print("Type:  mamba activate merra2_clavrx")
     sys.exit(1)
 
 FORMAT = '%(asctime)s %(clientip)-15s %(user)-8s %(message)s'
