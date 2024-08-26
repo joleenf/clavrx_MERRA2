@@ -6,6 +6,10 @@ echo starting at `date`
 
 source $HOME/.bash_profile
 
+source /etc/profile
+module purge
+mamba activate merra2_clavrx
+
 set -x
 # USER OPTIONS
 BIN_DIR=$HOME/clavrx_MERRA2
@@ -13,13 +17,6 @@ M2_DIR=${DYNAMIC_ANCIL}/MERRA_INPUT/tmp/
 OUT_DIR=${DYNAMIC_ANCIL}/merra2
 # END USER OPTIONS
 
-source /etc/profile
-module purge
-module load miniconda
-
-mamba activate merra2_clavrx
-
-conda env list
 
 TMPDIR=${BIN_DIR}/tmp
 mkdir -p $TMPDIR
@@ -43,9 +40,12 @@ echo Date from FILELIST: ${INPUT_DATE}
 # Create tmp subdirectories for files
 cd ${M2_DIR}
 
+set +x
+echo "Running wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}"
 sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
 
 # Run merra conversion code for clavrx
+echo "Running ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}"
 python ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}
 #
 # clean up

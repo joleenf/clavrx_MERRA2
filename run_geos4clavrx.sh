@@ -40,7 +40,6 @@ OUT_DIR=${DYNAMIC_ANCIL}/geos
 source /etc/profile
 source $HOME/.bash_profile
 module purge
-module load miniconda
 mamba activate merra2_clavrx
 
 yesterday=`date -d "1 day ago" +"%Y%m%d"`
