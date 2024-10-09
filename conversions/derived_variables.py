@@ -1,8 +1,12 @@
+import logging
 import numpy as np
 import pint
+import sys
 from netCDF4 import Dataset
 
 from conversions import Q_, ureg
+
+LOG = logging.getLogger(__name__)
 
 
 def total_saturation_pressure(temp_in_k, mix_lo=253.16, mix_hi=273.16):
@@ -95,14 +99,13 @@ def qv_to_rh(specific_humidity, temp_k, in_levels: pint.Quantity, press_at_sfc=N
     levels = (in_levels.to(ureg.pascal))  # [hPa] -> [Pa] when necessary.
 
     # match fill values
-
-
     es_tot = total_saturation_pressure(temp_k)
 
     vapor_pressure = vapor_pressure_approximation(specific_humidity, press_at_sfc, levels)
 
     relative_humidity = (vapor_pressure / es_tot).magnitude * 100.0  # relative humidity [%]
     relative_humidity[relative_humidity > 100.0] = 100.0
+    relative_humidity = relative_humidity.astype(np.float32)   # don't want double
 
     return relative_humidity
 
@@ -115,6 +118,7 @@ def rh_at_sigma(temp10m, sfc_pressure, sfc_pressure_fill, levels: pint.Quantity,
     sfc_pressure[sfc_pressure == sfc_pressure_fill] = np.nan
 
     rh_sigma = qv_to_rh(data, temp_k, levels, press_at_sfc=sfc_pressure)
+    rh_sigma = rh_sigma.astype(np.float32)
     rh_sigma.set_fill_value = sfc_pressure_fill
 
     return rh_sigma

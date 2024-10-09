@@ -145,9 +145,10 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
 
     source_name = info_attrs["Source"]
     history = info_attrs["History"]
-    if info_attrs["GranuleID"] is not None:
-        stream = info_attrs["GranuleID"].split(".")[0]
-        setattr(out_sd, f"{source_name} STREAM", stream)
+    if "GranuleID" in info_attrs.keys():
+        if info_attrs["GranuleID"] is not None:
+            stream = info_attrs["GranuleID"].split(".")[0]
+            setattr(out_sd, f"{source_name} STREAM", stream)
     setattr(out_sd, f"{source_name} History", history)
 
     for a in [var, lat, lon]:
