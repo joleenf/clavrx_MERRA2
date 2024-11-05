@@ -66,8 +66,8 @@ def make_merra_all_hours(in_files, out_dir):
     #
     for out_time in out_times:
     #for out_time in {datetime.datetime(2024, 2, 10, 0, 0)}:
-        print(out_time)
         model_type = file_global_attrs["Filename"].split(".")[0]
+        model_type = model_type.replace("CVS Tag: ","")
 
         fn = f"merra.{out_time.strftime('%y%m%d%H_F000.hdf')}"
         out_fn = os.path.join(out_dir, fn)

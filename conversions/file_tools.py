@@ -84,7 +84,7 @@ def write_output_variables(datasets: Dict[str, Dataset], out_fields: Iterator[Di
                     land_mask = derive_var.merra_land_mask(out_var.data, datasets["mask"])
                     # input neither clavrx_fill nor the input data fill make sense for this land mask
                     out_var.updateAttr("fill", None)
-                    out_var.updateAttr("data", land_mask.astype(np.int32))
+                    out_var.updateAttr("data", land_mask.astype(np.float32))
                 case "total ozone":
                     new_data = derive_var.total_ozone(out_var.data, out_var.fill, out_var.dependent["unit_levels"])
                     out_var.updateAttr("data", new_data)
@@ -143,13 +143,13 @@ def write_global_attributes(out_sd: SD, info_attrs) -> None:
     setattr(out_sd,
             "3D ARRAY ORDER", "YXZ")
 
-    source_name = info_attrs["Source"]
-    history = info_attrs["History"]
-    if "GranuleID" in info_attrs.keys():
-        if info_attrs["GranuleID"] is not None:
-            stream = info_attrs["GranuleID"].split(".")[0]
-            setattr(out_sd, f"{source_name} STREAM", stream)
-    setattr(out_sd, f"{source_name} History", history)
+    #source_name = info_attrs["Source"]
+    #history = info_attrs["History"]
+    #if "GranuleID" in info_attrs.keys():
+    #    if info_attrs["GranuleID"] is not None:
+    #        stream = info_attrs["GranuleID"].split(".")[0]
+    #        setattr(out_sd, f"{source_name} STREAM", stream)
+    #setattr(out_sd, f"{source_name} History", history)
 
     for a in [var, lat, lon]:
         a.endaccess()

@@ -50,7 +50,7 @@ def output_dtype(out_name, nc4_dtype):
     else:
         raise ValueError("UNSUPPORTED NC4 DTYPE FOUND:", nc4_dtype)
 
-    if out_name in ["pressure levels", "level"] and sd_dtype == SDC.FLOAT64:
+    if out_name in ["pressure levels", "level", "rh", "rh at sigma=0.995"] and sd_dtype == SDC.FLOAT64:
         sd_dtype = SDC.FLOAT32  # don't want double
 
     return sd_dtype
