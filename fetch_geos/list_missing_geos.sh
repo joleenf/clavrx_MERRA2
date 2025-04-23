@@ -25,6 +25,7 @@ oops () {
 
 
 DATA_PATH="/ships22/cloud/Ancil_Data/clavrx_ancil_data/dynamic/geos/"
+py_download="/home/clavrx_ops/clavrx_MERRA2/geosfp_for_clavrx.py"
 PRODUCT_ID=geosfp
 trim=`date +"(${0}=>%Y%m%d %H:%M:%S) "`
 TODAY=$(date +"%Y%m%d")
@@ -97,6 +98,7 @@ do
 		if [ $fcount == 0 ]; then
 			error_msg="${trim}${data_path}/$filename"
 			echo $error_msg
+			python $py_download $start_day $synoptic
 			count=$((count + 1))
 		fi
 	done

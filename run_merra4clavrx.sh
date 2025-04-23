@@ -41,8 +41,9 @@ echo Date from FILELIST: ${INPUT_DATE}
 cd ${M2_DIR}
 
 set +x
-echo "Running wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}"
-sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
+echo "Running ea_get_all.py ${YYYY}-${MM}-${DD} -w $M2_DIR"
+#sh ${BIN_DIR}/scripts/wget_all.sh -w $M2_DIR ${YYYY} ${MM} ${DD}
+python ${BIN_DIR}/ea_get_all.py ${YYYY}-${MM}-${DD} -w $M2_DIR
 
 # Run merra conversion code for clavrx
 echo "Running ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}"
@@ -52,5 +53,5 @@ python ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}
 #M2_DIR=`dirname $M2_DIR`
 echo $M2_DIR
 
-rm -rfv $M2_DIR
+#rm -rfv $M2_DIR
 #echo finished at: `date`

@@ -98,10 +98,12 @@ def main_merra(scratch:str, outpath: str, date_dt: datetime.datetime):
     except OSError:
         pass  # dir already exists
     # BTH: Define mask_file here
-    mask_file = os.path.join(scratch, "MERRA2_101.const_2d_ctm_Nx.00000000.nc4")
+    #mask_file = os.path.join(scratch, "MERRA2_101.const_2d_ctm_Nx.00000000.nc4")
+    mask_file = os.path.join(scratch, "MERRA2_101.const_2d_asm_Nx.00000000.nc4")
     print("looking at {}".format(mask_file))
     if not os.path.isfile(mask_file):
-        mask_file = os.path.join(scratch, f"MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4")
+        #mask_file = os.path.join(scratch, f"MERRA2_101.const_2d_ctm_Nx.{date_str_arg}.nc4")
+        mask_file = os.path.join(scratch, f"MERRA2_101.const_2d_asm.{date_str_arg}.nc4")
     if not os.path.isfile(mask_file):
         raise FileNotFoundError(mask_file)
 

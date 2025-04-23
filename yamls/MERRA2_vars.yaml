@@ -229,12 +229,12 @@ land mask:
   ndims_out: 2
   out_units: 1=land, 0=ocean, greenland and antarctica are land
   nan_fill: False
-FRACI:
-  in_file: mask
-  shortname: FRACI
-  ndims_out: 2
-  out_units: "1"
-  nan_fill: False
+  #FRACI:
+  #in_file: mask
+  #shortname: FRACI
+  #ndims_out: 2
+  #out_units: "1"
+  #nan_fill: False
 land ice fraction:
   in_file: mask
   shortname:  FRLANDICE
