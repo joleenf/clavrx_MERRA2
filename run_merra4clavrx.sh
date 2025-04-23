@@ -53,5 +53,5 @@ python ${BIN_DIR}/merra_for_clavrx.py ${INPUT_DATE}
 #M2_DIR=`dirname $M2_DIR`
 echo $M2_DIR
 
-#rm -rfv $M2_DIR
+rm -rfv $M2_DIR
 #echo finished at: `date`
