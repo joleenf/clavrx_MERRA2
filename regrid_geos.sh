@@ -18,6 +18,9 @@ function finish {
 	if [ -f $TMPFILE ]; then
             rm ${TMPFILE}
 	fi
+	if [ -f $UNPACKED_TEMP} ]; then
+			rm ${UNPACKED_TEMP}
+	fi
 }
 
 TMPFILE="NONE"
@@ -53,6 +56,7 @@ function regrid {
 	vertical_filename_specification="V72"   # for GEOS-IT 3D files, V72 indicates data are on sigma levels
 
 	TMPFILE=$(mktemp /tmp/tmp.XXXXXXX.nc)
+	UNPACKED_TEMP=$(mktemp /tmp/new_input.XXXXXXX.nc)
 	# Do the work in the output directory (temp files are created with convert_tools.py. Run in a safer +rw location)
 	cd $(dirname $output_file)
 
@@ -63,13 +67,19 @@ function regrid {
 
 	# Horizontal regridding using conserve weights (if no weights have been generated, the grid_dir flag
 	# tells ncremap to store weights in that directory.
-	python $regrid_tools/convert_tool.py -n $input_file -o $TMPFILE -m conserve -i 576 -j 361 -d DC -p PC --grid_dir $regrid_weights_dir
+    echo "============================================================"
+	ncpdq -O -U $input_file $UNPACKED_TEMP
+	python $regrid_tools/convert_tool.py -n $UNPACKED_TEMP -o $TMPFILE -m conserve -i 576 -j 361 -d DC -p PC --grid_dir $regrid_weights_dir
 
 	# Vertical regridding using map file need to explain to ncreamp that the vertical level is "lev"
 	# in the input file.
-	if [[ $input_file == *${vertical_filename_specification}* ]]; then
-	    ncremap --vrt_out=${regrid_weights_dir}/${map_fl} --plev_nm=lev -i $TMPFILE -o $output_file
-		ls $output_file
+	set -ex
+    levels=`echo $output_file | awk -F"361_" '{print substr($2,1,3)}'`
+	if [[ "$levels" == "v72" ]]; then
+		new_fn=`echo $output_file | awk -F"v72" ' {print $1"p42"$2}'`
+		echo $new_fn
+	    cmd="ncremap --vrt_out=${regrid_weights_dir}/${map_fl} --plev_nm=lev -v QV,QI,QL,T,CLOUD,U,V,PHIS,H,O3 -i $TMPFILE -o $new_fn"
+		eval $cmd
 	else
 	    mv $TMPFILE $output_file
 		ls $output_file
@@ -84,7 +94,7 @@ echo $sorting_flag
 # Input files should be in parent directory. This code sorts (e.g. 2019-01-01/0000/C180)
 # Output files will be organized in dated/timestamped directory (e.g. 2019-01-01/0000/)
 count=0
-for input_file in $(find $in_dir -maxdepth 1 -name "*C180*.nc4"); do
+for input_file in $(find $in_dir -maxdepth 1 -name "*C180*_v72*.nc4"); do
 	count+=1
 	echo $input_file
 	new_input_path=`create_directory_from_parsed_input_file $in_dir $input_file $sorting_flag`

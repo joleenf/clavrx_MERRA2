@@ -1,0 +1,225 @@
+# Files needed, Description, SIPS_ID
+# flx_tavg_1hr_glo_C180x180x6_slv,   (Surface flux diagnostics), 
+# asm_inst_1hr_glo_C180x180x6_slv,   (state),                    GEOSIT_ASM_I1_C_SLV 
+# asm_inst_3hr_glo_C180x180x6_v72,   (State on Native Levels),   GEOSIT_ASM_I3_C_V72
+# ocn_tavg_1hr_glo_C180x180x6_slv,   (Ocean Related Variables),  GEOSIT_OCN_T1_C_SLV
+# lnd_tavg_1hr_glo_C180x180x6_slv,   (Land surface diagnostics), GEOSIT_LND_T1_C_SLV
+# asm_const_0hr_glo_C180x180x6_slv,  (Constant Fields)
+#
+MSL pressure:
+  in_file: asm_inst_1hr
+  shortname: SLP
+  ndims_out: 2
+  out_units: hPa
+  nan_fill: False
+cloud ice water mixing ratio:
+  in_file: asm_inst_3hr
+  shortname: QI
+  ndims_out: 3
+  out_units: kg/kg  # TODO: this is an issue because pint will make it dimensionless
+  nan_fill: False
+clwmr:
+  in_file: asm_inst_3hr
+  shortname: QL
+  ndims_out: 3
+  out_units: kg/kg  # TODO: this is an issue because pint will make it dimensionless
+  nan_fill: False
+height:
+  in_file: asm_inst_3hr
+  shortname: H
+  ndims_out: 3
+  out_units: km
+  nan_fill: False
+ice fraction:
+  in_file: ocn_tavg_1hr
+  shortname: FRSEAICE
+  ndims_out: 2
+  out_units: 1
+  nan_fill: False
+lat:
+  in_file: ocn_tavg_1hr
+  shortname: lat
+  ndims_out: 1
+  out_units: degrees_north
+  nan_fill: False
+lon:
+  in_file: ocn_tavg_1hr
+  shortname: lon
+  ndims_out: 1
+  out_units: degrees_east
+  nan_fill: False
+o3mr:
+  in_file: asm_inst_3hr
+  shortname: O3
+  ndims_out: 3
+  out_units: kg/kg
+  nan_fill: True
+planetary boundary layer height:
+  in_file: flx_tavg_1hr_glo
+  shortname: PBLH
+  ndims_out: 2
+  out_units: km
+  nan_fill: False
+pressure levels:
+  in_file: MISSING
+  shortname: lev
+  ndims_out: 1
+  out_units: hPa
+  nan_fill: False
+rh:
+  in_file: asm_inst_3hr
+  shortname: QV
+  ndims_out: 3
+  out_units: "%"
+  nan_fill: True
+  dependent:  # dependent variables do not apply conversion.
+      masked_temp_k: # this is a support variable which is stored as a masked array to match old code.
+      in_file: asm_inst_3hr
+        shortname: T
+        ndims_out: 3
+        nan_fill: True
+        out_units: K
+        unmask: False
+      unit_levels:
+        in_file: MISSING
+        shortname: lev
+        ndims_out: 1
+        out_units: hPa
+        nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
+        unmask: True
+rh at sigma=0.995:
+  in_file: ocn_tavg_1hr
+  shortname: QV10M
+  ndims_out: 2
+  out_units: "%"
+  nan_fill: False
+  dependent:  # dependents currently do not apply conversions.
+    surface_pressure_at_sigma:   # supports rh at sigma calculation
+      in_file: asm_inst_1hr
+      shortname: PS
+      ndims_out: 2
+      nan_fill: True
+      out_units: hPa
+      unmask: False
+    masked_temperature_at_sigma: # this is a support variable which is stored as a masked array to match old code.
+      in_file: ocn_tavg_1hr
+      shortname: T10M
+      ndims_out: 2
+      nan_fill: False
+      out_units: K
+      unmask: False
+    unit_levels:
+      in_file: MISSING   # needs grid conversion
+      shortname: lev
+      ndims_out: 1
+      out_units: hPa
+      nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
+      unmask: True
+surface pressure:
+  in_file: lnd_tavg_1hr
+  shortname: PS
+  ndims_out: 2
+  out_units: hPa
+  nan_fill: False
+surface temperature:
+  in_file: lnd_tavg_1hr
+  shortname: Need to find documentation for this specfically   # TPSNOW, TSURF, TSAT, TUNST, TWLT
+  ndims_out: 2
+  out_units: K
+  nan_fill: False
+temperature:
+  in_file: asm_inst_3hr
+  shortname: T
+  ndims_out: 3
+  out_units: K
+  nan_fill: False
+temperature at sigma=0.995:
+  in_file: ocn_tavg_1hr
+  shortname: T10M
+  ndims_out: 2
+  out_units: K
+  nan_fill: False
+total cloud fraction:
+  in_file: asm_inst_3hr
+  shortname: CLOUD   # cloud_fraction_for_radiation
+  ndims_out: 2
+  out_units: 1
+  nan_fill: False
+total ozone:
+  in_file: asm_inst_1hr   # total column ozone
+  shortname: TO3
+  ndims_out: 2
+  out_units: 1
+  nan_fill: True
+total precipitable water:
+  in_file: asm_inst_1hr
+  shortname: TQV
+  ndims_out: 2
+  out_units: cm
+  nan_fill: False
+tropopause pressure:
+  in_file: asm_inst_1hr
+  shortname: TROPPT
+  ndims_out: 2
+  out_units: hPa
+  nan_fill: False
+tropopause temperature:
+  in_file: asm_inst_1hr
+  shortname: TROPT
+  ndims_out: 2
+  out_units: K
+  nan_fill: False
+u-wind:
+  in_file: asm_inst_3hr
+  shortname: U
+  ndims_out: 3
+  out_units: m/s
+  nan_fill: False
+u-wind at 50M:
+  in_file: asm_inst_1hr
+  shortname: U50M
+  ndims_out: 2
+  out_units: m/s
+  nan_fill: False
+u-wind at sigma=0.995:
+  in_file: ocn_tavg_1hr  # or asm_inst_1hr
+  shortname: U10M
+  ndims_out: 2
+  out_units: m/s
+  nan_fill: False
+v-wind:
+  in_file: asm_inst_3hr
+  shortname: V
+  ndims_out: 3
+  out_units: m/s
+  nan_fill: False
+v-wind at 50M:
+  in_file: asm_inst_1hr
+  shortname: V50M
+  ndims_out: 2
+  out_units: m/s
+  nan_fill: False
+v-wind at sigma=0.995:
+  in_file: ocn_tavg_1hr  # or asm_inst_1hr
+  shortname: V10M
+  ndims_out: 2
+  out_units: m/s
+  nan_fill: False
+water equivalent snow depth:
+  in_file: lnd_tavg_1hr
+  shortname: SNOWMAS    # Total snow storage land in kg/m2
+  ndims_out: 2
+  out_units: kg m-2
+  nan_fill: False
+land mask:
+  in_file: ocn_tavg_1hr
+  shortname: FRLAND  
+  ndims_out: 2
+  out_units: 1=land, 0=ocean, greenland and antarctica are land   # TODO: Find documentation for 5.29 specifically to make sure this is the same
+  nan_fill: False
+surface height:  # geopotential height (DISPH in asm_inst_1hr is zero plane displacement height in m)
+  in_file: asm_inst_3hr
+  shortname: PHIS
+  ndims_out: 2
+  out_units: km
+  nan_fill: False

@@ -14,5 +14,6 @@ dependencies:
   - pint
   - wget
   - typing
+  - xesmf
   - pip:
     - parse
