@@ -43,6 +43,8 @@ def repair_merra(fileName, process_loc="/ships22/cloud/Ancil_Data/clavrx_ancil_d
     fileName:  full path of the file that needs repairing
     """
     repaired = os.path.join(process_loc, os.path.basename(fileName))
+    if os.path.exists(repaired):
+        return
 
     print(f"Opening {fileName}")
     hdfFile = SD(fileName)
@@ -52,7 +54,23 @@ def repair_merra(fileName, process_loc="/ships22/cloud/Ancil_Data/clavrx_ancil_d
 
     for varname in hdfFile.datasets():
         val = hdfFile.select(varname)
-        if varname in ["rh", "rh at sigma=0.995", "land mask"]:
+        count_pl = 0
+        #if "level" not in hdfFile.datasets():
+        if varname == "level":
+            val = hdfFile.select("pressure levels")  
+            new_data = val[:].astype(np.float32)
+            # create a new var named "level" with 42 levels.
+            val.endaccess()
+            val = hdfFile.create("level", SDC.FLOAT32, (42))
+            dim1 = val.dim(0)
+            dim1.setname("level")
+        elif varname == "pressure levels":
+            new_data = val[:].astype(np.float32)
+            if count_pl >= 1:
+                continue
+            else:
+                count_pl = count_pl + 1
+        elif varname in ["rh", "rh at sigma=0.995", "land mask"]:
             new_data = val[:].astype(np.float32)
         else:
             new_data = None
