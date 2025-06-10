@@ -1,5 +1,5 @@
 # Files needed, Description, SIPS_ID
-# flx_tavg_1hr_glo_C180x180x6_slv,   (Surface flux diagnostics), 
+# flx_tavg_1hr_glo_C180x180x6_slv,   (Surface flux diagnostics), GEOSIT_FLX_T1_C_SLV 
 # asm_inst_1hr_glo_C180x180x6_slv,   (state),                    GEOSIT_ASM_I1_C_SLV 
 # asm_inst_3hr_glo_C180x180x6_v72,   (State on Native Levels),   GEOSIT_ASM_I3_C_V72
 # ocn_tavg_1hr_glo_C180x180x6_slv,   (Ocean Related Variables),  GEOSIT_OCN_T1_C_SLV
@@ -55,13 +55,19 @@ o3mr:
   out_units: kg/kg
   nan_fill: True
 planetary boundary layer height:
-  in_file: flx_tavg_1hr_glo
+  in_file: flx_tavg_1hr
   shortname: PBLH
   ndims_out: 2
   out_units: km
   nan_fill: False
 pressure levels:
-  in_file: MISSING
+  in_file: asm_inst_3hr
+  shortname: lev
+  ndims_out: 1
+  out_units: hPa
+  nan_fill: False
+level:
+  in_file: asm_inst_3hr
   shortname: lev
   ndims_out: 1
   out_units: hPa
@@ -72,21 +78,21 @@ rh:
   ndims_out: 3
   out_units: "%"
   nan_fill: True
-  dependent:  # dependent variables do not apply conversion.
-      masked_temp_k: # this is a support variable which is stored as a masked array to match old code.
+  dependent:
+    masked_temp_k:
       in_file: asm_inst_3hr
-        shortname: T
-        ndims_out: 3
-        nan_fill: True
-        out_units: K
-        unmask: False
-      unit_levels:
-        in_file: MISSING
-        shortname: lev
-        ndims_out: 1
-        out_units: hPa
-        nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
-        unmask: True
+      shortname: T
+      ndims_out: 3
+      nan_fill: True
+      out_units: K
+      unmask: False
+    unit_levels:
+      in_file: asm_inst_3hr
+      shortname: lev
+      ndims_out: 1
+      out_units: hPa
+      nan_fill: True
+      unmask: True
 rh at sigma=0.995:
   in_file: ocn_tavg_1hr
   shortname: QV10M
@@ -109,21 +115,21 @@ rh at sigma=0.995:
       out_units: K
       unmask: False
     unit_levels:
-      in_file: MISSING   # needs grid conversion
+      in_file: asm_inst_3hr
       shortname: lev
       ndims_out: 1
       out_units: hPa
       nan_fill: True # need to update fill value and this shouldn't have missing values anyway.
       unmask: True
 surface pressure:
-  in_file: lnd_tavg_1hr
+  in_file: asm_inst_1hr
   shortname: PS
   ndims_out: 2
   out_units: hPa
   nan_fill: False
 surface temperature:
   in_file: lnd_tavg_1hr
-  shortname: Need to find documentation for this specfically   # TPSNOW, TSURF, TSAT, TUNST, TWLT
+  shortname: TSURF   # TPSNOW, TSURF, TSAT, TUNST, TWLT
   ndims_out: 2
   out_units: K
   nan_fill: False
@@ -207,7 +213,7 @@ v-wind at sigma=0.995:
   nan_fill: False
 water equivalent snow depth:
   in_file: lnd_tavg_1hr
-  shortname: SNOWMAS    # Total snow storage land in kg/m2
+  shortname: SNOMAS    # Total snow storage land in kg/m2
   ndims_out: 2
   out_units: kg m-2
   nan_fill: False
@@ -215,7 +221,7 @@ land mask:
   in_file: ocn_tavg_1hr
   shortname: FRLAND  
   ndims_out: 2
-  out_units: 1=land, 0=ocean, greenland and antarctica are land   # TODO: Find documentation for 5.29 specifically to make sure this is the same
+  out_units: 1=land, 0=ocean, greenland and antarctica are land
   nan_fill: False
 surface height:  # geopotential height (DISPH in asm_inst_1hr is zero plane displacement height in m)
   in_file: asm_inst_3hr

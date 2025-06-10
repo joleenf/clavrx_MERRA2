@@ -118,7 +118,11 @@ def make_one_hour(in_files, out_dir):
 
 def main(in_data_dir, final_dir, data_dt: str, run_hour: str):
     """Construct filepaths, collections and run one run."""
-    date_parsed = datetime.datetime.strptime(f"{data_dt}_{run_hour}", '%Y%m%d_%H')
+    try:
+        date_parsed = datetime.datetime.strptime(f"{data_dt}_{run_hour}", '%Y%m%d_%H')
+    except ValueError as e:
+        msg = (f"{e}: \n  Run {sys.argv[0]} -h")
+        raise ValueError(e)
     in_data_dir, out_path_full = construct_filepath(in_data_dir, final_dir, date_parsed)
     in_files = get_input_files(in_data_dir, date_parsed)
 

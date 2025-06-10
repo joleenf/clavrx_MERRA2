@@ -58,6 +58,12 @@ pressure levels:
   ndims_out: 1
   out_units: hPa
   nan_fill: False
+level:
+  in_file: asm3d
+  shortname: lev
+  ndims_out: 1
+  out_units: hPa
+  nan_fill: False
 rh:
   in_file: asm3d
   shortname: QV
